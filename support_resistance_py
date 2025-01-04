@@ -1,0 +1,47 @@
+import numpy as np
+import pandas as pd
+import yfinance as yf
+import plotly.graph_objects as go
+
+# Step 1: Fetch Historical Data
+symbol = 'PYPL'
+data = yf.download(symbol, start='2020-01-01', end='2024-01-01')
+data['Returns'] = data['Close'].pct_change()
+
+# Step 2: Identify Support and Resistance Levels
+look_back = 20  # Number of days to look back for support/resistance
+data['Support'] = data['Low'].rolling(window=look_back).min()
+data['Resistance'] = data['High'].rolling(window=look_back).max()
+
+# Step 3: Create Trading Signals
+data['Signal'] = 0
+data['Signal'][look_back:] = np.where(data['Close'][look_back:] < data['Support'][look_back:], 1, 0)  # Buy Signal
+data['Signal'][look_back:] = np.where(data['Close'][look_back:] > data['Resistance'][look_back:], -1, data['Signal'][look_back:])  # Sell Signal
+
+# Step 4: Backtest the Strategy
+data['Position'] = data['Signal'].shift()
+data['Strategy_Returns'] = data['Position'] * data['Returns']
+cumulative_strategy_returns = (1 + data['Strategy_Returns']).cumprod()
+
+# Step 5: Create an Interactive Plot with Plotly
+fig = go.Figure()
+
+# Add stock price line
+fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='PYPL Price', line=dict(color='blue', width=2)))
+
+# Add cumulative strategy returns line
+fig.add_trace(go.Scatter(x=data.index, y=cumulative_strategy_returns, mode='lines', name='Strategy Cumulative Returns', line=dict(color='orange', width=2)))
+
+# Add support and resistance levels
+fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support Level', line=dict(color='green', dash='dash')))
+fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance Level', line=dict(color='red', dash='dash')))
+
+# Update layout
+fig.update_layout(title=f'Backtest of Support and Resistance Strategy for {symbol}',
+                  xaxis_title='Date',
+                  yaxis_title='Price',
+                  template='plotly_white',
+                  hovermode='x unified')
+
+# Show the plot
+fig.show()

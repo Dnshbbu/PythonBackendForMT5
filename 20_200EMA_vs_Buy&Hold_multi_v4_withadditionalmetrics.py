@@ -1,0 +1,423 @@
+import pandas as pd
+import numpy as np
+import yfinance as yf
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import warnings
+
+# Suppress SettingWithCopyWarning and FutureWarning
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
+
+# Parameters
+TICKERS = ['AVGO', 'SNAP', 'HUM', 'ANTX']  # Updated list of stock ticker symbols
+START_DATE = '2010-01-01'  # Start date for historical data
+END_DATE = '2023-10-31'    # End date for historical data
+
+SHORT_EMA = 20             # Short-term EMA period
+LONG_EMA = 200             # Long-term EMA period
+
+INITIAL_CAPITAL = 100000   # Starting capital in USD per symbol
+RISK_FREE_RATE = 0.00      # Risk-free rate for Sharpe Ratio (can be adjusted as needed)
+
+# Function Definitions
+
+def fetch_data(ticker, start, end):
+    """
+    Fetch historical stock data for a given ticker.
+    """
+    try:
+        df = yf.download(ticker, start=start, end=end)
+        if df.empty:
+            print(f"Warning: No data fetched for ticker '{ticker}'. Please check the ticker symbol and date range.")
+            return None
+        df.dropna(inplace=True)
+        return df
+    except Exception as e:
+        print(f"Error fetching data for ticker '{ticker}': {e}")
+        return None
+
+def calculate_emas(df, short_period, long_period):
+    """
+    Calculate short-term and long-term EMAs.
+    """
+    df['EMA_Short'] = df['Close'].ewm(span=short_period, adjust=False).mean()
+    df['EMA_Long'] = df['Close'].ewm(span=long_period, adjust=False).mean()
+    return df
+
+def generate_signals(df, short_period, long_period):
+    """
+    Generate buy/sell signals based on EMA crossovers.
+    """
+    df['Signal'] = 0
+    # Use iloc for position-based slicing
+    df['Signal'].iloc[short_period:] = np.where(
+        df['EMA_Short'].iloc[short_period:] > df['EMA_Long'].iloc[short_period:], 1, 0
+    )
+    df['Position'] = df['Signal'].diff()
+    return df
+
+def backtest_strategy(df, initial_capital):
+    """
+    Backtest the EMA crossover strategy.
+    """
+    positions = pd.DataFrame(index=df.index).fillna(0.0)
+    positions['Position'] = df['Signal']  # 1 for holding the stock, 0 for not
+
+    # Calculate daily returns
+    df['Market Return'] = df['Close'].pct_change()
+    df['Strategy Return'] = df['Market Return'] * positions['Position'].shift(1)
+
+    # Calculate cumulative returns
+    df['Cumulative Market Return'] = (1 + df['Market Return']).cumprod() * initial_capital
+    df['Cumulative Strategy Return'] = (1 + df['Strategy Return']).cumprod() * initial_capital
+
+    return df
+
+def calculate_max_drawdown(series):
+    """
+    Calculate the Maximum Drawdown of a cumulative return series.
+    """
+    rolling_max = series.cummax()
+    drawdown = (series - rolling_max) / rolling_max
+    max_drawdown = drawdown.min()
+    return max_drawdown * 100  # Expressed as a percentage
+
+def calculate_sharpe_ratio(strategy_returns, risk_free_rate=0.00):
+    """
+    Calculate the Sharpe Ratio of the strategy.
+    """
+    excess_returns = strategy_returns - risk_free_rate / 252  # Assuming daily returns
+    sharpe_ratio = excess_returns.mean() / excess_returns.std() * np.sqrt(252)  # Annualized Sharpe Ratio
+    return sharpe_ratio
+
+def calculate_trade_performance(df):
+    """
+    Calculate Win Rate and Average Profit/Loss per Trade.
+    """
+    trades = []
+    position = None
+    entry_price = 0.0
+
+    for date, row in df.iterrows():
+        if row['Position'] == 1:
+            # Buy signal
+            if position != 'long':
+                position = 'long'
+                entry_price = row['Close']
+        elif row['Position'] == -1:
+            # Sell signal
+            if position == 'long':
+                position = None
+                exit_price = row['Close']
+                profit = exit_price - entry_price
+                trades.append(profit)
+
+    # Handle open position at the end
+    if position == 'long':
+        exit_price = df['Close'].iloc[-1]
+        profit = exit_price - entry_price
+        trades.append(profit)
+
+    if len(trades) == 0:
+        win_rate = np.nan
+        avg_profit = np.nan
+    else:
+        wins = [trade for trade in trades if trade > 0]
+        win_rate = len(wins) / len(trades) * 100  # Expressed as a percentage
+        avg_profit = np.mean(trades)
+
+    return win_rate, avg_profit, len(trades)
+
+def plot_results(df, ticker, short_period, long_period):
+    """
+    Plot interactive charts for a given ticker.
+    """
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                        vertical_spacing=0.03,
+                        subplot_titles=(f'{ticker} Price with Buy/Sell Signals',
+                                        'Strategy vs Buy and Hold Performance'),
+                        row_width=[0.2, 0.7])
+
+    # Price chart with EMAs and buy/sell signals
+    fig.add_trace(
+        go.Candlestick(x=df.index,
+                       open=df['Open'],
+                       high=df['High'],
+                       low=df['Low'],
+                       close=df['Close'],
+                       name='Candlestick'),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['EMA_Short'], line=dict(color='blue', width=1), name=f'{short_period}-Day EMA'),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['EMA_Long'], line=dict(color='red', width=1), name=f'{long_period}-Day EMA'),
+        row=1, col=1
+    )
+
+    # Buy signals
+    buy_signals = df[df['Position'] == 1]
+    fig.add_trace(
+        go.Scatter(
+            x=buy_signals.index,
+            y=buy_signals['Close'],
+            mode='markers',
+            marker=dict(symbol='triangle-up', color='green', size=10),
+            name='Buy Signal'
+        ),
+        row=1, col=1
+    )
+
+    # Sell signals
+    sell_signals = df[df['Position'] == -1]
+    fig.add_trace(
+        go.Scatter(
+            x=sell_signals.index,
+            y=sell_signals['Close'],
+            mode='markers',
+            marker=dict(symbol='triangle-down', color='red', size=10),
+            name='Sell Signal'
+        ),
+        row=1, col=1
+    )
+
+    # Performance chart
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['Cumulative Strategy Return'],
+            line=dict(color='blue', width=2),
+            name='Strategy Return'
+        ),
+        row=2, col=1
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df.index,
+            y=df['Cumulative Market Return'],
+            line=dict(color='orange', width=2),
+            name='Buy and Hold Return'
+        ),
+        row=2, col=1
+    )
+
+    fig.update_layout(
+        title=f'Backtesting Strategy: {short_period}-Day EMA Crossing {long_period}-Day EMA for {ticker}',
+        yaxis_title='Price (USD)',
+        xaxis_title='Date',
+        legend=dict(x=0, y=1.2, orientation='h'),
+        hovermode='x unified',
+        height=800
+    )
+
+    fig.show()
+
+def main():
+    """
+    Main function to execute the backtesting strategy for multiple tickers.
+    """
+    # Initialize dictionaries to store results
+    final_values = {}
+    strategy_returns = {}
+    buy_hold_returns = {}
+    trade_counts = {}  # To store buy and sell counts per ticker
+    max_drawdowns = {}
+    sharpe_ratios = {}
+    win_rates = {}
+    avg_profits = {}
+    num_trades = {}
+
+    # Initialize counters for total buys and sells
+    total_buys = 0
+    total_sells = 0
+
+    # Initialize a DataFrame to store combined portfolio returns
+    combined_strategy = None
+    combined_buy_hold = None
+
+    for ticker in TICKERS:
+        print(f"\nProcessing ticker: {ticker}")
+
+        # Step 1: Fetch data
+        df = fetch_data(ticker, START_DATE, END_DATE)
+        if df is None:
+            continue  # Skip to next ticker if data is not fetched
+
+        # Step 2: Calculate EMAs
+        df = calculate_emas(df, SHORT_EMA, LONG_EMA)
+
+        # Step 3: Generate signals
+        df = generate_signals(df, SHORT_EMA, LONG_EMA)
+
+        # Step 4: Backtest strategy
+        df = backtest_strategy(df, INITIAL_CAPITAL)
+
+        # Step 5: Count buy and sell signals
+        buy_trades = df['Position'].value_counts().get(1, 0)
+        sell_trades = df['Position'].value_counts().get(-1, 0)
+        trade_counts[ticker] = {
+            'Buy Trades': buy_trades,
+            'Sell Trades': sell_trades
+        }
+        total_buys += buy_trades
+        total_sells += sell_trades
+
+        # Step 6: Calculate additional metrics
+        # Maximum Drawdown
+        mdd = calculate_max_drawdown(df['Cumulative Strategy Return'])
+        max_drawdowns[ticker] = mdd
+
+        # Sharpe Ratio
+        sharpe = calculate_sharpe_ratio(df['Strategy Return'], RISK_FREE_RATE)
+        sharpe_ratios[ticker] = sharpe
+
+        # Win Rate and Average Profit/Loss per Trade
+        win_rate, avg_profit, num_trade = calculate_trade_performance(df)
+        win_rates[ticker] = win_rate
+        avg_profits[ticker] = avg_profit
+        num_trades[ticker] = num_trade
+
+        # Step 7: Store starting and final prices
+        starting_price = df['Close'].iloc[0]
+        final_price = df['Close'].iloc[-1]
+
+        # Step 8: Store final values
+        final_strategy = df['Cumulative Strategy Return'].iloc[-1]
+        final_buy_hold = df['Cumulative Market Return'].iloc[-1]
+        final_values[ticker] = {
+            'Strategy': final_strategy,
+            'Buy and Hold': final_buy_hold,
+            'Start Price': starting_price,
+            'End Price': final_price
+        }
+        strategy_returns[ticker] = df['Strategy Return'].fillna(0)
+        buy_hold_returns[ticker] = df['Market Return'].fillna(0)
+
+        # Step 9: Plot results
+        plot_results(df, ticker, SHORT_EMA, LONG_EMA)
+
+    # Aggregate Profit/Loss and Trade Counts
+    if strategy_returns and buy_hold_returns:
+        # Combine the returns by summing them (assuming equal allocation)
+        combined_strategy = pd.concat(strategy_returns.values(), axis=1).sum(axis=1)
+        combined_buy_hold = pd.concat(buy_hold_returns.values(), axis=1).sum(axis=1)
+
+        # Calculate cumulative returns
+        combined_initial_capital = INITIAL_CAPITAL * len(strategy_returns)
+        combined_cumulative_strategy = (1 + combined_strategy).cumprod() * combined_initial_capital
+        combined_cumulative_buy_hold = (1 + combined_buy_hold).cumprod() * combined_initial_capital
+
+        # Store combined final values
+        final_values['Combined'] = {
+            'Strategy': combined_cumulative_strategy.iloc[-1],
+            'Buy and Hold': combined_cumulative_buy_hold.iloc[-1],
+            'Start Price': np.nan,  # Not applicable for combined
+            'End Price': np.nan     # Not applicable for combined
+        }
+
+        # Add combined trade counts
+        trade_counts['Combined'] = {
+            'Buy Trades': total_buys,
+            'Sell Trades': total_sells
+        }
+
+        # Calculate combined metrics
+        # Maximum Drawdown
+        combined_mdd = calculate_max_drawdown(combined_cumulative_strategy)
+        max_drawdowns['Combined'] = combined_mdd
+
+        # Sharpe Ratio
+        combined_sharpe = calculate_sharpe_ratio(combined_strategy, RISK_FREE_RATE)
+        sharpe_ratios['Combined'] = combined_sharpe
+
+        # Win Rate and Average Profit/Loss per Trade
+        # For combined, it's complex to aggregate individual trades, so we can set as N/A
+        win_rates['Combined'] = np.nan
+        avg_profits['Combined'] = np.nan
+        num_trades['Combined'] = np.nan
+
+        # Create a summary DataFrame
+        summary_df = pd.DataFrame(final_values).T
+        summary_df = summary_df.rename_axis('Ticker')
+        summary_df = summary_df.reset_index()
+        summary_df = summary_df.rename(columns={'index': 'Ticker'})
+
+        # Create a trade counts DataFrame
+        trade_counts_df = pd.DataFrame(trade_counts).T
+        trade_counts_df = trade_counts_df.rename_axis('Ticker')
+        trade_counts_df = trade_counts_df.reset_index()
+        trade_counts_df = trade_counts_df.rename(columns={'index': 'Ticker'})
+
+        # Create additional metrics DataFrame
+        additional_metrics_df = pd.DataFrame({
+            'Ticker': list(max_drawdowns.keys()),
+            'Max Drawdown (%)': list(max_drawdowns.values()),
+            'Sharpe Ratio': list(sharpe_ratios.values()),
+            'Win Rate (%)': list(win_rates.values()),
+            'Avg Profit/Loss per Trade': list(avg_profits.values()),
+            'Total Trades': list(num_trades.values())
+        })
+
+        # Merge all DataFrames
+        summary_df = summary_df.merge(trade_counts_df, on='Ticker')
+        summary_df = summary_df.merge(additional_metrics_df, on='Ticker')
+
+        # Format the summary DataFrame for better readability
+        summary_df['Strategy'] = summary_df['Strategy'].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Buy and Hold'] = summary_df['Buy and Hold'].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Start Price'] = summary_df['Start Price'].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "N/A")
+        summary_df['End Price'] = summary_df['End Price'].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Max Drawdown (%)'] = summary_df['Max Drawdown (%)'].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Sharpe Ratio'] = summary_df['Sharpe Ratio'].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Win Rate (%)'] = summary_df['Win Rate (%)'].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Avg Profit/Loss per Trade'] = summary_df['Avg Profit/Loss per Trade'].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "N/A")
+        summary_df['Total Trades'] = summary_df['Total Trades'].apply(lambda x: f"{int(x)}" if pd.notnull(x) else "N/A")
+
+        print("\nFinal Portfolio Values, Trade Counts, and Additional Metrics:")
+        print(summary_df.to_string(index=False))
+
+        # Plot Combined Performance
+        fig = make_subplots(rows=1, cols=1, shared_xaxes=True,
+                            subplot_titles=('Combined Strategy vs Buy and Hold Performance',),
+                            row_width=[0.7])
+
+        # Performance chart
+        fig.add_trace(
+            go.Scatter(
+                x=combined_cumulative_strategy.index,
+                y=combined_cumulative_strategy,
+                line=dict(color='blue', width=2),
+                name='Combined Strategy Return'
+            ),
+            row=1, col=1
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=combined_cumulative_buy_hold.index,
+                y=combined_cumulative_buy_hold,
+                line=dict(color='orange', width=2),
+                name='Combined Buy and Hold Return'
+            ),
+            row=1, col=1
+        )
+
+        fig.update_layout(
+            title=f'Combined Backtesting Strategy: {SHORT_EMA}-Day EMA Crossing {LONG_EMA}-Day EMA',
+            yaxis_title='Cumulative Return (USD)',
+            xaxis_title='Date',
+            legend=dict(x=0, y=1.2, orientation='h'),
+            hovermode='x unified',
+            height=600
+        )
+
+        fig.show()
+
+        # Display the summary table
+        print("\nSummary of Final Portfolio Values, Trade Counts, and Additional Metrics:")
+        print(summary_df.to_string(index=False))
+
+    if __name__ == "__main__":
+        main()

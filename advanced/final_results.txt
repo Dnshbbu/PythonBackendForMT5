@@ -1,0 +1,68 @@
+Optimization complete. Best parameters: {'resistance_period': 13, 'volume_multiplier': np.float64(1.0), 'trailing_stop_atr_multiplier': 1.5, 'stop_loss_atr_multiplier': 2.0}, Best return: 0.0014
+Bought on 2023-06-15 at $10.48 with initial stop-loss set at $10.17 and trailing stop set at $10.25
+Updated trailing stop to $10.28 on 2023-06-15
+Updated trailing stop to $10.38 on 2023-06-15
+Updated trailing stop to $10.45 on 2023-06-15
+Immediate Exit: Sold on 2023-06-16 at $10.48 (Bought at: $10.48, Loss: 0.00%)
+Bought on 2023-06-22 at $10.64 with initial stop-loss set at $10.36 and trailing stop set at $10.43
+Immediate Exit: Sold on 2023-06-23 at $10.64 (Bought at: $10.64, Loss: 0.00%)
+Bought on 2023-06-23 at $10.85 with initial stop-loss set at $10.50 and trailing stop set at $10.59
+Immediate Exit: Sold on 2023-06-23 at $10.85 (Bought at: $10.85, Loss: 0.00%)
+Bought on 2023-06-23 at $11.13 with initial stop-loss set at $10.76 and trailing stop set at $10.85
+Immediate Exit: Sold on 2023-06-23 at $11.13 (Bought at: $11.13, Loss: 0.00%)
+Bought on 2023-06-26 at $11.17 with initial stop-loss set at $10.76 and trailing stop set at $10.86
+Updated trailing stop to $10.96 on 2023-06-26
+Updated trailing stop to $11.01 on 2023-06-26
+Updated trailing stop to $11.10 on 2023-06-27
+Updated trailing stop to $11.17 on 2023-06-27
+Updated trailing stop to $11.26 on 2023-06-27
+Updated trailing stop to $11.28 on 2023-06-27
+Updated trailing stop to $11.35 on 2023-06-27
+Updated trailing stop to $11.37 on 2023-06-27
+Updated trailing stop to $11.41 on 2023-06-28
+Updated trailing stop to $11.44 on 2023-06-28
+Updated trailing stop to $11.44 on 2023-06-29
+Updated trailing stop to $11.48 on 2023-06-29
+Updated trailing stop to $11.52 on 2023-06-29
+Updated trailing stop to $11.77 on 2023-06-30
+Updated trailing stop to $12.05 on 2023-07-05
+Trailing Stop: Sold on 2023-07-06 at $11.81 (Trailing Stop: $12.05, Gain: 5.74%)
+Bought on 2023-07-11 at $12.31 with initial stop-loss set at $11.99 and trailing stop set at $12.07
+Updated trailing stop to $12.36 on 2023-07-11
+Updated trailing stop to $12.55 on 2023-07-11
+Updated trailing stop to $12.75 on 2023-07-11
+Updated trailing stop to $12.83 on 2023-07-12
+Updated trailing stop to $12.92 on 2023-07-12
+Updated trailing stop to $13.01 on 2023-07-12
+Updated trailing stop to $13.06 on 2023-07-12
+Updated trailing stop to $13.35 on 2023-07-13
+Updated trailing stop to $13.38 on 2023-07-13
+Updated trailing stop to $13.41 on 2023-07-13
+Trailing Stop: Sold on 2023-07-14 at $13.36 (Trailing Stop: $13.41, Gain: 8.47%)
+Buy and Hold Strategy: 12.14%
+Improved Breakout Strategy: 0.14%
+Outperformance: -12.00%
+
+Failures:
+No failures recorded.
+
+Stop-Loss Exits:
+No stop-loss exits recorded.
+
+Trailing Stop Exits:
+         Date   Price  Trailing Stop   Exit Date  Exit Price  Gain (%)
+0  2023-06-26  11.169      12.050439  2023-07-06     11.8101  5.739994
+1  2023-07-11  12.315      13.410033  2023-07-14     13.3584  8.472601
+
+Immediate Exits:
+         Date    Price   Exit Date  Exit Price  Loss (%)
+0  2023-06-15  10.4764  2023-06-16     10.4764       0.0
+1  2023-06-22  10.6400  2023-06-23     10.6400       0.0
+2  2023-06-23  10.8500  2023-06-23     10.8500       0.0
+3  2023-06-23  11.1300  2023-06-23     11.1300       0.0
+
+Visualization saved as 'breakouts_trailing_stops_immediate_exits.html'.
+
+Strategy identified 6 breakouts, 0 stop-loss exits, 2 trailing stop exits, and 4 immediate exits.
+Success rate (Trailing Stops): 33.33%
+Returns distribution histogram saved as 'returns_distribution.html'.

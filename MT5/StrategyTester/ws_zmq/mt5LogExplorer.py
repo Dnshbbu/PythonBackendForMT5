@@ -81,10 +81,120 @@ def display_results(results):
     # Use custom CSS to make the content wider and fix sidebar spacing
     st.markdown("""
         <style>
+        <style>
+        /* Reset and base styles */
+        .stApp {
+            overflow: auto !important;
+        }
+
+        /* Ensure main content container has proper overflow */
+        .main .block-container {
+            padding: 5rem 1rem 1rem !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Sidebar styling with lower z-index */
+        [data-testid="stSidebar"] {
+            height: 100vh !important;
+            width: 24rem !important;
+            position: fixed !important;
+            overflow: auto !important;
+            z-index: 99 !important;
+        }
+
+        /* Adjust header area z-index */
+        .stApp > header {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 40px !important;
+            background-color: transparent !important;
+            z-index: 100 !important;
+            pointer-events: none !important;
+        }
+
+        /* Make header buttons clickable */
+        .stApp > header button,
+        .stApp > header a,
+        [data-testid="stToolbar"],
+        button[kind="header"] {
+            pointer-events: auto !important;
+        }
+
+        /* Settings menu and toolbar */
+        [data-testid="stToolbar"] {
+            position: fixed !important;
+            top: 0 !important;
+            right: 1rem !important;
+            height: 40px !important;
+            padding-right: 1rem !important;
+            z-index: 101 !important;
+        }
+
+        /* Ensure scrollbar is always accessible */
+        ::-webkit-scrollbar {
+            width: 12px !important;
+            height: 12px !important;
+            position: absolute !important;
+            z-index: 102 !important;
+            pointer-events: auto !important;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1 !important;
+            border-radius: 6px !important;
+            margin: 2px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #888 !important;
+            border-radius: 6px !important;
+            border: 2px solid #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555 !important;
+        }
+
+        /* Firefox scrollbar */
+        * {
+            scrollbar-width: thin !important;
+            scrollbar-color: #888 #f1f1f1 !important;
+        }
+
+        /* Create clickthrough zone for scrollbar */
+        .main::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 100vh;
+            z-index: 98;
+            pointer-events: auto !important;
+        }
+
+        /* Ensure header buttons remain clickable */
+        button[kind="header"] {
+            position: relative !important;
+            z-index: 102 !important;
+        }
+
         [data-testid="collapsedControl"] {
-            display: none;
+            display: block !important;
+            position: fixed !important;
+            top: 0.5rem !important;
+            left: 1rem !important;
+            z-index: 102 !important;
         }
         
+        /* Sidebar configuration */
         section[data-testid="stSidebar"][aria-expanded="false"] {
             margin-left: -24rem;
         }
@@ -98,17 +208,53 @@ def display_results(results):
             min-width: 24rem !important;
         }
         
+        /* Main container */
         .block-container {
             padding-top: 3rem !important;
             position: relative;
             z-index: 1;
+            overflow: auto !important;
         }
         
-        .stApp > header {
-            background-color: transparent;
-            z-index: 0 !important;
+        /* Make sure all containers allow scrolling */
+        .element-container {
+            overflow: visible !important;
         }
         
+        .main .block-container {
+            overflow: auto !important;
+        }
+        
+        /* Explicitly show scrollbars */
+        ::-webkit-scrollbar {
+            width: 10px !important;
+            height: 10px !important;
+            display: block !important;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1 !important;
+            border-radius: 4px !important;
+            display: block !important;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #888 !important;
+            border-radius: 4px !important;
+            display: block !important;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555 !important;
+        }
+        
+        /* Ensure Firefox shows scrollbars */
+        * {
+            scrollbar-width: thin !important;
+            scrollbar-color: #888 #f1f1f1 !important;
+        }
+        
+        /* Code block styling */
         .stCodeBlock {
             position: relative;
             z-index: 1;
@@ -136,27 +282,47 @@ def display_results(results):
             position: relative;
             z-index: 1;
         }
+
+        /* Main container scrollbar */
+        .main .block-container {
+            overflow-y: auto;
+            max-height: 100vh;
+        }
         
+        /* Scrollbar styling */
         ::-webkit-scrollbar {
-            width: 10px;
-            height: 10px;
-            background: transparent;
-            position: absolute;
-            z-index: 2;
+            width: 14px;
+            height: 14px;
+            background-color: transparent;
+            z-index: 999;
         }
         
         ::-webkit-scrollbar-track {
-            background: #1E1E1E;
-            border-radius: 5px;
+            background: #f0f0f0;
+            border-radius: 7px;
+            margin: 2px;
         }
         
         ::-webkit-scrollbar-thumb {
-            background: #555;
-            border-radius: 5px;
+            background: #cdcdcd;
+            border-radius: 7px;
+            border: 3px solid #f0f0f0;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: #777;
+            background: #a8a8a8;
+        }
+        
+        /* Ensure scrollbars are always visible and interactive */
+        .element-container, .stMarkdown, 
+        div[data-testid="stExpander"] {
+            overflow: visible !important;
+        }
+        
+        /* Make code blocks scrollable */
+        .stCodeBlock > div {
+            max-height: 400px;
+            overflow-y: auto !important;
         }
         </style>
     """, unsafe_allow_html=True)

@@ -1,235 +1,298 @@
-# ml_analysis_page.py
+"""
+ml_analysis_page.py - Machine Learning Analysis Page Implementation
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
+from datetime import datetime
 import os
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score, mean_squared_error
+from typing import Dict, List, Tuple, Optional, Any
 
-def run_clustering(df, algorithm, params=None):
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    r2_score, mean_squared_error, accuracy_score, 
+    precision_score, recall_score, f1_score
+)
+
+# Model imports
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.svm import SVR
+
+import plotly.express as px
+import plotly.graph_objects as go
+from model_manager import ModelManager, create_model_info
+
+def initialize_session_state():
+    """Initialize session state variables"""
+    if 'model' not in st.session_state:
+        st.session_state.model = None
+    if 'scaler' not in st.session_state:
+        st.session_state.scaler = None
+    if 'features' not in st.session_state:
+        st.session_state.features = None
+    if 'target' not in st.session_state:
+        st.session_state.target = None
+    if 'metrics' not in st.session_state:
+        st.session_state.metrics = None
+
+def run_regression(
+    data: pd.DataFrame,
+    target_col: str,
+    algorithm: str,
+    params: Dict
+) -> Tuple[Dict[str, float], pd.DataFrame, Any, Any, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Run clustering algorithms on the provided DataFrame.
+    Run regression analysis with specified algorithm
     
     Args:
-        df: pandas DataFrame
-        algorithm: str, name of the clustering algorithm
-        params: dict, algorithm parameters (optional)
+        data: Input DataFrame
+        target_col: Target variable name
+        algorithm: Algorithm name
+        params: Algorithm parameters
+        
+    Returns:
+        Tuple containing metrics, feature importance, model, scaler, and predictions
     """
-    # Prepare the data
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    if len(numeric_cols) == 0:
-        return None, "No numeric columns found in the dataset"
+    # Prepare data
+    X = data.drop(target_col, axis=1)
+    y = data[target_col]
     
-    X = df[numeric_cols]
+    # Scale features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
+    X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
     
-    # Initialize the algorithm
-    if params is None:
-        params = {}
-        
-    try:
-        if algorithm == "kmeans":
-            model = KMeans(n_clusters=params.get("n_clusters", 3), random_state=42)
-        elif algorithm == "dbscan":
-            model = DBSCAN(eps=params.get("eps", 0.5), min_samples=params.get("min_samples", 5))
-        elif algorithm == "hierarchical":
-            model = AgglomerativeClustering(n_clusters=params.get("n_clusters", 3))
-        else:
-            return None, f"Unknown algorithm: {algorithm}"
-            
-        # Fit the model
-        labels = model.fit_predict(X_scaled)
-        
-        # Add cluster labels to the original dataframe
-        result_df = df.copy()
-        result_df['Cluster'] = labels
-        
-        # Calculate basic statistics
-        stats = {
-            'n_clusters': len(np.unique(labels)),
-            'cluster_sizes': pd.Series(labels).value_counts().to_dict()
-        }
-        
-        return result_df, stats
-        
-    except Exception as e:
-        return None, str(e)
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_scaled_df, y, test_size=0.2, random_state=42
+    )
+    
+    # Initialize model
+    if algorithm == "linear":
+        model = LinearRegression()
+    elif algorithm == "ridge":
+        model = Ridge(alpha=params.get('alpha', 1.0))
+    elif algorithm == "lasso":
+        model = Lasso(alpha=params.get('alpha', 1.0))
+    elif algorithm == "random_forest":
+        model = RandomForestRegressor(
+            n_estimators=params.get('n_estimators', 100),
+            random_state=42
+        )
+    elif algorithm == "gradient_boosting":
+        model = GradientBoostingRegressor(
+            n_estimators=params.get('n_estimators', 100),
+            random_state=42
+        )
+    else:
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
+    
+    # Train model and predict
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    
+    # Calculate metrics
+    metrics = {
+        'r2_score': r2_score(y_test, y_pred),
+        'mse': mean_squared_error(y_test, y_pred),
+        'rmse': np.sqrt(mean_squared_error(y_test, y_pred))
+    }
+    
+    # Get feature importance
+    if hasattr(model, 'feature_importances_'):
+        importance = model.feature_importances_
+    elif hasattr(model, 'coef_'):
+        importance = np.abs(model.coef_)
+    else:
+        importance = np.zeros(X.shape[1])
+    
+    feature_importance = pd.DataFrame({
+        'feature': X.columns,
+        'importance': importance
+    }).sort_values('importance', ascending=False)
+    
+    return metrics, feature_importance, model, scaler, X_test, y_test, y_pred
 
-def run_regression(df, algorithm, target_column, params=None):
+def plot_results(X_test: np.ndarray, y_test: np.ndarray, y_pred: np.ndarray, target_col: str):
+    """Plot regression results"""
+    fig = go.Figure()
+    
+    # Actual values
+    fig.add_trace(go.Scatter(
+        x=np.arange(len(y_test)),
+        y=y_test,
+        mode='lines',
+        name='Actual',
+        line=dict(color='blue')
+    ))
+    
+    # Predicted values
+    fig.add_trace(go.Scatter(
+        x=np.arange(len(y_pred)),
+        y=y_pred,
+        mode='lines',
+        name='Predicted',
+        line=dict(color='red')
+    ))
+    
+    fig.update_layout(
+        title=f'Actual vs Predicted {target_col}',
+        xaxis_title='Sample Index',
+        yaxis_title='Value',
+        showlegend=True
+    )
+    
+    st.plotly_chart(fig)
+
+def save_trained_model() -> Tuple[bool, str]:
     """
-    Run regression algorithms on the provided DataFrame.
+    Save the trained model
     
-    Args:
-        df: pandas DataFrame
-        algorithm: str, name of the regression algorithm
-        target_column: str, name of the target column
-        params: dict, algorithm parameters (optional)
+    Returns:
+        Tuple[bool, str]: Success status and message
     """
-    if target_column not in df.columns:
-        return None, f"Target column '{target_column}' not found in dataset"
-    
-    # Prepare the data
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    numeric_cols = numeric_cols[numeric_cols != target_column]
-    
-    if len(numeric_cols) == 0:
-        return None, "No numeric features found in the dataset"
-    
-    X = df[numeric_cols]
-    y = df[target_column]
-    
-    # Split the data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Scale the features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Initialize the algorithm
-    if params is None:
-        params = {}
-        
     try:
-        if algorithm == "linear":
-            model = LinearRegression()
-        elif algorithm == "ridge":
-            model = Ridge(alpha=params.get("alpha", 1.0))
-        elif algorithm == "lasso":
-            model = Lasso(alpha=params.get("alpha", 1.0))
-        else:
-            return None, f"Unknown algorithm: {algorithm}"
-            
-        # Fit and predict
-        model.fit(X_train_scaled, y_train)
-        y_pred = model.predict(X_test_scaled)
+        if not st.session_state.model:
+            return False, "No trained model found. Please run analysis first."
         
-        # Calculate metrics
-        metrics = {
-            'r2_score': r2_score(y_test, y_pred),
-            'mse': mean_squared_error(y_test, y_pred),
-            'rmse': np.sqrt(mean_squared_error(y_test, y_pred))
-        }
+        model_manager = ModelManager()
         
-        # Feature importance (coefficients)
-        feature_importance = pd.DataFrame({
-            'feature': numeric_cols,
-            'importance': np.abs(model.coef_)
-        }).sort_values('importance', ascending=False)
+        # Create model info
+        model_name = f"{st.session_state.algorithm}_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        model_info = create_model_info(
+            name=model_name,
+            model_type="regression",
+            algorithm=st.session_state.algorithm,
+            features=st.session_state.features,
+            target=st.session_state.target,
+            metrics=st.session_state.metrics
+        )
         
-        return metrics, feature_importance
+        # Save model
+        model_dir = model_manager.save_model(
+            st.session_state.model,
+            st.session_state.scaler,
+            model_info
+        )
+        
+        return True, f"Model saved successfully to {model_dir}"
         
     except Exception as e:
-        return None, str(e)
+        return False, f"Error saving model: {str(e)}"
 
 def sklearn_page():
-    """Scikit-learn page implementation"""
+    """Main ML analysis page implementation"""
     st.title("ML Analysis with Scikit-learn")
+    
+    # Initialize session state
+    initialize_session_state()
     
     # File upload
     file_path = st.text_input("Enter the path to your CSV file:", value="")
     
-    if not file_path:
-        st.info("Please enter a file path to proceed")
-        return
-        
-    if not os.path.exists(file_path):
-        st.error(f"File not found: {file_path}")
+    if not file_path or not os.path.exists(file_path):
+        st.error("Please provide a valid file path")
         return
     
     try:
+        # Load and display data
         df = pd.read_csv(file_path)
         st.write("Dataset Preview:")
         st.dataframe(df.head())
         
-        # Algorithm selection
-        analysis_type = st.radio(
-            "Select Analysis Type",
-            ["Clustering", "Regression"]
-        )
+        # Feature selection
+        col1, col2 = st.columns(2)
         
-        if analysis_type == "Clustering":
-            algorithm = st.selectbox(
-                "Select Clustering Algorithm",
-                ["kmeans", "dbscan", "hierarchical"]
-            )
-            
-            # Algorithm-specific parameters
-            params = {}
-            if algorithm in ["kmeans", "hierarchical"]:
-                params["n_clusters"] = st.slider("Number of Clusters", 2, 10, 3)
-            elif algorithm == "dbscan":
-                params["eps"] = st.slider("Epsilon", 0.1, 2.0, 0.5)
-                params["min_samples"] = st.slider("Min Samples", 2, 10, 5)
-            
-            if st.button("Run Clustering Analysis", type="primary"):
-                with st.spinner("Running clustering analysis..."):
-                    result_df, stats = run_clustering(df, algorithm, params)
-                    
-                    if isinstance(stats, str):  # Error message
-                        st.error(stats)
-                    else:
-                        st.success("Clustering completed!")
-                        
-                        # Display results
-                        st.subheader("Clustering Results")
-                        st.write("Statistics:", stats)
-                        
-                        st.subheader("Clustered Data")
-                        st.dataframe(result_df)
-                        
-                        # Download results
-                        csv = result_df.to_csv(index=False)
-                        st.download_button(
-                            label="Download Results as CSV",
-                            data=csv,
-                            file_name="clustering_results.csv",
-                            mime="text/csv"
-                        )
+        with col1:
+            st.subheader("Available Features")
+            available_features = list(df.columns)
+            selected_features = st.multiselect("Select Features", available_features)
         
-        elif analysis_type == "Regression":
-            # Select target variable
-            numeric_cols = df.select_dtypes(include=[np.number]).columns
-            target_column = st.selectbox("Select Target Variable", numeric_cols)
+        with col2:
+            st.subheader("Algorithm Configuration")
+            target_col = st.selectbox(
+                "Select Target Variable",
+                selected_features
+            ) if selected_features else None
             
             algorithm = st.selectbox(
                 "Select Regression Algorithm",
-                ["linear", "ridge", "lasso"]
+                ["linear", "ridge", "lasso", "random_forest", "gradient_boosting"]
             )
             
-            # Algorithm-specific parameters
+            # Algorithm parameters
             params = {}
             if algorithm in ["ridge", "lasso"]:
-                params["alpha"] = st.slider("Alpha (Regularization Strength)", 0.0, 10.0, 1.0)
-            
-            if st.button("Run Regression Analysis", type="primary"):
-                with st.spinner("Running regression analysis..."):
-                    metrics, feature_importance = run_regression(df, algorithm, target_column, params)
-                    
-                    if isinstance(metrics, str):  # Error message
-                        st.error(metrics)
-                    else:
-                        st.success("Regression analysis completed!")
+                params['alpha'] = st.slider(
+                    "Alpha",
+                    0.0, 1.0, 0.1
+                )
+            elif algorithm in ["random_forest", "gradient_boosting"]:
+                params['n_estimators'] = st.slider(
+                    "Number of Estimators",
+                    10, 500, 100
+                )
+        
+        if selected_features and target_col:
+            if st.button("Run Analysis", type="primary"):
+                with st.spinner("Processing data..."):
+                    try:
+                        # Run regression
+                        metrics, feature_importance, model, scaler, X_test, y_test, y_pred = run_regression(
+                            df[selected_features], target_col, algorithm, params
+                        )
+                        
+                        # Store in session state
+                        st.session_state.model = model
+                        st.session_state.scaler = scaler
+                        st.session_state.features = selected_features
+                        st.session_state.target = target_col
+                        st.session_state.metrics = metrics
+                        st.session_state.algorithm = algorithm
                         
                         # Display results
-                        st.subheader("Regression Metrics")
-                        st.write(metrics)
+                        st.subheader("Regression Results")
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("R² Score", f"{metrics['r2_score']:.3f}")
+                        col2.metric("MSE", f"{metrics['mse']:.3f}")
+                        col3.metric("RMSE", f"{metrics['rmse']:.3f}")
                         
                         st.subheader("Feature Importance")
                         st.dataframe(feature_importance)
                         
-                        # Download results
-                        csv = feature_importance.to_csv(index=False)
-                        st.download_button(
-                            label="Download Feature Importance as CSV",
-                            data=csv,
-                            file_name="regression_results.csv",
-                            mime="text/csv"
-                        )
+                        # Plot results
+                        plot_results(X_test, y_test, y_pred, target_col)
+                        
+                        # # Add save model button
+                        # if st.button("Save Model"):
+                        #     success, message = save_trained_model()
+                        #     if success:
+                        #         st.success(message)
+                        #     else:
+                        #         st.error(message)
+
+
+                        # Add save model button
+                        st.write("Debug - About to show save button")
+                        if st.button("Save Model"):
+                            st.write("Debug - Save button clicked")
+                            success, message = save_trained_model()
+                            st.write(f"Debug - Save result: {success}")
+                            if success:
+                                st.success(message)
+                            else:
+                                st.error(message)        
                     
+                    except Exception as e:
+                        st.error(f"Error in analysis: {str(e)}")
+        
+        else:
+            st.warning("Please select features and a target variable to proceed")
+    
     except Exception as e:
-        st.error(f"Error reading or processing file: {str(e)}")
+        st.error(f"Error reading file: {str(e)}")
+
+if __name__ == "__main__":
+    sklearn_page()

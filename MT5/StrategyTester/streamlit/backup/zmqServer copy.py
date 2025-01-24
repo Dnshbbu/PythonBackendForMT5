@@ -20,20 +20,30 @@ class MT5ZMQClient:
         self.socket_send = self.context.socket(zmq.PUSH)
         self.signal_socket = self.context.socket(zmq.PULL)
         self.is_running = True
-        self.headers = {}  # Store headers for different file types
+        self.headers = {}
         self.message_batch = []
         self.BATCH_SIZE = 40
+        
+        # Create logs directory if it doesn't exist
+        self.logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+        os.makedirs(self.logs_dir, exist_ok=True)
+        
         self.setup_logging()
 
     def setup_logging(self):
+        log_file = os.path.join(self.logs_dir, 'mt5_zmq_client.log')
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler('mt5_zmq_client.log'),
+                logging.FileHandler(log_file),
                 logging.StreamHandler()
             ]
         )
+
+    def get_log_file_path(self, run_id, file_type):
+        """Generate full file path for logs"""
+        return os.path.join(self.logs_dir, f"{run_id}_{file_type}")
 
     async def connect(self):
         try:
@@ -48,13 +58,10 @@ class MT5ZMQClient:
 
     async def handle_sequence_of_events(self, run_id, event_content):
         try:
-            events_filename = f"{run_id}_sequence_of_events.log"
+            events_filename = self.get_log_file_path(run_id, "sequence_of_events.log")
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            
-            # Format the event line with timestamp
             event_line = f"[{timestamp}] {event_content}\n"
             
-            # Append the event to the log file
             with open(events_filename, 'a', encoding='utf-8') as f:
                 f.write(event_line)
             
@@ -65,13 +72,12 @@ class MT5ZMQClient:
 
     def draw_plot(self, run_id):
         try:
-            # Load equity and price data
-            equity_price_file = f"{run_id}_priceandequity.csv"
+            equity_price_file = self.get_log_file_path(run_id, "priceandequity.csv")
+            transactions_file = self.get_log_file_path(run_id, "transactions.csv")
+            
             df_equity_price = pd.read_csv(equity_price_file)
             df_equity_price['DateTime'] = pd.to_datetime(df_equity_price['Date'] + ' ' + df_equity_price['Time'])
 
-            # Load transaction data
-            transactions_file = f"{run_id}_transactions.csv"
             df_transactions = pd.read_csv(transactions_file)
             df_transactions['DateTime'] = pd.to_datetime(df_transactions['Date'] + ' ' + df_transactions['Time'])
 
@@ -128,7 +134,7 @@ class MT5ZMQClient:
             )
 
             # Save plot
-            output_file = f"{run_id}_output_plot.html"
+            output_file = self.get_log_file_path(run_id, "output_plot.html")
             fig.write_html(output_file)
             logging.info(f"Plot saved as {output_file}")
 
@@ -137,7 +143,10 @@ class MT5ZMQClient:
 
     async def handle_csv_data(self, run_id, msg_type, msg_content):
         try:
-            csv_filename = f"{run_id}_{msg_type}.csv"
+            csv_filename = self.get_log_file_path(run_id, f"{msg_type}.csv")
+            
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(csv_filename), exist_ok=True)
             
             with open(csv_filename, 'a', newline='') as csvfile:
                 csv_writer = csv.writer(csvfile)
@@ -150,7 +159,7 @@ class MT5ZMQClient:
                 
                 elif msg_type == 'transactions':
                     if csv_filename not in self.headers:
-                        if os.path.getsize(csv_filename) == 0:
+                        if not os.path.exists(csv_filename) or os.path.getsize(csv_filename) == 0:
                             self.headers[csv_filename] = msg_content.split(',')
                             csv_writer.writerow(self.headers[csv_filename])
                             logging.info(f"Created CSV file: {csv_filename} with headers")
@@ -190,16 +199,6 @@ class MT5ZMQClient:
                     await self.handle_sequence_of_events(run_id, msg_content)
                 else:
                     await self.handle_csv_data(run_id, msg_type, msg_content)
-
-            # # Send acknowledgment
-            # if data.get("type") != "new_signal":
-            #     response = {
-            #         "status": "received",
-            #         "timestamp": datetime.now().isoformat(),
-            #         "message_type": msg_type,
-            #         "run_id": run_id
-            #     }
-            #     await self.send_to_mt5(json.dumps(response))
             
             return True
 

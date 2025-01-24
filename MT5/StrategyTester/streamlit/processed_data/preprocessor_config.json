@@ -1,0 +1,13 @@
+{
+    "split_columns": [
+        "ExitScoreDetails",
+        "EntryScore",
+        "Factors",
+        "Pullback",
+        "ExitFactors"
+    ],
+    "delimiter": "|",
+    "key_value_separator": "=",
+    "datetime_columns": [],
+    "prefix_template": "{column}_"
+}

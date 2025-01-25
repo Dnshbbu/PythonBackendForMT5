@@ -29,9 +29,12 @@ class ConfigurableTradingPreprocessor:
     
     def _setup_output_directory(self):
         """Create output directory if it doesn't exist"""
-        # Create absolute path for output directory
-        self.config.output_dir = os.path.abspath(self.config.output_dir)
-        os.makedirs(self.config.output_dir, exist_ok=True)
+        try:
+            os.makedirs(self.config.output_dir, exist_ok=True)
+            st.info(f"Output directory created/verified: {self.config.output_dir}")
+        except Exception as e:
+            st.error(f"Error creating output directory: {str(e)}")
+            raise
         
     def save_configuration(self, filename: str = "preprocessor_config.json"):
         """Save current configuration to JSON"""
@@ -146,7 +149,7 @@ class ConfigurableTradingPreprocessor:
             # Ensure output directory exists
             self._setup_output_directory()
             
-            # Create timestamp and filename
+            # Create filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_name = os.path.splitext(os.path.basename(original_filename))[0]
             output_filename = f"{base_name}_processed_{timestamp}.csv"
@@ -154,14 +157,16 @@ class ConfigurableTradingPreprocessor:
             
             # Save the DataFrame
             df.to_csv(output_path, index=False)
+            st.success(f"Processed data saved to: {output_path}")
             
-            # Verify the file was created
+            # Verify file was created
             if not os.path.exists(output_path):
-                raise Exception(f"Failed to create output file: {output_path}")
+                raise FileNotFoundError(f"Failed to create output file: {output_path}")
                 
             return output_path
         except Exception as e:
-            raise Exception(f"Error saving processed data: {str(e)}")
+            st.error(f"Error saving processed data: {str(e)}")
+            raise
     
     def get_feature_info(self) -> Dict[str, List[str]]:
         """Get information about numerical and categorical features"""
@@ -343,9 +348,8 @@ def run_value_range_check(file_path: str):
     except Exception as e:
         st.error(f"Error checking value ranges: {str(e)}")
 
-
 def preprocess_trading_data(file_path: str) -> None:
-    """Enhanced preprocessing function with UI configuration"""
+    """Enhanced preprocessing function with UI configuration and proper data saving"""
     try:
         # Read CSV file
         df = pd.read_csv(file_path)
@@ -372,11 +376,16 @@ def preprocess_trading_data(file_path: str) -> None:
                     # Save configuration if enabled
                     if config.save_config:
                         preprocessor.save_configuration()
+                        st.info("Configuration saved successfully")
                     
                     # Display results
-                    st.success(f"Data processed and saved to: {output_path}")
+                    st.success(f"Processing complete! Data saved to: {output_path}")
                     
-                    # Create download button for processed data
+                    # Display processed data preview
+                    st.subheader("Processed Data Preview")
+                    st.dataframe(processed_df.head())
+                    
+                    # Provide download button for processed data
                     csv = processed_df.to_csv(index=False)
                     st.download_button(
                         label="Download Processed Data",
@@ -384,10 +393,6 @@ def preprocess_trading_data(file_path: str) -> None:
                         file_name=f"processed_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                         mime="text/csv"
                     )
-                    
-                    # Display processed data info
-                    st.subheader("Processed Data Preview")
-                    st.dataframe(processed_df.head())
                     
                     # Display feature information
                     features = preprocessor.get_feature_info()
@@ -403,9 +408,11 @@ def preprocess_trading_data(file_path: str) -> None:
                     
                 except Exception as e:
                     st.error(f"Error during processing: {str(e)}")
-                    
+                    raise
+    
     except Exception as e:
-        st.error(f"Error reading file: {str(e)}")
+        st.error(f"Error preprocessing data: {str(e)}")
+        raise
 
 def scripts():
     """Main scripts page implementation"""

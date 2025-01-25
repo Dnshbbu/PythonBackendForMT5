@@ -1,10 +1,10 @@
 {
     "split_columns": [
+        "Pullback",
         "ExitScoreDetails",
         "EntryScore",
-        "Factors",
-        "Pullback",
-        "ExitFactors"
+        "ExitFactors",
+        "Factors"
     ],
     "delimiter": "|",
     "key_value_separator": "=",

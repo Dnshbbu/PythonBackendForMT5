@@ -1,0 +1,11 @@
+{
+    "split_columns": [
+        "Pullback",
+        "ExitScoreDetails",
+        "ExitFactors"
+    ],
+    "delimiter": "|",
+    "key_value_separator": "=",
+    "datetime_columns": [],
+    "prefix_template": "{column}_"
+}

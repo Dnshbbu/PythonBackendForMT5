@@ -9,12 +9,9 @@ from ml_analysis_page import sklearn_page
 from server_control_page import server_control_page
 # from usingXgboost import ModelPipeline 
 from model_pipeline import ModelPipeline, create_pipeline_from_analyzer
-from realtime_monitoring_page import realtime_monitoring
+# from realtime_monitoring_page import realtime_monitoring
 
-
-
-import pandas as pd
-from model_manager import ModelManager
+# from model_manager import ModelManager
 
 
 def prediction_page():
@@ -171,8 +168,8 @@ def main():
         # "ZMQ Server": zmq_server,
         "ML: Analysis": sklearn_page,
         "ML: Predictions": prediction_page,
-        "Server Control": server_control_page,
-        "Real-Time ML Monitor": realtime_monitoring
+        "ZMQ Server Control": server_control_page,
+        # "Real-Time ML Monitor": realtime_monitoring
     }
     
     # Add the navigation to the sidebar

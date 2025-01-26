@@ -3,6 +3,8 @@ logs/
 venv/
 ml_venv/
 MT5/reports/
+MT5/StrategyTester/streamlit/models/
+
 
 
 

@@ -87,61 +87,129 @@ class EnhancedTimeSeriesAnalyzer:
         lagged_df = pd.concat([df] + [pd.DataFrame(new_columns)], axis=1)
         return lagged_df
 
+    # def prepare_data(self, df, feature_columns, target_column='Price'):
+    #     """Enhanced data preparation with better handling of missing values"""
+    #     # Create a copy of the dataframe to avoid fragmentation
+    #     df = df.copy()
+        
+    #     # Convert date and time to datetime
+    #     df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+    #     df = df.sort_values('DateTime')
+        
+    #     # Create time features first
+    #     df = self.create_time_features(df)
+        
+    #     # Create technical features
+    #     df = self.create_technical_features(df)
+        
+    #     # Forward fill any NaN values created by technical indicators
+    #     df = df.ffill()
+        
+    #     # Create lag features
+    #     df = self.create_lag_features(df, feature_columns)
+        
+    #     # Forward fill any remaining NaN values
+    #     df = df.ffill().bfill()
+        
+    #     # Verify we have data after preprocessing
+    #     if len(df) == 0:
+    #         raise ValueError("No data remaining after preprocessing!")
+        
+    #     # Prepare features
+    #     feature_cols = (
+    #         feature_columns + 
+    #         [col for col in df.columns if 'ma_' in col or 'momentum_' in col or 'lag' in col] +
+    #         ['hour', 'day_of_week', 'day_of_month', 'month']
+    #     )
+        
+    #     # Remove any duplicate columns
+    #     feature_cols = list(dict.fromkeys(feature_cols))
+        
+    #     # Ensure all feature columns exist
+    #     existing_cols = [col for col in feature_cols if col in df.columns]
+    #     if len(existing_cols) < len(feature_cols):
+    #         print(f"Warning: Some feature columns were not found in the dataframe. Using {len(existing_cols)} features.")
+    #         feature_cols = existing_cols
+        
+    #     X = df[feature_cols].copy()
+    #     y = df[target_column].copy()
+        
+    #     # Print shape before scaling
+    #     print(f"Data shape before scaling - X: {X.shape}, y: {y.shape}")
+        
+    #     # Scale the data
+    #     X_scaled = self.scaler_X.fit_transform(X)
+    #     y_scaled = self.scaler_y.fit_transform(y.values.reshape(-1, 1))
+        
+    #     return X_scaled, y_scaled, df['DateTime'], feature_cols
+
     def prepare_data(self, df, feature_columns, target_column='Price'):
-        """Enhanced data preparation with better handling of missing values"""
-        # Create a copy of the dataframe to avoid fragmentation
+        """Enhanced data preparation with better feature handling"""
+        # Create a copy of the dataframe
         df = df.copy()
         
-        # Convert date and time to datetime
-        df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+        # Store original feature columns
+        self.original_features = feature_columns.copy()
+        
+        # Convert date and time to datetime if they exist
+        if 'Date' in df.columns and 'Time' in df.columns:
+            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+        elif 'DateTime' not in df.columns:
+            df['DateTime'] = pd.to_datetime(df.index)
+        
         df = df.sort_values('DateTime')
         
-        # Create time features first
-        df = self.create_time_features(df)
+        # Initialize feature list with original features
+        all_features = feature_columns.copy()
         
-        # Create technical features
-        df = self.create_technical_features(df)
+        # Create time features if needed
+        time_features = ['hour', 'day_of_week', 'day_of_month', 'month']
+        if any(tf not in df.columns for tf in time_features):
+            df = self.create_time_features(df)
+            all_features.extend(time_features)
         
-        # Forward fill any NaN values created by technical indicators
-        df = df.ffill()
+        # Create technical features if needed and Price column exists
+        if 'Price' in df.columns:
+            tech_features = [
+                'ma_5', 'ma_std_5', 'ma_10', 'ma_std_10', 'ma_20', 'ma_std_20',
+                'momentum_5', 'momentum_10', 'momentum_20', 'price_rel_ma5', 'price_rel_ma10'
+            ]
+            if any(tf not in df.columns for tf in tech_features):
+                df = self.create_technical_features(df)
+                all_features.extend(tech_features)
         
-        # Create lag features
-        df = self.create_lag_features(df, feature_columns)
+        # Create lag features for original features only
+        lag_features = []
+        for col in feature_columns:
+            for lag in [1, 2, 3]:
+                lag_feat = f'{col}_lag_{lag}'
+                lag_features.append(lag_feat)
         
-        # Forward fill any remaining NaN values
+        if any(lf not in df.columns for lf in lag_features):
+            df = self.create_lag_features(df, feature_columns)
+            all_features.extend(lag_features)
+        
+        # Remove duplicates while preserving order
+        all_features = list(dict.fromkeys(all_features))
+        
+        # Store feature list for future reference
+        self.feature_list = all_features
+        
+        # Forward fill any NaN values
         df = df.ffill().bfill()
         
-        # Verify we have data after preprocessing
-        if len(df) == 0:
-            raise ValueError("No data remaining after preprocessing!")
+        # Select features that exist in the dataframe
+        existing_features = [f for f in all_features if f in df.columns]
         
-        # Prepare features
-        feature_cols = (
-            feature_columns + 
-            [col for col in df.columns if 'ma_' in col or 'momentum_' in col or 'lag' in col] +
-            ['hour', 'day_of_week', 'day_of_month', 'month']
-        )
-        
-        # Remove any duplicate columns
-        feature_cols = list(dict.fromkeys(feature_cols))
-        
-        # Ensure all feature columns exist
-        existing_cols = [col for col in feature_cols if col in df.columns]
-        if len(existing_cols) < len(feature_cols):
-            print(f"Warning: Some feature columns were not found in the dataframe. Using {len(existing_cols)} features.")
-            feature_cols = existing_cols
-        
-        X = df[feature_cols].copy()
+        # Prepare features and target
+        X = df[existing_features].copy()
         y = df[target_column].copy()
-        
-        # Print shape before scaling
-        print(f"Data shape before scaling - X: {X.shape}, y: {y.shape}")
         
         # Scale the data
         X_scaled = self.scaler_X.fit_transform(X)
         y_scaled = self.scaler_y.fit_transform(y.values.reshape(-1, 1))
         
-        return X_scaled, y_scaled, df['DateTime'], feature_cols
+        return X_scaled, y_scaled, df['DateTime'], existing_features
 
     def create_lstm_model(self, input_shape):
         """Create enhanced LSTM model"""
@@ -361,12 +429,16 @@ def plot_detailed_results(analyzer_results, dates):
 
 
 def save_best_model(analyzer, X, feature_columns, base_path='models'):
-    """Save the best model using the enhanced pipeline"""
+    """Save the best model using the enhanced pipeline with timestamped name"""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    model_name = f'xgboost_model_{timestamp}'
+    model_path = os.path.join(base_path, model_name)
+    
     return create_pipeline_from_analyzer(
         analyzer=analyzer,
         X=X,
         feature_columns=feature_columns,
-        base_path=base_path
+        base_path=model_path
     )
 
 

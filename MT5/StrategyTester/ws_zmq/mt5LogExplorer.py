@@ -16,6 +16,7 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_squared_error
 
+
 # Utility functions for Log Explorer
 def load_saved_settings():
     """Load previously saved search terms and context settings."""

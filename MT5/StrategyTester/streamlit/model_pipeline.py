@@ -142,30 +142,73 @@ class ModelPipeline:
         except Exception as e:
             raise Exception(f"Error loading pipeline: {str(e)}")
     
+ 
     def predict(self, data: pd.DataFrame) -> np.ndarray:
-        """
-        Make predictions using the loaded model
-        
-        Args:
-            data: DataFrame containing features
-            
-        Returns:
-            numpy.ndarray: Model predictions
-        """
+        """Make predictions using the loaded model with improved feature handling"""
         if not all([self.model, self.feature_scaler, self.target_scaler]):
             raise ValueError("Pipeline not loaded. Call load_pipeline() first.")
         
         try:
-            # If feature columns are available, validate them
-            if self.feature_columns:
-                missing_features = set(self.feature_columns) - set(data.columns)
-                if missing_features:
-                    raise ValueError(f"Missing required features: {missing_features}")
-                X = data[self.feature_columns].copy()
-            else:
-                # If no feature columns are specified, use all available columns
-                print("Warning: No feature columns specified. Using all available columns.")
-                X = data.copy()
+            df = data.copy()
+            
+            # First, identify what kind of features we're dealing with
+            base_features = [col for col in df.columns 
+                            if not any(x in col for x in ['_lag_', 'ma_', 'momentum_', 'price_rel_'])]
+            
+            print(f"Base features available: {base_features}")
+            
+            # Create time features if needed
+            if any(f in self.feature_columns for f in ['hour', 'day_of_week', 'day_of_month', 'month']):
+                try:
+                    df = FeatureProcessor.create_time_features(df)
+                    print("Time features created successfully")
+                except Exception as e:
+                    print(f"Warning: Could not create time features: {str(e)}")
+            
+            # Create technical features if needed
+            if any(f in self.feature_columns for f in ['ma_', 'momentum_', 'price_rel_']):
+                if 'Price' in df.columns:
+                    df = FeatureProcessor.create_technical_features(df)
+                    print("Technical features created successfully")
+                else:
+                    print("Warning: 'Price' column not found, skipping technical features")
+            
+            # Create lag features for all numeric columns
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            df = FeatureProcessor.create_lag_features(df, numeric_cols)
+            print("Lag features created successfully")
+            
+            # Forward fill any NaN values
+            df = df.ffill().bfill()
+            
+            # Check which required features are available
+            available_features = set(df.columns)
+            required_features = set(self.feature_columns)
+            missing_features = required_features - available_features
+            
+            if missing_features:
+                # Try to identify which types of features are missing
+                missing_time = [f for f in missing_features if f in ['hour', 'day_of_week', 'day_of_month', 'month']]
+                missing_tech = [f for f in missing_features if any(x in f for x in ['ma_', 'momentum_', 'price_rel_'])]
+                missing_lag = [f for f in missing_features if '_lag_' in f]
+                
+                error_msg = "Missing features detected:\n"
+                if missing_time:
+                    error_msg += f"\nTime features: {missing_time}"
+                if missing_tech:
+                    error_msg += f"\nTechnical features: {missing_tech}"
+                if missing_lag:
+                    error_msg += f"\nLag features: {missing_lag}"
+                    
+                error_msg += "\n\nPlease ensure your input data contains:"
+                error_msg += "\n- Date and Time columns for time features"
+                error_msg += "\n- Price column for technical features"
+                error_msg += "\n- Required base features for lag calculations"
+                
+                raise ValueError(error_msg)
+            
+            # Select and order features according to the model's requirements
+            X = df[self.feature_columns]
             
             # Scale features
             X_scaled = self.feature_scaler.transform(X)
@@ -181,8 +224,8 @@ class ModelPipeline:
             return predictions
             
         except Exception as e:
-            raise Exception(f"Error making predictions: {str(e)}")
-    
+            raise Exception(f"Error during prediction: {str(e)}")
+
     def get_metadata(self) -> Dict[str, Any]:
         """Get pipeline metadata"""
         return self.metadata
@@ -191,23 +234,18 @@ class ModelPipeline:
         """Get list of feature columns"""
         return self.feature_columns
 
+
+
 def create_pipeline_from_analyzer(analyzer: Any, 
                                 X: np.ndarray, 
                                 feature_columns: List[str], 
                                 base_path: str = 'models') -> ModelPipeline:
-    """
-    Create and save pipeline from analyzer instance
-    
-    Args:
-        analyzer: Trained analyzer instance
-        X: Feature matrix used for training
-        feature_columns: List of feature column names
-        base_path: Directory to save model files
-        
-    Returns:
-        ModelPipeline: Configured pipeline instance
-    """
+    """Create and save pipeline from analyzer instance with additional metadata"""
     pipeline = ModelPipeline()
+    
+    # Identify base features (features without derived indicators)
+    base_features = [col for col in feature_columns 
+                    if not any(x in col for x in ['_lag_', 'ma_', 'momentum_', 'price_rel_'])]
     
     # Create additional metadata
     additional_metadata = {
@@ -215,12 +253,19 @@ def create_pipeline_from_analyzer(analyzer: Any,
         'analyzer_params': {
             'n_splits': analyzer.n_splits,
             'sequence_length': analyzer.sequence_length
+        },
+        'base_features': base_features,  # Add base features to metadata
+        'feature_types': {
+            'base': base_features,
+            'technical': [col for col in feature_columns if any(x in col for x in ['ma_', 'momentum_', 'price_rel_'])],
+            'lagged': [col for col in feature_columns if '_lag_' in col],
+            'time': ['hour', 'day_of_week', 'day_of_month', 'month']
         }
     }
     
     # Save pipeline
     pipeline.save_pipeline(
-        model=analyzer.models['xgboost'],  # Using XGBoost as default
+        model=analyzer.models['xgboost'],
         feature_scaler=analyzer.scaler_X,
         target_scaler=analyzer.scaler_y,
         feature_columns=feature_columns,
@@ -229,3 +274,67 @@ def create_pipeline_from_analyzer(analyzer: Any,
     )
     
     return pipeline
+
+
+# Add this to model_pipeline.py
+
+class FeatureProcessor:
+    """Class to handle feature creation consistently between training and prediction"""
+    
+    @staticmethod
+    def create_time_features(df):
+        """Create time-based features"""
+        if 'DateTime' not in df.columns:
+            if 'Date' in df.columns and 'Time' in df.columns:
+                df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+            else:
+                raise ValueError("DateTime or Date/Time columns required")
+        
+        df['hour'] = df['DateTime'].dt.hour
+        df['day_of_week'] = df['DateTime'].dt.dayofweek
+        df['day_of_month'] = df['DateTime'].dt.day
+        df['month'] = df['DateTime'].dt.month
+        return df
+    
+    @staticmethod
+    def create_technical_features(df, price_col='Price'):
+        """Create technical indicators"""
+        for window in [5, 10, 20]:
+            df[f'ma_{window}'] = df[price_col].rolling(window=window).mean()
+            df[f'ma_std_{window}'] = df[price_col].rolling(window=window).std()
+            df[f'momentum_{window}'] = df[price_col].diff(window)
+        
+        # Relative price features
+        df['price_rel_ma5'] = df[price_col] / df['ma_5']
+        df['price_rel_ma10'] = df[price_col] / df['ma_10']
+        return df
+    
+    @staticmethod
+    def create_lag_features(df, columns, lags=[1, 2, 3]):
+        """Create lagged features"""
+        for col in columns:
+            if col in df.columns:
+                for lag in lags:
+                    df[f'{col}_lag_{lag}'] = df[col].shift(lag)
+        return df
+    
+    @staticmethod
+    def process_features(df, base_features, create_time_features=True):
+        """Process all features consistently"""
+        df = df.copy()
+        
+        # Create time features
+        if create_time_features:
+            df = FeatureProcessor.create_time_features(df)
+        
+        # Create technical features if Price column exists
+        if 'Price' in df.columns:
+            df = FeatureProcessor.create_technical_features(df)
+        
+        # Create lag features for base features
+        df = FeatureProcessor.create_lag_features(df, base_features)
+        
+        # Forward fill any NaN values
+        df = df.ffill().bfill()
+        
+        return df

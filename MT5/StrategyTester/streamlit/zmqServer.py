@@ -8,6 +8,7 @@ import os
 import csv
 import pandas as pd
 import plotly.graph_objects as go
+from database_manager import DatabaseManager
 
 # Fix for Proactor Event Loop Warning on Windows
 if os.name == 'nt':
@@ -56,21 +57,105 @@ class MT5ZMQClient:
             logging.error(f"Failed to bind ZMQ sockets: {e}")
             return False
 
+ 
+
+
+    # async def handle_all_details(self, run_id, msg_content):
+    #     """Handle detailed trading information with ML integration"""
+    #     try:
+    #         csv_filename = self.get_log_file_path(run_id, "all_details.csv")
+            
+    #         # Create directory if it doesn't exist
+    #         os.makedirs(os.path.dirname(csv_filename), exist_ok=True)
+            
+    #         # Initialize ML processor if not exists
+    #         if not hasattr(self, 'ml_processor'):
+    #             from real_time_ml import RealTimeMLProcessor
+    #             self.ml_processor = RealTimeMLProcessor()
+            
+    #         # Process the message content into a dictionary
+    #         data = {}
+    #         for item in msg_content.split(','):
+    #             if ':' in item:
+    #                 key, value = item.split(':', 1)
+    #                 data[key.strip()] = value.strip()
+            
+    #         with open(csv_filename, 'a', newline='') as csvfile:
+    #             csv_writer = csv.writer(csvfile)
+                
+    #             # Handle headers
+    #             if csv_filename not in self.headers:
+    #                 if not os.path.exists(csv_filename) or os.path.getsize(csv_filename) == 0:
+    #                     self.headers[csv_filename] = [
+    #                         'Date','Time', 'Symbol', 'Price', 'Equity', 'Balance', 'Profit',
+    #                         'Positions', 'Score', 'ExitScore', 'Factors', 'ExitFactors',
+    #                         'EntryScore', 'ExitScoreDetails', 'Pullback'
+    #                     ]
+    #                     csv_writer.writerow(self.headers[csv_filename])
+    #                     logging.info(f"Created CSV file: {csv_filename} with headers")
+    #                 else:
+    #                     with open(csv_filename, 'r') as f:
+    #                         self.headers[csv_filename] = next(csv.reader(f))
+    #                 return
+                
+    #             # Organize data according to headers
+    #             row_data = []
+    #             for header in self.headers[csv_filename]:
+    #                 if header in data:
+    #                     row_data.append(data[header])
+    #                 else:
+    #                     row_data.append('')
+                
+    #             # Write to CSV
+    #             csv_writer.writerow(row_data)
+                
+    #             # Send dictionary to ML processor
+    #             await asyncio.get_event_loop().run_in_executor(
+    #                 None, 
+    #                 self.ml_processor.process_new_data,
+    #                 data
+    #             )
+                
+    #             logging.info(f"Processed new data point and updated ML model")
+                
+    #     except Exception as e:
+    #         logging.error(f"Error handling all details data: {e}")
+    #         logging.exception(e)  # This will log the full traceback
+
+
+
     async def handle_all_details(self, run_id, msg_content):
-        """Handle detailed trading information"""
+        """Handle detailed trading information with ML integration and DB storage"""
         try:
             csv_filename = self.get_log_file_path(run_id, "all_details.csv")
             
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(csv_filename), exist_ok=True)
             
+            # Initialize ML processor if not exists
+            if not hasattr(self, 'ml_processor'):
+                from real_time_ml import RealTimeMLProcessor
+                self.ml_processor = RealTimeMLProcessor()
+                
+            # Initialize DB manager if not exists
+            if not hasattr(self, 'db_manager'):
+                db_path = os.path.join(self.logs_dir, 'trading_data.db')
+                self.db_manager = DatabaseManager(db_path)
+                
+            # Process the message content into a dictionary
+            data = {}
+            for item in msg_content.split(','):
+                if ':' in item:
+                    key, value = item.split(':', 1)
+                    data[key.strip()] = value.strip()
+            
+            # Handle CSV operations
             with open(csv_filename, 'a', newline='') as csvfile:
                 csv_writer = csv.writer(csvfile)
                 
                 # Handle headers
                 if csv_filename not in self.headers:
                     if not os.path.exists(csv_filename) or os.path.getsize(csv_filename) == 0:
-                        # Define headers based on the structure we expect from MT5
                         self.headers[csv_filename] = [
                             'Date','Time', 'Symbol', 'Price', 'Equity', 'Balance', 'Profit',
                             'Positions', 'Score', 'ExitScore', 'Factors', 'ExitFactors',
@@ -83,27 +168,43 @@ class MT5ZMQClient:
                             self.headers[csv_filename] = next(csv.reader(f))
                     return
                 
-                # Split the message content by the '|' delimiter and clean up the data
-                data = {}
-                for item in msg_content.split(','):
-                    if ':' in item:
-                        key, value = item.split(':', 1)
-                        data[key.strip()] = value.strip()
-                
                 # Organize data according to headers
                 row_data = []
                 for header in self.headers[csv_filename]:
                     if header in data:
                         row_data.append(data[header])
                     else:
-                        row_data.append('')  # Add empty string for missing data
-                        
-                csv_writer.writerow(row_data)
-                logging.info(f"Appended new row to {csv_filename}")
+                        row_data.append('')
                 
+                # Write to CSV
+                csv_writer.writerow(row_data)
+                
+            # Handle DB operations
+            try:
+                # Create table if not exists
+                table_name = self.db_manager.create_table_for_strategy(run_id, data)
+                
+                # Store data in DB
+                self.db_manager.insert_data(table_name, data)
+                
+            except Exception as db_error:
+                logging.error(f"Database operation failed: {db_error}")
+                logging.exception(db_error)
+                
+            # Send dictionary to ML processor
+            await asyncio.get_event_loop().run_in_executor(
+                None, 
+                self.ml_processor.process_new_data,
+                data
+            )
+            
+            logging.info(f"Processed new data point and updated ML model")
+            
         except Exception as e:
             logging.error(f"Error handling all details data: {e}")
+            logging.exception(e)  # This will log the full traceback
 
+            
     async def handle_sequence_of_events(self, run_id, event_content):
         try:
             events_filename = self.get_log_file_path(run_id, "sequence_of_events.log")

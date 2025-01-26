@@ -1,5 +1,5 @@
 """
-ml_analysis_page.py - Machine Learning Analysis Page Implementation
+ml_analysis_page.py - Enhanced Machine Learning Analysis Page Implementation with XGBoost
 """
 import streamlit as st
 import pandas as pd
@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 from typing import Dict, List, Tuple, Optional, Any
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     r2_score, mean_squared_error, accuracy_score, 
@@ -18,24 +18,59 @@ from sklearn.metrics import (
 # Model imports
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from xgboost import XGBRegressor
+import xgboost as xgb
 from sklearn.svm import SVR
 
 import plotly.express as px
 import plotly.graph_objects as go
-from model_manager import ModelManager, create_model_info
+from model_pipeline import ModelPipeline
 
-def initialize_session_state():
-    """Initialize session state variables"""
-    if 'model' not in st.session_state:
-        st.session_state.model = None
-    if 'scaler' not in st.session_state:
-        st.session_state.scaler = None
-    if 'features' not in st.session_state:
-        st.session_state.features = None
-    if 'target' not in st.session_state:
-        st.session_state.target = None
-    if 'metrics' not in st.session_state:
-        st.session_state.metrics = None
+
+def get_algorithm_params(algorithm: str) -> Dict:
+    """Get algorithm-specific parameters from user input"""
+    params = {}
+    
+    if algorithm == "xgboost":
+        col1, col2 = st.columns(2)
+        with col1:
+            params['n_estimators'] = st.slider(
+                "Number of Estimators",
+                10, 500, 200
+            )
+            params['learning_rate'] = st.slider(
+                "Learning Rate",
+                0.01, 0.3, 0.05
+            )
+            params['max_depth'] = st.slider(
+                "Max Depth",
+                3, 10, 6
+            )
+        with col2:
+            params['min_child_weight'] = st.slider(
+                "Min Child Weight",
+                1, 7, 2
+            )
+            params['subsample'] = st.slider(
+                "Subsample",
+                0.5, 1.0, 0.8
+            )
+            params['colsample_bytree'] = st.slider(
+                "Colsample Bytree",
+                0.5, 1.0, 0.8
+            )
+    elif algorithm in ["ridge", "lasso"]:
+        params['alpha'] = st.slider(
+            "Alpha",
+            0.0, 1.0, 0.1
+        )
+    elif algorithm in ["random_forest", "gradient_boosting"]:
+        params['n_estimators'] = st.slider(
+            "Number of Estimators",
+            10, 500, 100
+        )
+    
+    return params
 
 def run_regression(
     data: pd.DataFrame,
@@ -43,24 +78,13 @@ def run_regression(
     algorithm: str,
     params: Dict
 ) -> Tuple[Dict[str, float], pd.DataFrame, Any, Any, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Run regression analysis with specified algorithm
-    
-    Args:
-        data: Input DataFrame
-        target_col: Target variable name
-        algorithm: Algorithm name
-        params: Algorithm parameters
-        
-    Returns:
-        Tuple containing metrics, feature importance, model, scaler, and predictions
-    """
+    """Enhanced regression analysis with XGBoost support"""
     # Prepare data
     X = data.drop(target_col, axis=1)
     y = data[target_col]
     
-    # Scale features
-    scaler = StandardScaler()
+    # Use RobustScaler for better handling of outliers
+    scaler = RobustScaler()
     X_scaled = scaler.fit_transform(X)
     X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
     
@@ -70,7 +94,17 @@ def run_regression(
     )
     
     # Initialize model
-    if algorithm == "linear":
+    if algorithm == "xgboost":
+        model = XGBRegressor(
+            n_estimators=params.get('n_estimators', 200),
+            learning_rate=params.get('learning_rate', 0.05),
+            max_depth=params.get('max_depth', 6),
+            min_child_weight=params.get('min_child_weight', 2),
+            subsample=params.get('subsample', 0.8),
+            colsample_bytree=params.get('colsample_bytree', 0.8),
+            random_state=42
+        )
+    elif algorithm == "linear":
         model = LinearRegression()
     elif algorithm == "ridge":
         model = Ridge(alpha=params.get('alpha', 1.0))
@@ -89,8 +123,19 @@ def run_regression(
     else:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
     
-    # Train model and predict
-    model.fit(X_train, y_train)
+    # Train model with early stopping for XGBoost
+    if algorithm == "xgboost":
+        eval_set = [(X_test, y_test.ravel())]
+        model.set_params(callbacks=[xgb.callback.EarlyStopping(rounds=20)])
+        model.fit(
+            X_train, y_train.ravel(),
+            eval_set=eval_set,
+            verbose=False
+        )
+    else:
+        model.fit(X_train, y_train)
+    
+    # Make predictions
     y_pred = model.predict(X_test)
     
     # Calculate metrics
@@ -115,76 +160,187 @@ def run_regression(
     
     return metrics, feature_importance, model, scaler, X_test, y_test, y_pred
 
+
+
+
+def clean_model_params(model):
+    """Clean model parameters for JSON serialization"""
+    params = model.get_params()
+    # Remove callbacks and other non-serializable items
+    if 'callbacks' in params:
+        del params['callbacks']
+    return params
+
+
+
+
+
+def create_and_save_pipeline(model, scaler, X, feature_columns, base_path='models') -> ModelPipeline:
+    """Create and save pipeline from model with metadata"""
+    try:
+        pipeline = ModelPipeline()
+        
+        # Identify base features (features without derived indicators)
+        base_features = [col for col in feature_columns 
+                        if not any(x in col for x in ['_lag_', 'ma_', 'momentum_', 'price_rel_'])]
+        
+        # Create additional metadata with cleaned parameters
+        additional_metadata = {
+            'training_shape': X.shape,
+            'model_params': clean_model_params(model),
+            'base_features': base_features,
+            'feature_types': {
+                'base': base_features,
+                'technical': [col for col in feature_columns if any(x in col for x in ['ma_', 'momentum_', 'price_rel_'])],
+                'lagged': [col for col in feature_columns if '_lag_' in col],
+                'time': ['hour', 'day_of_week', 'day_of_month', 'month']
+            }
+        }
+        
+        # Save pipeline
+        pipeline.save_pipeline(
+            model=model,
+            feature_scaler=scaler,
+            target_scaler=scaler,  # Using same scaler for both as we only scaled features
+            feature_columns=feature_columns,
+            base_path=base_path,
+            additional_metadata=additional_metadata
+        )
+        
+        return pipeline
+        
+    except Exception as e:
+        print(f"Error in create_and_save_pipeline: {str(e)}")  # Debug log
+        raise Exception(f"Error in pipeline creation: {str(e)}")
+
+def save_trained_model(model, scaler, features, X, target_col) -> Tuple[bool, str]:
+    """Save trained model using pipeline approach"""
+    try:
+        # Create log container in UI
+        log_container = st.empty()
+        log_container.write("Starting model save process...")
+        
+        # Create timestamp for model directory
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        model_name = f'ml_model_{timestamp}'
+        model_path = os.path.join('models', model_name)
+        
+        # Create directory if it doesn't exist
+        os.makedirs(model_path, exist_ok=True)
+        log_container.write(f"Created directory: {model_path}")
+        
+        # Create and save pipeline
+        pipeline = create_and_save_pipeline(
+            model=model,
+            scaler=scaler,
+            X=X,
+            feature_columns=features,
+            base_path=model_path
+        )
+        
+        log_container.write("✅ Model saved successfully!")
+        return True, f"Model saved successfully to {model_path}"
+        
+    except Exception as e:
+        error_msg = f"Error saving model: {str(e)}"
+        print(f"Error details: {error_msg}")  # Terminal log
+        log_container.write(f"❌ {error_msg}")
+        return False, error_msg
+
+
+
+
+
 def plot_results(X_test: np.ndarray, y_test: np.ndarray, y_pred: np.ndarray, target_col: str):
-    """Plot regression results"""
+    """Plot regression results with enhanced visualizations"""
+    # Create figure for actual vs predicted comparison
     fig = go.Figure()
     
-    # Actual values
+    # Time series plot
     fig.add_trace(go.Scatter(
-        x=np.arange(len(y_test)),
         y=y_test,
-        mode='lines',
         name='Actual',
         line=dict(color='blue')
     ))
-    
-    # Predicted values
     fig.add_trace(go.Scatter(
-        x=np.arange(len(y_pred)),
         y=y_pred,
-        mode='lines',
         name='Predicted',
         line=dict(color='red')
     ))
     
     fig.update_layout(
-        title=f'Actual vs Predicted {target_col}',
+        title=f'Actual vs Predicted {target_col} Over Time',
         xaxis_title='Sample Index',
         yaxis_title='Value',
         showlegend=True
     )
-    
     st.plotly_chart(fig)
-
-def save_trained_model() -> Tuple[bool, str]:
-    """
-    Save the trained model
     
-    Returns:
-        Tuple[bool, str]: Success status and message
-    """
-    try:
-        if not st.session_state.model:
-            return False, "No trained model found. Please run analysis first."
-        
-        model_manager = ModelManager()
-        
-        # Create model info
-        model_name = f"{st.session_state.algorithm}_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        model_info = create_model_info(
-            name=model_name,
-            model_type="regression",
-            algorithm=st.session_state.algorithm,
-            features=st.session_state.features,
-            target=st.session_state.target,
-            metrics=st.session_state.metrics
-        )
-        
-        # Save model
-        model_dir = model_manager.save_model(
-            st.session_state.model,
-            st.session_state.scaler,
-            model_info
-        )
-        
-        return True, f"Model saved successfully to {model_dir}"
-        
-    except Exception as e:
-        return False, f"Error saving model: {str(e)}"
+    # Scatter plot
+    fig_scatter = go.Figure()
+    fig_scatter.add_trace(go.Scatter(
+        x=y_test,
+        y=y_pred,
+        mode='markers',
+        marker=dict(color='blue', size=8, opacity=0.6),
+        name='Data Points'
+    ))
+    
+    # Add perfect prediction line
+    min_val = min(min(y_test), min(y_pred))
+    max_val = max(max(y_test), max(y_pred))
+    fig_scatter.add_trace(go.Scatter(
+        x=[min_val, max_val],
+        y=[min_val, max_val],
+        mode='lines',
+        line=dict(color='red', dash='dash'),
+        name='Perfect Prediction'
+    ))
+    
+    fig_scatter.update_layout(
+        title='Actual vs Predicted Scatter Plot',
+        xaxis_title='Actual Values',
+        yaxis_title='Predicted Values',
+        showlegend=True
+    )
+    st.plotly_chart(fig_scatter)
+    
+    # Additional statistics
+    st.subheader("Additional Analysis")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("Statistical Summary:")
+        stats_df = pd.DataFrame({
+            'Actual': y_test,
+            'Predicted': y_pred
+        })
+        st.write(stats_df.describe())
+    
+    with col2:
+        st.write("Correlation Analysis:")
+        correlation = np.corrcoef(y_test, y_pred)[0, 1]
+        st.metric("Correlation Coefficient", f"{correlation:.3f}")
+
+
+
+def initialize_session_state():
+    """Initialize session state variables"""
+    if 'analysis_run' not in st.session_state:
+        st.session_state.analysis_run = False
+    if 'analysis_data' not in st.session_state:
+        st.session_state.analysis_data = None
+    if 'selected_features' not in st.session_state:
+        st.session_state.selected_features = None
+    if 'target_col' not in st.session_state:
+        st.session_state.target_col = None
+
+def run_analysis_clicked():
+    st.session_state.analysis_run = True
 
 def sklearn_page():
-    """Main ML analysis page implementation"""
-    st.title("ML Analysis with Scikit-learn")
+    """Enhanced ML analysis page implementation with XGBoost"""
+    st.title("ML Analysis with Scikit-learn and XGBoost")
     
     # Initialize session state
     initialize_session_state()
@@ -209,34 +365,32 @@ def sklearn_page():
             st.subheader("Available Features")
             available_features = list(df.columns)
             selected_features = st.multiselect("Select Features", available_features)
+            if selected_features:
+                st.session_state.selected_features = selected_features
         
         with col2:
             st.subheader("Algorithm Configuration")
             target_col = st.selectbox(
                 "Select Target Variable",
-                selected_features
-            ) if selected_features else None
+                selected_features if selected_features else []
+            )
+            if target_col:
+                st.session_state.target_col = target_col
             
             algorithm = st.selectbox(
                 "Select Regression Algorithm",
-                ["linear", "ridge", "lasso", "random_forest", "gradient_boosting"]
+                ["xgboost", "linear", "ridge", "lasso", "random_forest", "gradient_boosting"]
             )
             
-            # Algorithm parameters
-            params = {}
-            if algorithm in ["ridge", "lasso"]:
-                params['alpha'] = st.slider(
-                    "Alpha",
-                    0.0, 1.0, 0.1
-                )
-            elif algorithm in ["random_forest", "gradient_boosting"]:
-                params['n_estimators'] = st.slider(
-                    "Number of Estimators",
-                    10, 500, 100
-                )
+            # Get algorithm-specific parameters
+            params = get_algorithm_params(algorithm)
         
         if selected_features and target_col:
-            if st.button("Run Analysis", type="primary"):
+            if st.button("Run Analysis", key='run_analysis', on_click=run_analysis_clicked):
+                pass  # The actual analysis will be triggered by the state change
+            
+            # Check if analysis should be run
+            if st.session_state.analysis_run:
                 with st.spinner("Processing data..."):
                     try:
                         # Run regression
@@ -244,13 +398,16 @@ def sklearn_page():
                             df[selected_features], target_col, algorithm, params
                         )
                         
-                        # Store in session state
-                        st.session_state.model = model
-                        st.session_state.scaler = scaler
-                        st.session_state.features = selected_features
-                        st.session_state.target = target_col
-                        st.session_state.metrics = metrics
-                        st.session_state.algorithm = algorithm
+                        # Store results in session state
+                        st.session_state.analysis_data = {
+                            'model': model,
+                            'scaler': scaler,
+                            'X_scaled': X_test,  # Store the scaled features
+                            'metrics': metrics,
+                            'feature_importance': feature_importance,
+                            'y_test': y_test,
+                            'y_pred': y_pred
+                        }
                         
                         # Display results
                         st.subheader("Regression Results")
@@ -259,40 +416,47 @@ def sklearn_page():
                         col2.metric("MSE", f"{metrics['mse']:.3f}")
                         col3.metric("RMSE", f"{metrics['rmse']:.3f}")
                         
+                        # Display feature importance
                         st.subheader("Feature Importance")
-                        st.dataframe(feature_importance)
+                        fig = px.bar(
+                            feature_importance,
+                            x='importance',
+                            y='feature',
+                            orientation='h',
+                            title='Feature Importance'
+                        )
+                        st.plotly_chart(fig)
                         
                         # Plot results
                         plot_results(X_test, y_test, y_pred, target_col)
                         
-                        # # Add save model button
-                        # if st.button("Save Model"):
-                        #     success, message = save_trained_model()
-                        #     if success:
-                        #         st.success(message)
-                        #     else:
-                        #         st.error(message)
-
-
                         # Add save model button
-                        st.write("Debug - About to show save button")
-                        if st.button("Save Model"):
-                            st.write("Debug - Save button clicked")
-                            success, message = save_trained_model()
-                            st.write(f"Debug - Save result: {success}")
-                            if success:
-                                st.success(message)
-                            else:
-                                st.error(message)        
+                        save_col1, save_col2 = st.columns([1, 2])
+                        with save_col1:
+                            if st.button("Save Model", key='save_model'):
+                                st.write("Saving model...")
+                                success, message = save_trained_model(
+                                    model=model,
+                                    scaler=scaler,
+                                    features=selected_features,
+                                    X=X_test,
+                                    target_col=target_col
+                                )
+                                if success:
+                                    st.success(message)
+                                else:
+                                    st.error(message)
                     
                     except Exception as e:
                         st.error(f"Error in analysis: {str(e)}")
+                        print(f"Error details: {str(e)}")  # Terminal log
         
         else:
             st.warning("Please select features and a target variable to proceed")
     
     except Exception as e:
         st.error(f"Error reading file: {str(e)}")
+
 
 if __name__ == "__main__":
     sklearn_page()

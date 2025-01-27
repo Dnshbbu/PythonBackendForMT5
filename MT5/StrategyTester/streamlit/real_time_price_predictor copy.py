@@ -4,10 +4,29 @@ from typing import List, Dict, Optional
 import pandas as pd
 import numpy as np
 from collections import deque
+from datetime import datetime
 from model_predictor import ModelPredictor
 
 class RealTimePricePredictor:
+    """
+    Real-time price prediction system with efficient feature engineering and batch processing.
+    
+    This class handles:
+    - Real-time data processing
+    - Feature engineering (time-based, lagged, and rolling features)
+    - Batch prediction management
+    - Efficient DataFrame operations
+    """
+    
     def __init__(self, db_path: str, models_dir: str, batch_size: int = 10):
+        """
+        Initialize the predictor with model and data management settings.
+        
+        Args:
+            db_path: Path to the database
+            models_dir: Directory containing trained models
+            batch_size: Number of data points to collect before making predictions
+        """
         self.model_predictor = ModelPredictor(db_path, models_dir)
         self.batch_size = batch_size
         self.data_buffer = deque(maxlen=batch_size)
@@ -24,13 +43,23 @@ class RealTimePricePredictor:
             logging.info(f"Features: {self.model_predictor.feature_columns}")
 
     def setup_logging(self):
+        """Configure logging settings"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
 
     def split_factor_string(self, column_name: str, factor_string: str) -> Dict[str, any]:
-        """Split a factor string into individual components"""
+        """
+        Split a factor string into individual components
+        
+        Args:
+            column_name: Name of the column containing factors
+            factor_string: String containing factor data
+            
+        Returns:
+            Dictionary of parsed factors
+        """
         result = {}
         if not factor_string:
             return result
@@ -42,157 +71,90 @@ class RealTimePricePredictor:
                 key = key.strip()
                 value = value.strip()
                 
-                # Create column name like 'Factors_maScore'
                 new_key = f"{column_name}_{key}"
                 
-                # Try to convert to float if possible
                 try:
                     result[new_key] = float(value)
                 except ValueError:
-                    # Handle boolean values
                     if value.lower() == 'true':
-                        result[new_key] = True
+                        result[new_key] = 1.0
                     elif value.lower() == 'false':
-                        result[new_key] = False
+                        result[new_key] = 0.0
                     else:
                         result[new_key] = value
                         
         return result
 
-    def process_raw_data(self, data_point: Dict) -> Dict:
-        """Process raw data point into proper format for model"""
-        try:
-            processed_data = {}
+    def create_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Create time-based features from Date and Time columns"""
+        if 'Date' in df.columns and 'Time' in df.columns:
+            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+            df['Hour'] = df['DateTime'].dt.hour
+            df['DayOfWeek'] = df['DateTime'].dt.dayofweek
+            df['DayOfMonth'] = df['DateTime'].dt.day
+            df['WeekOfYear'] = df['DateTime'].dt.isocalendar().week
+            df['Month'] = df['DateTime'].dt.month
+            df['Quarter'] = df['DateTime'].dt.quarter
             
-            # Process basic numeric fields
-            numeric_fields = ['Price', 'Equity', 'Balance', 'Profit', 'Score', 'ExitScore', 'Positions']
-            for field in numeric_fields:
-                try:
-                    processed_data[field] = float(data_point.get(field, 0))
-                except (ValueError, TypeError):
-                    processed_data[field] = 0.0
-            
-            # Process string fields that need splitting
-            for column in self.split_columns:
-                if column in data_point:
-                    split_data = self.split_factor_string(column, data_point[column])
-                    processed_data.update(split_data)
-            
-            # Add Date and Time if present
-            if 'Date' in data_point:
-                processed_data['Date'] = data_point['Date']
-            if 'Time' in data_point:
-                processed_data['Time'] = data_point['Time']
-            
-            # Log the number of features processed
-            logging.info(f"Processed data point with {len(processed_data)} features")
-            logging.debug(f"Features: {list(processed_data.keys())}")
-            
-            return processed_data
-            
-        except Exception as e:
-            logging.error(f"Error processing raw data: {e}")
-            raise
+            # Market sessions
+            df['IsAsiaSession'] = ((df['Hour'] >= 0) & (df['Hour'] < 8)).astype(int)
+            df['IsEuropeSession'] = ((df['Hour'] >= 8) & (df['Hour'] < 16)).astype(int)
+            df['IsUSSession'] = ((df['Hour'] >= 13) & (df['Hour'] < 21)).astype(int)
+        return df
+
+    def create_lagged_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Create lagged features for numeric columns"""
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        lag_periods = [1, 5, 10, 20, 50]
+        
+        lagged_features = {}
+        for col in numeric_cols:
+            if col not in ['Hour', 'DayOfWeek', 'Month', 'Quarter']:  # Exclude time features
+                for lag in lag_periods:
+                    lagged_features[f'{col}_lag_{lag}'] = df[col].shift(lag)
+        
+        # Concatenate all lagged features at once
+        if lagged_features:
+            lagged_df = pd.DataFrame(lagged_features, index=df.index)
+            df = pd.concat([df, lagged_df], axis=1)
+        
+        return df
 
 
-    # def prepare_batch_features(self, batch_data: List[Dict]) -> pd.DataFrame:
-    #     """Prepare features from batch data"""
+
+
+    # def add_data_point(self, data_point: Dict) -> Optional[Dict]:
+    #     """Add a new data point and make prediction if batch is full"""
     #     try:
-    #         # Convert batch to DataFrame
-    #         df = pd.DataFrame(batch_data)
+    #         # Process raw data
+    #         processed_data = self.process_raw_data(data_point)
+    #         current_price = float(data_point.get('Price', 0))
             
-    #         # Log initial data shape
-    #         logging.info(f"Initial batch data shape: {df.shape}")
+    #         # Add to buffer
+    #         self.data_buffer.append(processed_data)
             
-    #         # Get required features from model
-    #         required_features = self.model_predictor.feature_columns
+    #         # Log buffer status
+    #         logging.info(f"Buffer size: {len(self.data_buffer)}/{self.batch_size}")
             
-    #         # Check for missing features
-    #         missing_features = [f for f in required_features if f not in df.columns]
-    #         if missing_features:
-    #             logging.warning(f"Missing features: {missing_features}")
-    #             for feature in missing_features:
-    #                 df[feature] = 0.0
+    #         # Make prediction if buffer is full
+    #         if len(self.data_buffer) == self.batch_size:
+    #             prediction_result = self.make_prediction()
+                
+    #             # Log prediction change
+    #             if self.last_prediction is not None:
+    #                 price_change = current_price - float(data_point.get('Price', 0))
+    #                 pred_change = prediction_result['prediction'] - self.last_prediction
+    #                 logging.info(f"Price change: {price_change:.4f}")
+    #                 logging.info(f"Prediction change: {pred_change:.4f}")
+                
+    #             self.last_prediction = prediction_result['prediction']
+    #             return prediction_result
             
-    #         # Select only required features
-    #         X = df[required_features].copy()
-            
-    #         # Convert all features to float where possible
-    #         for col in X.columns:
-    #             try:
-    #                 X[col] = X[col].astype(float)
-    #             except Exception as e:
-    #                 logging.warning(f"Could not convert {col} to float: {e}")
-            
-    #         # Apply scaling if available
-    #         if self.model_predictor.scaler:
-    #             X = pd.DataFrame(
-    #                 self.model_predictor.scaler.transform(X),
-    #                 columns=required_features,
-    #                 index=X.index
-    #             )
-    #             logging.debug("Applied feature scaling")
-            
-    #         # Log feature statistics
-    #         logging.info(f"Final feature matrix shape: {X.shape}")
-    #         return X
+    #         return None
             
     #     except Exception as e:
-    #         logging.error(f"Error preparing batch features: {e}")
+    #         logging.error(f"Error adding data point: {e}")
     #         raise
-
-
-    def prepare_batch_features(self, batch_data: List[Dict]) -> pd.DataFrame:
-        """Prepare features from batch data more efficiently"""
-        try:
-            # Convert batch to DataFrame
-            df = pd.DataFrame(batch_data)
-            
-            # Log initial data shape
-            logging.info(f"Initial batch data shape: {df.shape}")
-            
-            # Get required features from model
-            required_features = self.model_predictor.feature_columns
-            
-            # Create DataFrame for missing features
-            missing_features = [f for f in required_features if f not in df.columns]
-            if missing_features:
-                logging.warning(f"Missing features: {missing_features}")
-                # Create a DataFrame with zeros for missing features
-                missing_df = pd.DataFrame(
-                    0.0, 
-                    index=df.index, 
-                    columns=missing_features
-                )
-                # Concatenate with original DataFrame
-                df = pd.concat([df, missing_df], axis=1)
-            
-            # Select only required features
-            X = df[required_features].copy()
-            
-            # Convert all features to float where possible
-            for col in X.columns:
-                try:
-                    X[col] = X[col].astype(float)
-                except Exception as e:
-                    logging.warning(f"Could not convert {col} to float: {e}")
-            
-            # Apply scaling if available
-            if self.model_predictor.scaler:
-                X = pd.DataFrame(
-                    self.model_predictor.scaler.transform(X),
-                    columns=required_features,
-                    index=X.index
-                )
-                logging.debug("Applied feature scaling")
-            
-            # Log feature statistics
-            logging.info(f"Final feature matrix shape: {X.shape}")
-            return X
-            
-        except Exception as e:
-            logging.error(f"Error preparing batch features: {e}")
-            raise
 
     def add_data_point(self, data_point: Dict) -> Optional[Dict]:
         """Add a new data point and make prediction if batch is full"""
@@ -206,7 +168,6 @@ class RealTimePricePredictor:
             
             # Log buffer status
             logging.info(f"Buffer size: {len(self.data_buffer)}/{self.batch_size}")
-            logging.info(f"Current price: {current_price}")
             
             # Make prediction if buffer is full
             if len(self.data_buffer) == self.batch_size:
@@ -214,7 +175,11 @@ class RealTimePricePredictor:
                 
                 # Log prediction change
                 if self.last_prediction is not None:
-                    price_change = current_price - float(data_point.get('Price', 0))
+                    # Get previous price from the second-to-last item in buffer
+                    previous_data = list(self.data_buffer)[-2]  # Get second to last item
+                    previous_price = float(previous_data.get('Price', 0))
+                    price_change = current_price - previous_price
+                    
                     pred_change = prediction_result['prediction'] - self.last_prediction
                     logging.info(f"Price change: {price_change:.4f}")
                     logging.info(f"Prediction change: {pred_change:.4f}")
@@ -272,3 +237,139 @@ class RealTimePricePredictor:
         except Exception as e:
             logging.error(f"Error making prediction: {e}")
             raise
+
+
+
+    def create_rolling_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Create rolling window features for specified columns"""
+        try:
+            feature_cols = ['Price', 'Score', 'ExitScore']
+            factor_cols = [col for col in df.columns if 'Factors_' in col]
+            feature_cols.extend(factor_cols)
+            
+            windows = [5, 10, 20, 50, 100]
+            rolling_features = {}
+            
+            for col in feature_cols:
+                if col in df.columns:
+                    # First try to convert column to numeric
+                    try:
+                        series = pd.to_numeric(df[col], errors='coerce')
+                        if not series.isna().all():  # Only process if we have some valid numbers
+                            for window in windows:
+                                rolling = series.rolling(window=window, min_periods=1)
+                                rolling_features[f'{col}_rolling_mean_{window}'] = rolling.mean()
+                                rolling_features[f'{col}_rolling_std_{window}'] = rolling.std()
+                                rolling_features[f'{col}_rolling_min_{window}'] = rolling.min()
+                                rolling_features[f'{col}_rolling_max_{window}'] = rolling.max()
+                                rolling_features[f'{col}_momentum_{window}'] = series.diff(window)
+                    except Exception as e:
+                        logging.warning(f"Could not create rolling features for column {col}: {str(e)}")
+                        continue
+            
+            # Concatenate all rolling features at once
+            if rolling_features:
+                rolling_df = pd.DataFrame(rolling_features, index=df.index)
+                df = pd.concat([df, rolling_df], axis=1)
+            
+            return df
+            
+        except Exception as e:
+            logging.error(f"Error in create_rolling_features: {str(e)}")
+            return df  # Return original DataFrame if there's an error
+
+    def process_raw_data(self, data_point: Dict) -> Dict:
+        """Process raw data point into proper format for model"""
+        try:
+            processed_data = {}
+            
+            # Process basic numeric fields
+            numeric_fields = ['Price', 'Equity', 'Balance', 'Profit', 'Score', 'ExitScore', 'Positions']
+            for field in numeric_fields:
+                try:
+                    value = data_point.get(field, '0')
+                    processed_data[field] = float(value) if value != '' else 0.0
+                except (ValueError, TypeError):
+                    processed_data[field] = 0.0
+            
+            # Process string fields that need splitting
+            for column in self.split_columns:
+                if column in data_point:
+                    split_data = self.split_factor_string(column, data_point[column])
+                    # Convert split data to numeric where possible
+                    for key, value in split_data.items():
+                        try:
+                            if isinstance(value, str) and value.strip() != '':
+                                split_data[key] = float(value)
+                            elif value == '' or value is None:
+                                split_data[key] = 0.0
+                        except (ValueError, TypeError):
+                            split_data[key] = 0.0
+                    processed_data.update(split_data)
+            
+            # Add Date and Time if present
+            if 'Date' in data_point:
+                processed_data['Date'] = data_point['Date']
+            if 'Time' in data_point:
+                processed_data['Time'] = data_point['Time']
+            
+            return processed_data
+            
+        except Exception as e:
+            logging.error(f"Error processing raw data: {e}")
+            raise
+
+    def prepare_batch_features(self, batch_data: List[Dict]) -> pd.DataFrame:
+        """Prepare features from batch data with proper feature engineering"""
+        try:
+            # Convert batch to DataFrame
+            df = pd.DataFrame(batch_data)
+            
+            # Log initial data shape
+            logging.info(f"Initial batch data shape: {df.shape}")
+            
+            # Create all required features
+            df = self.create_time_features(df)
+            df = self.create_lagged_features(df)
+            df = self.create_rolling_features(df)
+            
+            # Get required features from model
+            required_features = self.model_predictor.feature_columns
+            
+            # Handle missing features efficiently
+            missing_features = [f for f in required_features if f not in df.columns]
+            if missing_features:
+                logging.warning(f"Missing features after generation: {missing_features}")
+                missing_df = pd.DataFrame(0.0, index=df.index, columns=missing_features)
+                df = pd.concat([df, missing_df], axis=1)
+            
+            # Select only required features and handle data types
+            X = df[required_features].copy()
+            
+            # Convert all columns to numeric, replacing errors with 0
+            for col in X.columns:
+                X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
+            
+            # Apply scaling if available
+            if self.model_predictor.scaler:
+                X = pd.DataFrame(
+                    self.model_predictor.scaler.transform(X),
+                    columns=required_features,
+                    index=X.index
+                )
+            
+            logging.info(f"Final feature matrix shape: {X.shape}")
+            return X
+            
+        except Exception as e:
+            logging.error(f"Error preparing batch features: {e}")
+            raise
+
+
+
+
+
+
+
+
+

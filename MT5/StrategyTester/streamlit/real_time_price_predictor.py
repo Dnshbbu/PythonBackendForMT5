@@ -13,22 +13,42 @@ class RealTimePricePredictor:
     Real-time price prediction system with consistent feature usage.
     """
     
-    def __init__(self, db_path: str, models_dir: str, batch_size: int = 10):
-        """Initialize the predictor"""
-        self.model_predictor = ModelPredictor(db_path, models_dir)
-        self.batch_size = batch_size
-        self.data_buffer = deque(maxlen=batch_size)
-        self.last_prediction = None
-        self.models_dir = models_dir
-        self.setup_logging()
+    # def __init__(self, db_path: str, models_dir: str, batch_size: int = 10):
+    #     """Initialize the predictor"""
+    #     self.model_predictor = ModelPredictor(db_path, models_dir)
+    #     self.batch_size = batch_size
+    #     self.data_buffer = deque(maxlen=batch_size)
+    #     self.last_prediction = None
+    #     self.models_dir = models_dir
+    #     self.setup_logging()
         
-        # Load feature configuration
-        self.selected_features = self.load_feature_config()
+    #     # Load feature configuration
+    #     self.selected_features = self.load_feature_config()
         
-        if self.model_predictor.model:
-            logging.info("Model loaded successfully")
-            logging.info(f"Number of features: {len(self.selected_features)}")
-            logging.info(f"Features: {self.selected_features}")
+    #     if self.model_predictor.model:
+    #         logging.info("Model loaded successfully")
+    #         logging.info(f"Number of features: {len(self.selected_features)}")
+    #         logging.info(f"Features: {self.selected_features}")
+
+    def __init__(self, db_path: str, models_dir: str, batch_size: int = 10, training_manager=None):
+            """Initialize the predictor"""
+            self.model_predictor = ModelPredictor(db_path, models_dir)
+            self.batch_size = batch_size
+            self.data_buffer = deque(maxlen=batch_size)
+            self.last_prediction = None
+            self.models_dir = models_dir
+            self.setup_logging()
+            
+            # Store training manager reference
+            self.training_manager = training_manager
+            
+            # Load feature configuration
+            self.selected_features = self.load_feature_config()
+            
+            if self.model_predictor.model:
+                logging.info("Model loaded successfully")
+                logging.info(f"Number of features: {len(self.selected_features)}")
+                logging.info(f"Features: {self.selected_features}")
 
     def setup_logging(self):
         """Configure logging settings"""
@@ -155,6 +175,43 @@ class RealTimePricePredictor:
             logging.error(f"Error preparing batch features: {e}")
             raise
 
+    # def add_data_point(self, data_point: Dict) -> Optional[Dict]:
+    #     """Add a new data point and make prediction if batch is full"""
+    #     try:
+    #         # Process raw data
+    #         processed_data = self.process_raw_data(data_point)
+    #         current_price = float(data_point.get('Price', 0))
+            
+    #         # Add to buffer
+    #         self.data_buffer.append(processed_data)
+            
+    #         # Log buffer status
+    #         logging.info(f"Buffer size: {len(self.data_buffer)}/{self.batch_size}")
+            
+    #         # Make prediction if buffer is full
+    #         if len(self.data_buffer) == self.batch_size:
+    #             prediction_result = self.make_prediction()
+                
+    #             # Log prediction change
+    #             if self.last_prediction is not None:
+    #                 # Get previous price from the second-to-last item in buffer
+    #                 previous_data = list(self.data_buffer)[-2]
+    #                 previous_price = float(previous_data.get('Price', 0))
+    #                 price_change = current_price - previous_price
+                    
+    #                 pred_change = prediction_result['prediction'] - self.last_prediction
+    #                 logging.info(f"Price change: {price_change:.4f}")
+    #                 logging.info(f"Prediction change: {pred_change:.4f}")
+                
+    #             self.last_prediction = prediction_result['prediction']
+    #             return prediction_result
+            
+    #         return None
+            
+    #     except Exception as e:
+    #         logging.error(f"Error adding data point: {e}")
+    #         raise
+
     def add_data_point(self, data_point: Dict) -> Optional[Dict]:
         """Add a new data point and make prediction if batch is full"""
         try:
@@ -170,6 +227,18 @@ class RealTimePricePredictor:
             
             # Make prediction if buffer is full
             if len(self.data_buffer) == self.batch_size:
+                # Check and reload model if needed
+                if self.training_manager is not None:
+                    try:
+                        training_status = self.training_manager.get_latest_training_status()
+                        if training_status.get('status') == 'completed':
+                            latest_model = training_status.get('model_path')
+                            if latest_model and latest_model != getattr(self.model_predictor, 'current_model_name', None):
+                                logging.info(f"New model available, reloading: {latest_model}")
+                                self.model_predictor.load_latest_model()
+                    except Exception as e:
+                        logging.warning(f"Error checking training status: {e}")
+
                 prediction_result = self.make_prediction()
                 
                 # Log prediction change

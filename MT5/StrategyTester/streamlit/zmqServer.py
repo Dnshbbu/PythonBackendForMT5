@@ -10,6 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from database_manager import DatabaseManager
 from real_time_price_predictor import RealTimePricePredictor
+from model_training_manager import ModelTrainingManager
 
 # Fix for Proactor Event Loop Warning on Windows
 if os.name == 'nt':
@@ -30,35 +31,151 @@ class MT5ZMQClient:
         self.logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
         os.makedirs(self.logs_dir, exist_ok=True)
         
+        # Initialize model directories
+        self.models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+        os.makedirs(self.models_dir, exist_ok=True)
+        
         self.setup_logging()
-
-    def setup_logging(self):
-        log_file = os.path.join(self.logs_dir, 'mt5_zmq_client.log')
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(log_file),
-                logging.StreamHandler()
-            ]
+        
+        # Initialize training manager
+        self.training_manager = ModelTrainingManager(
+            db_path=os.path.join(self.logs_dir, 'trading_data.db'),
+            models_dir=self.models_dir,
+            min_rows_for_training=20  # Trigger retraining every 20 new rows
         )
+        
+        # Clean up any invalid metrics data
+        self.training_manager.cleanup_invalid_metrics()
 
-    def get_log_file_path(self, run_id, file_type):
-        """Generate full file path for logs"""
-        return os.path.join(self.logs_dir, f"{run_id}_{file_type}")
 
-    async def connect(self):
-        try:
-            self.socket_receive.bind("tcp://127.0.0.1:5556")
-            self.socket_send.bind("tcp://127.0.0.1:5557")
-            self.signal_socket.bind("tcp://127.0.0.1:5558")
-            logging.info("ZMQ sockets bound successfully")
-            return True
-        except Exception as e:
-            logging.error(f"Failed to bind ZMQ sockets: {e}")
-            return False
 
- 
+    # async def handle_all_details(self, run_id, msg_content):
+    #     """Handle detailed trading information with ML integration and real-time predictions"""
+    #     try:
+    #         csv_filename = self.get_log_file_path(run_id, "all_details.csv")
+            
+    #         # Create directory if it doesn't exist
+    #         os.makedirs(os.path.dirname(csv_filename), exist_ok=True)
+            
+    #         # Initialize real-time predictor if not exists
+    #         if not hasattr(self, 'price_predictor'):
+    #             db_path = os.path.join(self.logs_dir, 'trading_data.db')
+    #             self.price_predictor = RealTimePricePredictor(db_path, self.models_dir, batch_size=10)
+                    
+    #         # Initialize DB manager if not exists
+    #         if not hasattr(self, 'db_manager'):
+    #             db_path = os.path.join(self.logs_dir, 'trading_data.db')
+    #             self.db_manager = DatabaseManager(db_path)
+                
+    #         # Process the message content into a dictionary
+    #         data = {}
+    #         for item in msg_content.split(','):
+    #             if ':' in item:
+    #                 key, value = item.split(':', 1)
+    #                 data[key.strip()] = value.strip()
+            
+    #         # Handle CSV operations
+    #         with open(csv_filename, 'a', newline='') as csvfile:
+    #             csv_writer = csv.writer(csvfile)
+                
+    #             # Handle headers
+    #             if csv_filename not in self.headers:
+    #                 if not os.path.exists(csv_filename) or os.path.getsize(csv_filename) == 0:
+    #                     self.headers[csv_filename] = [
+    #                         'Date','Time', 'Symbol', 'Price', 'Equity', 'Balance', 'Profit',
+    #                         'Positions', 'Score', 'ExitScore', 'Factors', 'ExitFactors',
+    #                         'EntryScore', 'ExitScoreDetails', 'Pullback'
+    #                     ]
+    #                     csv_writer.writerow(self.headers[csv_filename])
+    #                     logging.info(f"Created CSV file: {csv_filename} with headers")
+    #                 else:
+    #                     with open(csv_filename, 'r') as f:
+    #                         self.headers[csv_filename] = next(csv.reader(f))
+    #                 return
+                
+    #             # Write row data
+    #             row_data = []
+    #             for header in self.headers[csv_filename]:
+    #                 if header in data:
+    #                     row_data.append(data[header])
+    #                 else:
+    #                     row_data.append('')
+    #             csv_writer.writerow(row_data)
+            
+    #         # Handle DB operations
+    #         try:
+    #             table_name = self.db_manager.create_table_for_strategy(run_id, data)
+    #             self.db_manager.insert_data(table_name, data)
+                
+    #             # Check if retraining is needed and trigger if necessary
+    #             await asyncio.get_event_loop().run_in_executor(
+    #                 None,
+    #                 self.training_manager.check_and_trigger_training,
+    #                 table_name
+    #             )
+                
+    #         except Exception as db_error:
+    #             logging.error(f"Database operation failed: {db_error}")
+    #             logging.exception(db_error)
+            
+    #         # Make real-time prediction
+    #         try:
+    #             prediction_result = await asyncio.get_event_loop().run_in_executor(
+    #                 None,
+    #                 self.price_predictor.add_data_point,
+    #                 data
+    #             )
+                
+    #             if prediction_result is not None:
+    #                 # Get latest training status
+    #                 training_status = await asyncio.get_event_loop().run_in_executor(
+    #                     None,
+    #                     self.training_manager.get_latest_training_status
+    #                 )
+
+    #                 # Get current model name
+    #                 current_model = getattr(self.price_predictor.model_predictor, 'current_model_name', 'unknown')
+                    
+    #                 # Create prediction message with training status
+    #                 prediction_message = {
+    #                     "type": "price_prediction",
+    #                     "run_id": run_id,
+    #                     "timestamp": datetime.now().isoformat(),
+    #                     "prediction": float(prediction_result['prediction']),
+    #                     "confidence": float(prediction_result['confidence']),
+    #                     "is_confident": bool(prediction_result['is_confident']),
+    #                     "current_price": float(data.get('Price', 0)),
+    #                     "top_features": prediction_result['top_features'],
+    #                     # "training_status": {
+    #                     #     "is_training": self.training_manager.is_training,
+    #                     #     "last_training": training_status
+    #                     # }
+    #                     "model_info": {
+    #                         "current_model": current_model,
+    #                         "is_training": self.training_manager.is_training,
+    #                         "last_training": training_status
+    #                     }
+    #                 }
+                    
+    #                 # Send prediction to MT5
+    #                 # await self.send_to_mt5(json.dumps(prediction_message))
+    #                 # logging.info(f"Sent prediction to MT5: {prediction_result['prediction']:.4f} "
+    #                 #         f"(confidence: {prediction_result['confidence']:.4f})")
+
+
+    #                 # Send prediction to MT5
+    #                 await self.send_to_mt5(json.dumps(prediction_message))
+    #                 logging.info(f"Sent prediction to MT5 using model {current_model}: "
+    #                            f"{prediction_result['prediction']:.4f} "
+    #                            f"(confidence: {prediction_result['confidence']:.4f})")
+            
+    #         except Exception as pred_error:
+    #             logging.error(f"Prediction failed: {pred_error}")
+    #             logging.exception(pred_error)
+            
+    #     except Exception as e:
+    #         logging.error(f"Error handling all details data: {e}")
+    #         logging.exception(e)
 
     async def handle_all_details(self, run_id, msg_content):
         """Handle detailed trading information with ML integration and real-time predictions"""
@@ -71,8 +188,13 @@ class MT5ZMQClient:
             # Initialize real-time predictor if not exists
             if not hasattr(self, 'price_predictor'):
                 db_path = os.path.join(self.logs_dir, 'trading_data.db')
-                models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
-                self.price_predictor = RealTimePricePredictor(db_path, models_dir, batch_size=10)
+                # self.price_predictor = RealTimePricePredictor(db_path, self.models_dir, batch_size=10)
+                self.price_predictor = RealTimePricePredictor(
+                    db_path=db_path, 
+                    models_dir=self.models_dir, 
+                    batch_size=10,
+                    training_manager=self.training_manager  # Pass training manager here
+                )
                     
             # Initialize DB manager if not exists
             if not hasattr(self, 'db_manager'):
@@ -118,6 +240,14 @@ class MT5ZMQClient:
             try:
                 table_name = self.db_manager.create_table_for_strategy(run_id, data)
                 self.db_manager.insert_data(table_name, data)
+                
+                # Check if retraining is needed and trigger if necessary
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    self.training_manager.check_and_trigger_training,
+                    table_name
+                )
+                
             except Exception as db_error:
                 logging.error(f"Database operation failed: {db_error}")
                 logging.exception(db_error)
@@ -131,13 +261,16 @@ class MT5ZMQClient:
                 )
                 
                 if prediction_result is not None:
-                    # Create prediction message
-                    # Convert numpy values to Python native types
-                    top_features = {
-                        str(k): float(v) 
-                        for k, v in prediction_result['top_features'].items()
-                    }
+                    # Get latest training status
+                    training_status = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        self.training_manager.get_latest_training_status
+                    )
+
+                    # Get current model name
+                    current_model = getattr(self.price_predictor.model_predictor, 'current_model_name', 'unknown')
                     
+                    # Create prediction message with training status
                     prediction_message = {
                         "type": "price_prediction",
                         "run_id": run_id,
@@ -146,14 +279,19 @@ class MT5ZMQClient:
                         "confidence": float(prediction_result['confidence']),
                         "is_confident": bool(prediction_result['is_confident']),
                         "current_price": float(data.get('Price', 0)),
-                        "top_features": top_features
+                        "top_features": prediction_result['top_features'],
+                        "model_info": {
+                            "current_model": current_model,
+                            "is_training": self.training_manager.is_training,
+                            "last_training": training_status
+                        }
                     }
                     
                     # Send prediction to MT5
                     await self.send_to_mt5(json.dumps(prediction_message))
-                    logging.info(f"Sent prediction to MT5: {prediction_result['prediction']:.4f} "
-                            f"(confidence: {prediction_result['confidence']:.4f})")
-
+                    logging.info(f"Sent prediction to MT5 using model {current_model}: "
+                               f"{prediction_result['prediction']:.4f} "
+                               f"(confidence: {prediction_result['confidence']:.4f})")
             
             except Exception as pred_error:
                 logging.error(f"Prediction failed: {pred_error}")
@@ -162,6 +300,162 @@ class MT5ZMQClient:
         except Exception as e:
             logging.error(f"Error handling all details data: {e}")
             logging.exception(e)
+
+    async def cleanup(self):
+        logging.info("Cleaning up resources...")
+        self.socket_send.close()
+        self.socket_receive.close()
+        self.signal_socket.close()
+        self.context.term()
+        
+        # Additional cleanup for training manager if needed
+        if hasattr(self, 'training_manager'):
+            # Wait for any ongoing training to complete
+            while self.training_manager.is_training:
+                await asyncio.sleep(1)
+
+
+    def setup_logging(self):
+        log_file = os.path.join(self.logs_dir, 'mt5_zmq_client.log')
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler(log_file),
+                logging.StreamHandler()
+            ]
+        )
+
+    def get_log_file_path(self, run_id, file_type):
+        """Generate full file path for logs"""
+        return os.path.join(self.logs_dir, f"{run_id}_{file_type}")
+
+    async def connect(self):
+        try:
+            self.socket_receive.bind("tcp://127.0.0.1:5556")
+            self.socket_send.bind("tcp://127.0.0.1:5557")
+            self.signal_socket.bind("tcp://127.0.0.1:5558")
+            logging.info("ZMQ sockets bound successfully")
+            return True
+        except Exception as e:
+            logging.error(f"Failed to bind ZMQ sockets: {e}")
+            return False
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+    # async def handle_all_details(self, run_id, msg_content):
+    #     """Handle detailed trading information with ML integration and real-time predictions"""
+    #     try:
+    #         csv_filename = self.get_log_file_path(run_id, "all_details.csv")
+            
+    #         # Create directory if it doesn't exist
+    #         os.makedirs(os.path.dirname(csv_filename), exist_ok=True)
+            
+    #         # Initialize real-time predictor if not exists
+    #         if not hasattr(self, 'price_predictor'):
+    #             db_path = os.path.join(self.logs_dir, 'trading_data.db')
+    #             models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+    #             self.price_predictor = RealTimePricePredictor(db_path, models_dir, batch_size=10)
+                    
+    #         # Initialize DB manager if not exists
+    #         if not hasattr(self, 'db_manager'):
+    #             db_path = os.path.join(self.logs_dir, 'trading_data.db')
+    #             self.db_manager = DatabaseManager(db_path)
+                
+    #         # Process the message content into a dictionary
+    #         data = {}
+    #         for item in msg_content.split(','):
+    #             if ':' in item:
+    #                 key, value = item.split(':', 1)
+    #                 data[key.strip()] = value.strip()
+            
+    #         # Handle CSV operations
+    #         with open(csv_filename, 'a', newline='') as csvfile:
+    #             csv_writer = csv.writer(csvfile)
+                
+    #             # Handle headers
+    #             if csv_filename not in self.headers:
+    #                 if not os.path.exists(csv_filename) or os.path.getsize(csv_filename) == 0:
+    #                     self.headers[csv_filename] = [
+    #                         'Date','Time', 'Symbol', 'Price', 'Equity', 'Balance', 'Profit',
+    #                         'Positions', 'Score', 'ExitScore', 'Factors', 'ExitFactors',
+    #                         'EntryScore', 'ExitScoreDetails', 'Pullback'
+    #                     ]
+    #                     csv_writer.writerow(self.headers[csv_filename])
+    #                     logging.info(f"Created CSV file: {csv_filename} with headers")
+    #                 else:
+    #                     with open(csv_filename, 'r') as f:
+    #                         self.headers[csv_filename] = next(csv.reader(f))
+    #                 return
+                
+    #             # Write row data
+    #             row_data = []
+    #             for header in self.headers[csv_filename]:
+    #                 if header in data:
+    #                     row_data.append(data[header])
+    #                 else:
+    #                     row_data.append('')
+    #             csv_writer.writerow(row_data)
+            
+    #         # Handle DB operations
+    #         try:
+    #             table_name = self.db_manager.create_table_for_strategy(run_id, data)
+    #             self.db_manager.insert_data(table_name, data)
+    #         except Exception as db_error:
+    #             logging.error(f"Database operation failed: {db_error}")
+    #             logging.exception(db_error)
+            
+    #         # Make real-time prediction
+    #         try:
+    #             prediction_result = await asyncio.get_event_loop().run_in_executor(
+    #                 None,
+    #                 self.price_predictor.add_data_point,
+    #                 data
+    #             )
+                
+    #             if prediction_result is not None:
+    #                 # Create prediction message
+    #                 # Convert numpy values to Python native types
+    #                 top_features = {
+    #                     str(k): float(v) 
+    #                     for k, v in prediction_result['top_features'].items()
+    #                 }
+                    
+    #                 prediction_message = {
+    #                     "type": "price_prediction",
+    #                     "run_id": run_id,
+    #                     "timestamp": datetime.now().isoformat(),
+    #                     "prediction": float(prediction_result['prediction']),
+    #                     "confidence": float(prediction_result['confidence']),
+    #                     "is_confident": bool(prediction_result['is_confident']),
+    #                     "current_price": float(data.get('Price', 0)),
+    #                     "top_features": top_features
+    #                 }
+                    
+    #                 # Send prediction to MT5
+    #                 await self.send_to_mt5(json.dumps(prediction_message))
+    #                 logging.info(f"Sent prediction to MT5: {prediction_result['prediction']:.4f} "
+    #                         f"(confidence: {prediction_result['confidence']:.4f})")
+
+            
+    #         except Exception as pred_error:
+    #             logging.error(f"Prediction failed: {pred_error}")
+    #             logging.exception(pred_error)
+            
+    #     except Exception as e:
+    #         logging.error(f"Error handling all details data: {e}")
+    #         logging.exception(e)
+
 
     async def handle_sequence_of_events(self, run_id, event_content):
         try:
@@ -377,12 +671,13 @@ class MT5ZMQClient:
                 logging.error(f"Error in main loop: {e}")
                 await asyncio.sleep(1)
 
-    async def cleanup(self):
-        logging.info("Cleaning up resources...")
-        self.socket_send.close()
-        self.socket_receive.close()
-        self.signal_socket.close()
-        self.context.term()
+    # async def cleanup(self):
+    #     logging.info("Cleaning up resources...")
+    #     self.socket_send.close()
+    #     self.socket_receive.close()
+    #     self.signal_socket.close()
+    #     self.context.term()
+
 
 async def main():
     client = MT5ZMQClient()

@@ -5,9 +5,11 @@ import threading
 import time
 from datetime import datetime
 from typing import Optional, Dict, Any
-from xgboost_trainer import TimeSeriesXGBoostTrainer
 import joblib
 import json
+import numpy as np
+from model_manager import ModelManager
+from model_trainer import TimeSeriesModelTrainer
 
 class ModelTrainingManager:
     def verify_database_schema(self):
@@ -68,6 +70,7 @@ class ModelTrainingManager:
         self.is_training = False
         self.setup_logging()
         self.verify_database_schema()  # Verify schema on initialization
+        self.model_manager = ModelManager()
         
     def _serialize_metrics(self, metrics: Dict) -> str:
         """Safely serialize metrics to JSON string"""
@@ -267,26 +270,17 @@ class ModelTrainingManager:
         if not metrics:
             return "{}"
             
-        try:
-            # Convert all values to basic types
-            cleaned_metrics = {}
-            for key, value in metrics.items():
-                if isinstance(value, (int, float, str, bool)):
-                    cleaned_metrics[key] = value
-                elif value is None:
-                    cleaned_metrics[key] = None
-                else:
-                    cleaned_metrics[key] = str(value)
-            
-            # Test JSON serialization
-            json_str = json.dumps(cleaned_metrics)
-            # Verify it can be deserialized
-            json.loads(json_str)
-            return json_str
-            
-        except Exception as e:
-            logging.error(f"Error validating metrics: {e}")
-            return "{}"
+        def convert_value(v):
+            if isinstance(v, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, 
+                            np.int64, np.uint8, np.uint16, np.uint32, np.uint64)):
+                return int(v)
+            elif isinstance(v, (np.float_, np.float16, np.float32, np.float64)):
+                return float(v)
+            elif isinstance(v, (np.ndarray, list)):
+                return [convert_value(x) for x in v]
+            elif isinstance(v, dict):
+                return {k: convert_value(val) for k, val in v.items()}
+            return v
 
     def update_training_status(self, session_id: int, status: str, 
                              model_path: Optional[str] = None,
@@ -381,18 +375,33 @@ class ModelTrainingManager:
             self.is_training = True
             session_id = self.start_training_session()
             
-            # Import feature definitions from training module
+            # Initialize model manager if available
+            try:
+                from model_manager import ModelManager
+                model_manager = ModelManager()
+                model_type = model_manager.get_active_model()
+                model_params = model_manager.get_model_params()
+            except ImportError:
+                model_type = "xgboost"
+                from xgboost_train_model import get_model_params
+                model_params = get_model_params(model_type)
+            
+            # Import feature definitions
             from xgboost_train_model import (
                 TECHNICAL_FEATURES,
-                ENTRY_FEATURES,
-                get_model_params
+                ENTRY_FEATURES
             )
             
             # Combine all features
             selected_features = TECHNICAL_FEATURES + ENTRY_FEATURES
             
-            # Initialize trainer
-            trainer = TimeSeriesXGBoostTrainer(self.db_path, self.models_dir)
+            # Initialize trainer with support for multiple model types
+            try:
+                from model_trainer import TimeSeriesModelTrainer
+                trainer = TimeSeriesModelTrainer(self.db_path, self.models_dir)
+            except ImportError:
+                from xgboost_trainer import TimeSeriesXGBoostTrainer
+                trainer = TimeSeriesXGBoostTrainer(self.db_path, self.models_dir)
             
             # Get last processed ID
             conn = sqlite3.connect(self.db_path)
@@ -405,17 +414,34 @@ class ModelTrainingManager:
             result = cursor.fetchone()
             last_processed_id = result[0] if result else 0
             
-            # Get model parameters
-            model_params = get_model_params()
-            
-            # Train model with specified features
-            model_path, metrics = trainer.train_and_save(
-                table_name=table_name,
-                target_col="Price",
-                prediction_horizon=1,
-                feature_cols=selected_features,
-                model_params=model_params
-            )
+            # Train model
+            try:
+                if isinstance(trainer, TimeSeriesModelTrainer):
+                    model_path, metrics = trainer.train_and_save(
+                        table_name=table_name,
+                        model_type=model_type,
+                        target_col="Price",
+                        feature_cols=selected_features,
+                        prediction_horizon=1,
+                        model_params=model_params
+                    )
+                else:
+                    # Legacy training for XGBoost trainer
+                    model_path, metrics = trainer.train_and_save(
+                        table_name=table_name,
+                        target_col="Price",
+                        prediction_horizon=1,
+                        feature_cols=selected_features,
+                        model_params=model_params
+                    )
+            except Exception as train_error:
+                logging.error(f"Training error: {train_error}")
+                self.update_training_status(
+                    session_id=session_id,
+                    status='failed',
+                    error_message=str(train_error)
+                )
+                raise
             
             # Get new last processed ID
             cursor.execute(f"SELECT MAX(id) FROM {table_name}")

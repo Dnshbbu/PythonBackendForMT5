@@ -8,6 +8,7 @@ import joblib
 from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime
 import json
+from model_implementations import ModelFactory
 
 class ModelPredictor:
     def __init__(self, db_path: str, models_dir: str):
@@ -40,189 +41,102 @@ class ModelPredictor:
         
 
 
-    # def load_latest_model(self) -> None:
-    #     """Load the most recent model and its associated metadata"""
-    #     try:
-    #         # Check if models directory exists
-    #         if not os.path.exists(self.models_dir):
-    #             logging.warning(f"Models directory not found: {self.models_dir}")
-    #             os.makedirs(self.models_dir)
-    #             raise FileNotFoundError("Models directory was created but no models found")
-
-    #         # Find all model files
-    #         model_files = []
-    #         for f in os.listdir(self.models_dir):
-    #             if f.endswith('.joblib') and 'scaler' not in f:
-    #                 full_path = os.path.join(self.models_dir, f)
-    #                 model_files.append((full_path, os.path.getctime(full_path)))
-
-    #         if not model_files:
-    #             raise FileNotFoundError("No .joblib model files found in models directory")
-
-    #         # Sort by creation time and get the latest
-    #         latest_model_path = sorted(model_files, key=lambda x: x[1], reverse=True)[0][0]
-    #         self.current_model_name = os.path.basename(latest_model_path)
-    #         base_name = os.path.splitext(os.path.basename(latest_model_path))[0]
-            
-    #         # Load model
-    #         # try:
-    #         #     self.model = joblib.load(latest_model_path)
-    #         #     logging.info(f"Successfully loaded model from {latest_model_path}")
-    #         # except Exception as e:
-    #         #     logging.error(f"Failed to load model from {latest_model_path}: {str(e)}")
-    #         #     raise
-    #         try:
-    #             self.model = joblib.load(latest_model_path)
-    #             logging.info(f"Successfully loaded model: {self.current_model_name}")
-    #         except Exception as e:
-    #             logging.error(f"Failed to load model from {latest_model_path}: {str(e)}")
-    #             raise
-
-    #         # Try to load feature names from JSON first
-    #         feature_names_path = os.path.join(self.models_dir, f"{base_name}_feature_names.json")
-    #         if os.path.exists(feature_names_path):
-    #             try:
-    #                 with open(feature_names_path, 'r') as f:
-    #                     feature_data = json.load(f)
-    #                 self.feature_columns = feature_data['feature_names']
-    #                 logging.info(f"Loaded feature names from JSON: {len(self.feature_columns)} features")
-    #             except Exception as e:
-    #                 logging.warning(f"Error loading feature names JSON: {str(e)}")
-    #                 self.feature_columns = None
-
-    #         # If JSON load failed, try feature importance file
-    #         if not self.feature_columns:
-    #             importance_path = os.path.join(self.models_dir, f"{base_name}_feature_importance.csv")
-    #             if os.path.exists(importance_path):
-    #                 try:
-    #                     importance_df = pd.read_csv(importance_path)
-    #                     self.feature_columns = importance_df['feature'].tolist()
-    #                     logging.info(f"Loaded feature names from CSV: {len(self.feature_columns)} features")
-    #                 except Exception as e:
-    #                     logging.warning(f"Error loading feature importance file: {str(e)}")
-    #                     self.feature_columns = None
-
-    #         # If both failed, try to get from model
-    #         if not self.feature_columns:
-    #             if hasattr(self.model, 'feature_names_'):
-    #                 self.feature_columns = self.model.feature_names_
-    #                 logging.info("Using feature names from model")
-    #             else:
-    #                 logging.warning("Using default feature list")
-    #                 self.feature_columns = ['Price', 'Score', 'ExitScore']
-
-    #         # Load scaler if available
-    #         scaler_path = os.path.join(self.models_dir, f"{base_name}_scaler.joblib")
-    #         if os.path.exists(scaler_path):
-    #             try:
-    #                 self.scaler = joblib.load(scaler_path)
-    #                 logging.info("Successfully loaded scaler")
-    #             except Exception as e:
-    #                 logging.warning(f"Error loading scaler: {str(e)}")
-    #                 self.scaler = None
-    #         else:
-    #             logging.warning("Scaler file not found, will use unscaled features")
-    #             self.scaler = None
-
-    #         logging.info(f"Model loading complete. Features: {self.feature_columns}")
-
-    #     except Exception as e:
-    #         logging.error(f"Error in load_latest_model: {str(e)}")
-    #         self.model = None
-    #         self.current_model_name = None
-    #         self.feature_columns = ['Price', 'Score', 'ExitScore']
-    #         self.scaler = None
-    #         raise
-
     def load_latest_model(self) -> None:
-            """Load the most recent model and its associated metadata"""
+        """Load the most recent model and its associated metadata"""
+        try:
+            # Check if models directory exists
+            if not os.path.exists(self.models_dir):
+                logging.warning(f"Models directory not found: {self.models_dir}")
+                os.makedirs(self.models_dir)
+                raise FileNotFoundError("Models directory was created but no models found")
+
+            # Find all model files
+            model_files = []
+            for f in os.listdir(self.models_dir):
+                if f.endswith('.joblib') and 'scaler' not in f:
+                    full_path = os.path.join(self.models_dir, f)
+                    model_files.append((full_path, os.path.getctime(full_path)))
+
+            if not model_files:
+                raise FileNotFoundError("No .joblib model files found in models directory")
+
+            # Sort by creation time and get the latest
+            latest_model_path = sorted(model_files, key=lambda x: x[1], reverse=True)[0][0]
+            self.current_model_name = os.path.basename(latest_model_path)
+            base_name = os.path.splitext(os.path.basename(latest_model_path))[0]
+            
+            # Determine model type from filename
+            model_type = "xgboost"  # default
             try:
-                # Check if models directory exists
-                if not os.path.exists(self.models_dir):
-                    logging.warning(f"Models directory not found: {self.models_dir}")
-                    os.makedirs(self.models_dir)
-                    raise FileNotFoundError("Models directory was created but no models found")
-
-                # Find all model files
-                model_files = []
-                for f in os.listdir(self.models_dir):
-                    if f.endswith('.joblib') and 'scaler' not in f:
-                        full_path = os.path.join(self.models_dir, f)
-                        model_files.append((full_path, os.path.getctime(full_path)))
-
-                if not model_files:
-                    raise FileNotFoundError("No .joblib model files found in models directory")
-
-                # Sort by creation time and get the latest
-                latest_model_path = sorted(model_files, key=lambda x: x[1], reverse=True)[0][0]
-                self.current_model_name = os.path.basename(latest_model_path)
-                base_name = os.path.splitext(os.path.basename(latest_model_path))[0]
+                from model_implementations import ModelFactory
+                for known_type in ModelFactory._models.keys():
+                    if known_type in self.current_model_name.lower():
+                        model_type = known_type
+                        break
                 
-                # Load model
-                try:
-                    self.model = joblib.load(latest_model_path)
-                    logging.info(f"Successfully loaded model: {self.current_model_name}")
-                except Exception as e:
-                    logging.error(f"Failed to load model from {latest_model_path}: {str(e)}")
-                    raise
+                self.model = ModelFactory.get_model(model_type)
+                self.model.load(latest_model_path)
+                logging.info(f"Successfully loaded {model_type} model: {self.current_model_name}")
+            except ImportError:
+                # Fallback to legacy loading if ModelFactory not available
+                self.model = joblib.load(latest_model_path)
+                logging.info(f"Loaded model using legacy method: {self.current_model_name}")
 
-                # Try to load feature names from JSON first
-                feature_names_path = os.path.join(self.models_dir, f"{base_name}_feature_names.json")
-                if os.path.exists(feature_names_path):
+            # Try to load feature names from JSON first
+            feature_names_path = os.path.join(self.models_dir, f"{base_name}_feature_names.json")
+            if os.path.exists(feature_names_path):
+                try:
+                    with open(feature_names_path, 'r') as f:
+                        feature_data = json.load(f)
+                    self.feature_columns = feature_data['feature_names']
+                    logging.info(f"Loaded feature names from JSON: {len(self.feature_columns)} features")
+                except Exception as e:
+                    logging.warning(f"Error loading feature names JSON: {str(e)}")
+                    self.feature_columns = None
+
+            # If JSON load failed, try feature importance file
+            if not self.feature_columns:
+                importance_path = os.path.join(self.models_dir, f"{base_name}_feature_importance.csv")
+                if os.path.exists(importance_path):
                     try:
-                        with open(feature_names_path, 'r') as f:
-                            feature_data = json.load(f)
-                        self.feature_columns = feature_data['feature_names']
-                        logging.info(f"Loaded feature names from JSON: {len(self.feature_columns)} features")
+                        importance_df = pd.read_csv(importance_path)
+                        self.feature_columns = importance_df['feature'].tolist()
+                        logging.info(f"Loaded feature names from CSV: {len(self.feature_columns)} features")
                     except Exception as e:
-                        logging.warning(f"Error loading feature names JSON: {str(e)}")
+                        logging.warning(f"Error loading feature importance file: {str(e)}")
                         self.feature_columns = None
 
-                # If JSON load failed, try feature importance file
-                if not self.feature_columns:
-                    importance_path = os.path.join(self.models_dir, f"{base_name}_feature_importance.csv")
-                    if os.path.exists(importance_path):
-                        try:
-                            importance_df = pd.read_csv(importance_path)
-                            self.feature_columns = importance_df['feature'].tolist()
-                            logging.info(f"Loaded feature names from CSV: {len(self.feature_columns)} features")
-                        except Exception as e:
-                            logging.warning(f"Error loading feature importance file: {str(e)}")
-                            self.feature_columns = None
-
-                # If both failed, try to get from model
-                if not self.feature_columns:
-                    if hasattr(self.model, 'feature_names_'):
-                        self.feature_columns = self.model.feature_names_
-                        logging.info("Using feature names from model")
-                    else:
-                        logging.warning("Using default feature list")
-                        self.feature_columns = ['Price', 'Score', 'ExitScore']
-
-                # Load scaler if available
-                scaler_path = os.path.join(self.models_dir, f"{base_name}_scaler.joblib")
-                if os.path.exists(scaler_path):
-                    try:
-                        self.scaler = joblib.load(scaler_path)
-                        logging.info("Successfully loaded scaler")
-                    except Exception as e:
-                        logging.warning(f"Error loading scaler: {str(e)}")
-                        self.scaler = None
+            # If both failed, try to get from model
+            if not self.feature_columns:
+                if hasattr(self.model, 'feature_names_'):
+                    self.feature_columns = self.model.feature_names_
+                    logging.info("Using feature names from model")
                 else:
-                    logging.warning("Scaler file not found, will use unscaled features")
+                    logging.warning("Using default feature list")
+                    self.feature_columns = ['Price', 'Score', 'ExitScore']
+
+            # Load scaler if available
+            scaler_path = os.path.join(self.models_dir, f"{base_name}_scaler.joblib")
+            if os.path.exists(scaler_path):
+                try:
+                    self.scaler = joblib.load(scaler_path)
+                    logging.info("Successfully loaded scaler")
+                except Exception as e:
+                    logging.warning(f"Error loading scaler: {str(e)}")
                     self.scaler = None
-
-                logging.info(f"Model loading complete. Features: {self.feature_columns}")
-
-            except Exception as e:
-                logging.error(f"Error in load_latest_model: {str(e)}")
-                self.model = None
-                self.current_model_name = None
-                self.feature_columns = ['Price', 'Score', 'ExitScore']
+            else:
+                logging.warning("Scaler file not found, will use unscaled features")
                 self.scaler = None
-                raise
 
+            logging.info(f"Model loading complete. Features: {self.feature_columns}")
 
+        except Exception as e:
+            logging.error(f"Error in load_latest_model: {str(e)}")
+            self.model = None
+            self.current_model_name = None
+            self.feature_columns = ['Price', 'Score', 'ExitScore']
+            self.scaler = None
+            raise
 
 
     def get_latest_data(self, table_name: str, n_rows: int = 100) -> pd.DataFrame:

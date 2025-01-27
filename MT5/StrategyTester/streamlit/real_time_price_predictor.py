@@ -275,12 +275,8 @@ class RealTimePricePredictor:
             batch_predictions = self.model_predictor.model.predict(X)
             confidence = 1.0 - (np.std(batch_predictions) / abs(prediction[0]))
             
-            # Get feature importance for selected features only
-            feature_importance = {
-                str(col): float(imp) 
-                for col, imp in zip(X.columns, self.model_predictor.model.feature_importances_)
-                if col in self.selected_features
-            }
+            # Get feature importance from the model's get_feature_importance method
+            feature_importance = self.model_predictor.model.get_feature_importance()
             
             # Get top features
             top_features = dict(sorted(
@@ -306,3 +302,4 @@ class RealTimePricePredictor:
         except Exception as e:
             logging.error(f"Error making prediction: {e}")
             raise
+

@@ -1,0 +1,26 @@
+{
+    "active_model": "decision_tree",
+    "models": {
+        "xgboost": {
+            "params": {
+                "max_depth": 8,
+                "learning_rate": 0.05,
+                "n_estimators": 1000
+            }
+        },
+        "decision_tree": {
+            "params": {
+                "max_depth": 8,
+                "min_samples_split": 5,
+                "min_samples_leaf": 2
+            }
+        }
+    },
+    "training": {
+        "prediction_horizons": [
+            1,
+            5
+        ],
+        "min_rows_for_training": 20
+    }
+}

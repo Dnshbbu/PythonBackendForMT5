@@ -1,12 +1,8 @@
 import os
-from xgboost_trainer import TimeSeriesXGBoostTrainer
+from model_trainer import TimeSeriesModelTrainer
 import logging
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from datetime import datetime
-import json
-import joblib
-import pandas as pd
-import numpy as np
 
 # Define your feature sets
 TECHNICAL_FEATURES = [
@@ -23,40 +19,36 @@ ENTRY_FEATURES = [
 # Combine all features
 SELECTED_FEATURES = TECHNICAL_FEATURES + ENTRY_FEATURES
 
-def get_model_params() -> Dict:
-    """Define model hyperparameters"""
-    return {
-        'max_depth': 8,
-        'learning_rate': 0.05,
-        'n_estimators': 1000,
-        'subsample': 0.8,
-        'colsample_bytree': 0.8,
-        'min_child_weight': 2,
-        'objective': 'reg:squarederror',
-        'random_state': 42
+def get_model_params(model_type: str) -> Dict:
+    """Get model parameters based on model type"""
+    params = {
+        'xgboost': {
+            'max_depth': 8,
+            'learning_rate': 0.05,
+            'n_estimators': 1000,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'min_child_weight': 2,
+            'objective': 'reg:squarederror',
+            'random_state': 42
+        },
+        'decision_tree': {
+            'max_depth': 8,
+            'min_samples_split': 5,
+            'min_samples_leaf': 2,
+            'random_state': 42
+        }
     }
-
-def save_feature_config(model_dir: str, feature_list: List[str]):
-    """Save feature configuration for use during prediction"""
-    config = {
-        'features': feature_list,
-        'created_at': datetime.now().isoformat(),
-        'description': 'Feature configuration for price prediction model'
-    }
-    
-    config_path = os.path.join(model_dir, 'feature_config.json')
-    with open(config_path, 'w') as f:
-        json.dump(config, f, indent=4)
-    
-    logging.info(f"Saved feature configuration to {config_path}")
+    return params.get(model_type, {})
 
 def train_time_series_model(
     table_name: str,
+    model_type: str = "xgboost",
     target_col: str = "Price",
     prediction_horizon: int = 1,
     custom_feature_params: Optional[Dict] = None,
     custom_model_params: Optional[Dict] = None
-) -> tuple:
+) -> Tuple[str, Dict]:
     """
     Train a time series model with specified parameters and features
     """
@@ -66,37 +58,27 @@ def train_time_series_model(
         db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
         model_dir = os.path.join(current_dir, 'models')
         
-        # Create models directory if it doesn't exist
-        os.makedirs(model_dir, exist_ok=True)
-        
         # Initialize trainer
-        trainer = TimeSeriesXGBoostTrainer(db_path, model_dir)
+        trainer = TimeSeriesModelTrainer(db_path, model_dir)
         
         # Get model parameters
-        model_params = custom_model_params or get_model_params()
-        
-        # Generate unique model name with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_name = f"xgboost_timeseries_{table_name}_{timestamp}"
-        
-        # Save feature configuration
-        save_feature_config(model_dir, SELECTED_FEATURES)
+        model_params = custom_model_params or get_model_params(model_type)
         
         # Train and save model
         model_path, metrics = trainer.train_and_save(
             table_name=table_name,
+            model_type=model_type,
             target_col=target_col,
-            prediction_horizon=prediction_horizon,
             feature_cols=SELECTED_FEATURES,
-            model_params=model_params,
-            model_name=model_name
+            prediction_horizon=prediction_horizon,
+            model_params=model_params
         )
         
         # Log results
         logging.info(f"\nTraining Results:")
+        logging.info(f"Model Type: {model_type}")
         logging.info(f"Model saved to: {model_path}")
-        logging.info(f"Mean RMSE: {metrics['mean_rmse']:.4f} (±{metrics['std_rmse']:.4f})")
-        logging.info(f"Mean R2: {metrics['mean_r2']:.4f} (±{metrics['std_r2']:.4f})")
+        logging.info(f"Metrics: {metrics}")
         
         return model_path, metrics
         
@@ -112,29 +94,45 @@ def main():
     )
     
     try:
-        # Train models for different prediction horizons
-        horizons = [1, 5, 10]  # Predict 1, 5, and 10 steps ahead
-        results = {}
+        # Train models with different configurations
+        configurations = [
+            {'model_type': 'xgboost', 'prediction_horizon': 1},
+            {'model_type': 'xgboost', 'prediction_horizon': 5},
+            {'model_type': 'decision_tree', 'prediction_horizon': 1},
+            {'model_type': 'decision_tree', 'prediction_horizon': 5}
+        ]
         
-        for horizon in horizons:
-            logging.info(f"\nTraining model for {horizon}-step ahead prediction")
+        results = {}
+        for config in configurations:
+            model_type = config['model_type']
+            horizon = config['prediction_horizon']
+            
+            logging.info(f"\nTraining {model_type} model for {horizon}-step ahead prediction")
             model_path, metrics = train_time_series_model(
                 table_name="strategy_SYM_10021279",  # Replace with your table name
+                model_type=model_type,
                 target_col="Price",
                 prediction_horizon=horizon
             )
-            results[horizon] = {
+            
+            results[(model_type, horizon)] = {
                 'model_path': model_path,
                 'metrics': metrics
             }
         
         # Print summary
         logging.info("\nTraining Summary:")
-        for horizon, result in results.items():
-            logging.info(f"\n{horizon}-step ahead prediction:")
+        for (model_type, horizon), result in results.items():
+            logging.info(f"\n{model_type.upper()} - {horizon}-step ahead prediction:")
             logging.info(f"Model: {os.path.basename(result['model_path'])}")
-            logging.info(f"RMSE: {result['metrics']['mean_rmse']:.4f} (±{result['metrics']['std_rmse']:.4f})")
-            logging.info(f"R2: {result['metrics']['mean_r2']:.4f} (±{result['metrics']['std_r2']:.4f})")
+            logging.info(f"Training Score: {result['metrics']['training_score']:.4f}")
+            logging.info("Top Features by Importance:")
+            for feature, importance in sorted(
+                result['metrics']['feature_importance'].items(),
+                key=lambda x: abs(x[1]),
+                reverse=True
+            )[:5]:
+                logging.info(f"  {feature}: {importance:.4f}")
             
     except Exception as e:
         logging.error(f"Training failed: {str(e)}")

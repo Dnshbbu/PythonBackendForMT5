@@ -135,6 +135,18 @@ class TimeSeriesModelTrainer:
             
             with open(config_path, 'w') as f:
                 json.dump(config, f, indent=4)
+
+            # Save global feature configuration
+            feature_config = {
+                'features': feature_cols,
+                'timestamp': datetime.now().isoformat(),
+                'model_type': model_type,
+                'latest_model': model_path
+            }
+
+            global_config_path = os.path.join(self.model_save_dir, 'feature_config.json')
+            with open(global_config_path, 'w') as f:
+                json.dump(feature_config, f, indent=4)
             
             return model_path, metrics
             

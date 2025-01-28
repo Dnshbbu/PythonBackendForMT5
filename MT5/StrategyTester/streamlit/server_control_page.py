@@ -43,7 +43,7 @@ class ServerController:
 
 def server_control_page():
     """Server Control page implementation"""
-    st.title("MT5 Server Control Panel")
+    st.title("ZMQ Server Control Panel")
     
     controller = ServerController()
     is_running, pid = controller.get_server_status()

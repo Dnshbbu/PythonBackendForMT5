@@ -202,12 +202,12 @@ class MT5ZMQClient:
                 table_name = self.db_manager.create_table_for_strategy(run_id, data)
                 self.db_manager.insert_data(table_name, data)
                 
-                # Check if retraining is needed and trigger if necessary
-                await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.training_manager.check_and_trigger_training,
-                    table_name
-                )
+                # # Check if retraining is needed and trigger if necessary
+                # await asyncio.get_event_loop().run_in_executor(
+                #     None,
+                #     self.training_manager.check_and_trigger_training,
+                #     table_name
+                # )
                 
             except Exception as db_error:
                 logging.error(f"Database operation failed: {db_error}")

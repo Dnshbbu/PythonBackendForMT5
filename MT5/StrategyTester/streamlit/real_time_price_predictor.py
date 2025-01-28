@@ -57,16 +57,60 @@ class RealTimePricePredictor:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
 
+    # def load_feature_config(self) -> List[str]:
+    #     """Load feature configuration saved during training"""
+    #     config_path = os.path.join(self.models_dir, 'feature_config.json')
+    #     try:
+    #         with open(config_path, 'r') as f:
+    #             config = json.load(f)
+    #         return config['features']
+    #     except Exception as e:
+    #         logging.error(f"Error loading feature config: {e}")
+    #         # Return default features if config not found
+    #         return [
+    #             'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
+    #             'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
+    #             'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
+    #             'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore',
+    #             'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'
+    #         ]
+
     def load_feature_config(self) -> List[str]:
         """Load feature configuration saved during training"""
-        config_path = os.path.join(self.models_dir, 'feature_config.json')
         try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            return config['features']
+            # First try to load from feature_config.json
+            config_path = os.path.join(self.models_dir, 'feature_config.json')
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                return config['features']
+                
+            # If not found, try to get features from the latest model's feature importance file
+            model_files = [f for f in os.listdir(self.models_dir) if f.endswith('_feature_importance.json')]
+            if model_files:
+                latest_file = max(model_files, key=lambda x: os.path.getctime(os.path.join(self.models_dir, x)))
+                with open(os.path.join(self.models_dir, latest_file), 'r') as f:
+                    features = list(json.load(f).keys())
+                
+                # Save these features as feature_config.json for future use
+                with open(config_path, 'w') as f:
+                    json.dump({'features': features}, f, indent=4)
+                
+                return features
+                
+            # If no feature files found, use default features from xgboost_train_model.py
+            from xgboost_train_model import TECHNICAL_FEATURES, ENTRY_FEATURES
+            default_features = TECHNICAL_FEATURES + ENTRY_FEATURES
+            
+            # Save default features as feature_config.json
+            with open(config_path, 'w') as f:
+                json.dump({'features': default_features}, f, indent=4)
+                
+            return default_features
+            
         except Exception as e:
-            logging.error(f"Error loading feature config: {e}")
-            # Return default features if config not found
+            logging.warning(f"Error loading feature config: {e}")
+            # Return default feature list if everything else fails
             return [
                 'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
                 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',

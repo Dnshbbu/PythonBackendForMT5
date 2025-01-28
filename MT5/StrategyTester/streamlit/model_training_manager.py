@@ -192,24 +192,55 @@ class ModelTrainingManager:
             if conn:
                 conn.close()
 
+
+    # def get_unprocessed_row_count(self, table_name: str) -> int:
+    #     """Get count of unprocessed rows for a table"""
+    #     try:
+    #         conn = sqlite3.connect(self.db_path)
+    #         cursor = conn.cursor()
+            
+    #         # Get last processed ID
+    #         cursor.execute("""
+    #             SELECT last_processed_id 
+    #             FROM data_processing_status 
+    #             WHERE table_name = ?
+    #         """, (table_name,))
+    #         result = cursor.fetchone()
+            
+    #         last_id = result[0] if result else 0
+            
+    #         # Get current max ID from data table
+    #         cursor.execute(f"SELECT MAX(id) FROM {table_name}")
+    #         max_id = cursor.fetchone()[0] or 0
+            
+    #         return max_id - last_id
+            
+    #     except Exception as e:
+    #         logging.error(f"Error getting unprocessed row count: {e}")
+    #         raise
+    #     finally:
+    #         if conn:
+    #             conn.close()
+
     def get_unprocessed_row_count(self, table_name: str) -> int:
         """Get count of unprocessed rows for a table"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Get last processed ID
+            # Sanitize table name
+            sanitized_table = table_name.replace('.', '_').replace(' ', '_').replace('-', '_')
+            
             cursor.execute("""
                 SELECT last_processed_id 
                 FROM data_processing_status 
                 WHERE table_name = ?
-            """, (table_name,))
+            """, (sanitized_table,))
             result = cursor.fetchone()
             
             last_id = result[0] if result else 0
             
-            # Get current max ID from data table
-            cursor.execute(f"SELECT MAX(id) FROM {table_name}")
+            cursor.execute(f"SELECT MAX(id) FROM '{sanitized_table}'")
             max_id = cursor.fetchone()[0] or 0
             
             return max_id - last_id
@@ -221,17 +252,44 @@ class ModelTrainingManager:
             if conn:
                 conn.close()
 
+
+
+    # def update_processing_status(self, table_name: str, last_processed_id: int):
+    #     """Update the processing status for a table"""
+    #     try:
+    #         conn = sqlite3.connect(self.db_path)
+    #         cursor = conn.cursor()
+            
+    #         cursor.execute("""
+    #             INSERT OR REPLACE INTO data_processing_status 
+    #             (table_name, last_processed_id, total_rows, last_update)
+    #             VALUES (?, ?, ?, ?)
+    #         """, (table_name, last_processed_id, last_processed_id, datetime.now()))
+            
+    #         conn.commit()
+            
+    #     except Exception as e:
+    #         logging.error(f"Error updating processing status: {e}")
+    #         raise
+    #     finally:
+    #         if conn:
+    #             conn.close()
+
+
     def update_processing_status(self, table_name: str, last_processed_id: int):
         """Update the processing status for a table"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Sanitize table name
+            sanitized_table = table_name.replace('.', '_').replace(' ', '_').replace('-', '_')
+            
             cursor.execute("""
                 INSERT OR REPLACE INTO data_processing_status 
                 (table_name, last_processed_id, total_rows, last_update)
                 VALUES (?, ?, ?, ?)
-            """, (table_name, last_processed_id, last_processed_id, datetime.now()))
+            """, (sanitized_table, last_processed_id, last_processed_id, datetime.now()))
             
             conn.commit()
             
@@ -241,6 +299,7 @@ class ModelTrainingManager:
         finally:
             if conn:
                 conn.close()
+
 
     def start_training_session(self) -> int:
         """Start a new training session and return its ID"""

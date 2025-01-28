@@ -109,7 +109,7 @@ def main():
             
             logging.info(f"\nTraining {model_type} model for {horizon}-step ahead prediction")
             model_path, metrics = train_time_series_model(
-                table_name="strategy_SYM_10021279",  # Replace with your table name
+                table_name="strategy_SYM_10028004",  # Replace with your table name
                 model_type=model_type,
                 target_col="Price",
                 prediction_horizon=horizon

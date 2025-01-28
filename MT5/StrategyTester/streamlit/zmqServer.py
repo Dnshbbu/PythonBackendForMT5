@@ -12,43 +12,129 @@ from database_manager import DatabaseManager
 from real_time_price_predictor import RealTimePricePredictor
 from model_training_manager import ModelTrainingManager
 from prediction_tracker import PredictionTracker
+from config import ZMQ_CONFIG, DATABASE_CONFIG, MODEL_CONFIG
 
 # Fix for Proactor Event Loop Warning on Windows
 if os.name == 'nt':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 class MT5ZMQClient:
+
+    # def __init__(self):
+    #     self.context = zmq.asyncio.Context()
+    #     self.socket_receive = self.context.socket(zmq.PULL)
+    #     self.socket_send = self.context.socket(zmq.PUSH)
+    #     self.signal_socket = self.context.socket(zmq.PULL)
+    #     self.is_running = True
+    #     self.headers = {}
+    #     self.message_batch = []
+    #     # self.BATCH_SIZE = 40
+    #     self.batch_size = MODEL_CONFIG['batch_size']
+        
+    #     # Create logs directory if it doesn't exist
+    #     self.logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    #     os.makedirs(self.logs_dir, exist_ok=True)
+        
+    #     # Initialize model directories
+    #     self.models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+    #     os.makedirs(self.models_dir, exist_ok=True)
+        
+    #     self.setup_logging()
+        
+    #     # Initialize training manager
+    #     self.training_manager = ModelTrainingManager(
+    #         db_path=os.path.join(self.logs_dir, 'trading_data.db'),
+    #         models_dir=self.models_dir,
+    #         min_rows_for_training=20  # Trigger retraining every 20 new rows
+    #     )
+        
+    #     # Clean up any invalid metrics data
+    #     self.training_manager.cleanup_invalid_metrics()
+
     def __init__(self):
-        self.context = zmq.asyncio.Context()
-        self.socket_receive = self.context.socket(zmq.PULL)
-        self.socket_send = self.context.socket(zmq.PUSH)
-        self.signal_socket = self.context.socket(zmq.PULL)
-        self.is_running = True
-        self.headers = {}
-        self.message_batch = []
-        self.BATCH_SIZE = 40
-        
-        # Create logs directory if it doesn't exist
-        self.logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-        os.makedirs(self.logs_dir, exist_ok=True)
-        
-        # Initialize model directories
-        self.models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
-        os.makedirs(self.models_dir, exist_ok=True)
-        
-        self.setup_logging()
-        
-        # Initialize training manager
-        self.training_manager = ModelTrainingManager(
-            db_path=os.path.join(self.logs_dir, 'trading_data.db'),
-            models_dir=self.models_dir,
-            min_rows_for_training=20  # Trigger retraining every 20 new rows
-        )
-        
-        # Clean up any invalid metrics data
-        self.training_manager.cleanup_invalid_metrics()
+        """
+        Initialize the MT5ZMQClient with proper configuration and component setup.
+        """
+        try:
+            # Initialize ZMQ context and sockets
+            self.context = zmq.asyncio.Context()
+            self.socket_receive = self.context.socket(zmq.PULL)
+            self.socket_send = self.context.socket(zmq.PUSH)
+            self.signal_socket = self.context.socket(zmq.PULL)
+            self.is_running = True
 
+            # Initialize data structures
+            self.headers = {}
+            self.message_batch = []
+            self.batch_size = MODEL_CONFIG['batch_size']
+            
+            # Create logs directory if it doesn't exist
+            self.logs_dir = DATABASE_CONFIG['logs_dir']
+            self.models_dir = DATABASE_CONFIG['models_dir']
+            os.makedirs(self.logs_dir, exist_ok=True)
+            os.makedirs(self.models_dir, exist_ok=True)
+            
+            # Setup logging first so we can track initialization
+            self.setup_logging()
+            logging.info("Initializing MT5 ZMQ Client...")
 
+            # Initialize database manager
+            try:
+                self.db_manager = DatabaseManager()
+                logging.info("Database manager initialized successfully")
+            except Exception as e:
+                logging.error(f"Failed to initialize database manager: {e}")
+                raise
+
+            # Initialize training manager with configuration
+            try:
+                self.training_manager = ModelTrainingManager(
+                    db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name']),
+                    models_dir=self.models_dir,
+                    min_rows_for_training=MODEL_CONFIG['min_rows_for_training']
+                )
+                logging.info("Training manager initialized successfully")
+            except Exception as e:
+                logging.error(f"Failed to initialize training manager: {e}")
+                raise
+
+            # Initialize price predictor with configuration
+            try:
+                self.price_predictor = RealTimePricePredictor(
+                    db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name']),
+                    models_dir=self.models_dir,
+                    batch_size=MODEL_CONFIG['batch_size'],
+                    training_manager=self.training_manager
+                )
+                logging.info("Price predictor initialized successfully")
+            except Exception as e:
+                logging.error(f"Failed to initialize price predictor: {e}")
+                raise
+
+            # Initialize prediction tracker
+            try:
+                self.prediction_tracker = PredictionTracker(
+                    db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name'])
+                )
+                logging.info("Prediction tracker initialized successfully")
+            except Exception as e:
+                logging.error(f"Failed to initialize prediction tracker: {e}")
+                raise
+
+            # Clean up any invalid metrics data from previous runs
+            try:
+                self.training_manager.cleanup_invalid_metrics()
+                logging.info("Cleaned up invalid metrics data")
+            except Exception as e:
+                logging.warning(f"Non-critical error during metrics cleanup: {e}")
+
+            logging.info("MT5 ZMQ Client initialization completed successfully")
+
+        except Exception as e:
+            logging.error(f"Critical error during MT5 ZMQ Client initialization: {e}")
+            # Clean up any partially initialized resources
+            # self.cleanup_resources()
+            raise
 
     async def handle_all_details(self, run_id, msg_content):
         """Handle detailed trading information with ML integration and real-time predictions"""
@@ -228,11 +314,23 @@ class MT5ZMQClient:
         """Generate full file path for logs"""
         return os.path.join(self.logs_dir, f"{run_id}_{file_type}")
 
+    # async def connect(self):
+    #     try:
+    #         self.socket_receive.bind("tcp://127.0.0.1:5556")
+    #         self.socket_send.bind("tcp://127.0.0.1:5557")
+    #         self.signal_socket.bind("tcp://127.0.0.1:5558")
+    #         logging.info("ZMQ sockets bound successfully")
+    #         return True
+    #     except Exception as e:
+    #         logging.error(f"Failed to bind ZMQ sockets: {e}")
+    #         return False
+        
+
     async def connect(self):
         try:
-            self.socket_receive.bind("tcp://127.0.0.1:5556")
-            self.socket_send.bind("tcp://127.0.0.1:5557")
-            self.signal_socket.bind("tcp://127.0.0.1:5558")
+            self.socket_receive.bind(ZMQ_CONFIG['receive_address'])
+            self.socket_send.bind(ZMQ_CONFIG['send_address'])
+            self.signal_socket.bind(ZMQ_CONFIG['signal_address'])
             logging.info("ZMQ sockets bound successfully")
             return True
         except Exception as e:

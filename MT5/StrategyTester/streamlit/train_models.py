@@ -50,7 +50,7 @@ def main():
             
             # Trigger training
             # table_name = "strategy_SYM_10021279"  # Replace with your table name
-            table_name = "strategy_TRIP_NAS_10026615"  # Replace with your table name
+            table_name = "strategy_TRIP_NAS_10019851"  # Replace with your table name
             training_manager.retrain_model(table_name)
             
             # Get training status

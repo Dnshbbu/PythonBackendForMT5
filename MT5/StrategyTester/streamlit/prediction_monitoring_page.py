@@ -7,13 +7,36 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 import os
+import logging
+from typing import List, Dict, Optional, Tuple
 
 class PredictionMonitoringPage:
+    """Class for handling prediction monitoring and visualization in Streamlit."""
+    
     def __init__(self, db_path: str):
+        """
+        Initialize the monitoring page.
+        
+        Args:
+            db_path: Path to SQLite database
+        """
         self.db_path = db_path
+        self.setup_logging()
+    
+    def setup_logging(self):
+        """Configure logging settings"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
 
     def check_database_exists(self) -> bool:
-        """Check if database and required tables exist"""
+        """
+        Check if database and required tables exist.
+        
+        Returns:
+            bool: True if database is properly initialized
+        """
         if not os.path.exists(self.db_path):
             return False
             
@@ -21,7 +44,6 @@ class PredictionMonitoringPage:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Check if required tables exist
             cursor.execute("""
                 SELECT name FROM sqlite_master 
                 WHERE type='table' 
@@ -33,14 +55,54 @@ class PredictionMonitoringPage:
             
             return required_tables.issubset(existing_tables)
             
-        except sqlite3.Error:
+        except sqlite3.Error as e:
+            logging.error(f"Database check error: {e}")
             return False
         finally:
             if conn:
                 conn.close()
+
+    def get_available_runs(self) -> List[str]:
+        """
+        Get list of available run IDs from the database.
         
+        Returns:
+            List of run IDs
+        """
+        if not self.check_database_exists():
+            return []
+            
+        try:
+            query = """
+                SELECT DISTINCT run_id 
+                FROM prediction_history 
+                ORDER BY run_id
+            """
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(query)
+            runs = [row[0] for row in cursor.fetchall()]
+            return runs
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error getting available runs: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
     def load_recent_predictions(self, run_id: str, limit: int = 1000) -> pd.DataFrame:
-        """Load recent predictions from database"""
+        """
+        Load recent predictions from database.
+        
+        Args:
+            run_id: Strategy run identifier
+            limit: Maximum number of records to retrieve
+            
+        Returns:
+            DataFrame containing recent predictions
+        """
         query = """
             SELECT 
                 timestamp,
@@ -56,15 +118,29 @@ class PredictionMonitoringPage:
             LIMIT ?
         """
         
-        conn = sqlite3.connect(self.db_path)
-        df = pd.read_sql_query(query, conn, params=(run_id, limit))
-        conn.close()
-        
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        return df.sort_values('timestamp')
-        
+        try:
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(query, conn, params=(run_id, limit))
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            return df.sort_values('timestamp')
+            
+        except Exception as e:
+            logging.error(f"Error loading predictions: {e}")
+            return pd.DataFrame()
+        finally:
+            if conn:
+                conn.close()
+
     def load_metrics_history(self, run_id: str) -> pd.DataFrame:
-        """Load metrics history from database"""
+        """
+        Load metrics history from database with no caching.
+        
+        Args:
+            run_id: Strategy run identifier
+            
+        Returns:
+            DataFrame containing metrics history
+        """
         query = """
             SELECT 
                 timestamp,
@@ -79,78 +155,160 @@ class PredictionMonitoringPage:
             ORDER BY timestamp DESC
         """
         
-        conn = sqlite3.connect(self.db_path)
-        df = pd.read_sql_query(query, conn, params=(run_id,))
-        conn.close()
-        
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        return df
-        
-    # def get_available_runs(self) -> list:
-    #     """Get list of available run_ids"""
-    #     query = """
-    #         SELECT DISTINCT run_id 
-    #         FROM prediction_history 
-    #         ORDER BY run_id
-    #     """
-        
-    #     conn = sqlite3.connect(self.db_path)
-    #     cursor = conn.cursor()
-    #     cursor.execute(query)
-    #     runs = [row[0] for row in cursor.fetchall()]
-    #     conn.close()
-        
-    #     return runs
-
-
-    def get_available_runs(self) -> list:
-        """Get list of available run_ids"""
-        if not self.check_database_exists():
-            return []
-            
         try:
-            query = """
-                SELECT DISTINCT run_id 
-                FROM prediction_history 
-                ORDER BY run_id
-            """
-            
             conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute(query)
-            runs = [row[0] for row in cursor.fetchall()]
-            conn.close()
+            df = pd.read_sql_query(query, conn, params=(run_id,), parse_dates=['timestamp'])
+            return df.sort_values('timestamp', ascending=True)
             
-            return runs
-            
-        except sqlite3.Error:
-            return []
+        except Exception as e:
+            logging.error(f"Error loading metrics history: {e}")
+            return pd.DataFrame()
+        finally:
+            if conn:
+                conn.close()
+
+    def get_latest_window_metrics(self, run_id: str, window_size: int = 50) -> pd.DataFrame:
+        """
+        Get the most recent metrics for a specific window size.
         
+        Args:
+            run_id: Strategy run identifier
+            window_size: Size of the metrics window
+            
+        Returns:
+            DataFrame containing latest metrics
+        """
+        query = """
+            SELECT 
+                timestamp,
+                rmse,
+                mae,
+                r2,
+                accuracy_rate,
+                confident_accuracy_rate
+            FROM prediction_metrics
+            WHERE run_id = ? AND window_size = ?
+            ORDER BY timestamp DESC
+            LIMIT 10  -- Get last 10 records for trend calculation
+        """
+        
+        try:
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(query, conn, params=(run_id, window_size))
+            return df
+            
+        except Exception as e:
+            logging.error(f"Error getting latest metrics: {e}")
+            return pd.DataFrame()
+        finally:
+            if conn:
+                conn.close()
+
+    def render_summary_metrics(self, run_id: str, window_size: int = 50):
+        """
+        Render summary metrics with real-time updates.
+        
+        Args:
+            run_id: Strategy run identifier
+            window_size: Size of the metrics window
+        """
+        df = self.get_latest_window_metrics(run_id, window_size)
+        
+        if df.empty:
+            st.warning("No metrics data available")
+            return
+            
+        # Get the most recent metrics
+        latest = df.iloc[0]
+        
+        # Calculate trends (using the last 10 records)
+        if len(df) > 1:
+            trends = {
+                'rmse': latest['rmse'] - df['rmse'].iloc[-1],
+                'mae': latest['mae'] - df['mae'].iloc[-1],
+                'r2': latest['r2'] - df['r2'].iloc[-1],
+                'accuracy': latest['accuracy_rate'] - df['accuracy_rate'].iloc[-1]
+            }
+        else:
+            trends = {'rmse': 0.0, 'mae': 0.0, 'r2': 0.0, 'accuracy': 0.0}
+
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "RMSE",
+                f"{latest['rmse']:.4f}",
+                f"{trends['rmse']:.4f}"
+            )
+            
+        with col2:
+            st.metric(
+                "MAE",
+                f"{latest['mae']:.4f}",
+                f"{trends['mae']:.4f}"
+            )
+            
+        with col3:
+            st.metric(
+                "R²",
+                f"{latest['r2']:.4f}",
+                f"{trends['r2']:.4f}"
+            )
+            
+        with col4:
+            st.metric(
+                "Accuracy",
+                f"{latest['accuracy_rate']*100:.1f}%",
+                f"{trends['accuracy']*100:.1f}%"
+            )
 
     def plot_price_comparison(self, df: pd.DataFrame) -> go.Figure:
-        """Create price comparison plot"""
-        fig = make_subplots(rows=2, cols=1, 
-                           shared_xaxes=True,
-                           vertical_spacing=0.1,
-                           row_heights=[0.7, 0.3])
+        """
+        Create price comparison plot.
+        
+        Args:
+            df: DataFrame containing prediction data
+            
+        Returns:
+            Plotly figure object
+        """
+        fig = make_subplots(
+            rows=2, cols=1, 
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.7, 0.3]
+        )
         
         # Price comparison plot
         fig.add_trace(
-            go.Scatter(x=df['timestamp'], y=df['actual_price'],
-                      name='Actual Price', line=dict(color='blue')),
+            go.Scatter(
+                x=df['timestamp'], 
+                y=df['actual_price'],
+                name='Actual Price', 
+                line=dict(color='blue')
+            ),
             row=1, col=1
         )
         
         fig.add_trace(
-            go.Scatter(x=df['timestamp'], y=df['predicted_price'],
-                      name='Predicted Price', line=dict(color='red')),
+            go.Scatter(
+                x=df['timestamp'], 
+                y=df['predicted_price'],
+                name='Predicted Price', 
+                line=dict(color='red')
+            ),
             row=1, col=1
         )
         
         # Prediction error plot
         fig.add_trace(
-            go.Scatter(x=df['timestamp'], y=df['prediction_error'],
-                      name='Prediction Error', line=dict(color='green')),
+            go.Scatter(
+                x=df['timestamp'], 
+                y=df['prediction_error'],
+                name='Prediction Error', 
+                line=dict(color='green')
+            ),
             row=2, col=1
         )
         
@@ -163,11 +321,21 @@ class PredictionMonitoringPage:
         )
         
         return fig
-        
+
     def plot_metrics_history(self, df: pd.DataFrame) -> go.Figure:
-        """Create metrics history plot"""
-        fig = make_subplots(rows=2, cols=2,
-                           subplot_titles=('RMSE', 'MAE', 'R²', 'Accuracy Rates'))
+        """
+        Create metrics history plot.
+        
+        Args:
+            df: DataFrame containing metrics history
+            
+        Returns:
+            Plotly figure object
+        """
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=('RMSE', 'MAE', 'R²', 'Accuracy Rates')
+        )
         
         colors = {'10': 'blue', '50': 'red', '100': 'green'}
         
@@ -177,40 +345,55 @@ class PredictionMonitoringPage:
             
             # RMSE
             fig.add_trace(
-                go.Scatter(x=window_df['timestamp'], y=window_df['rmse'],
-                          name=f'RMSE ({name})',
-                          line=dict(color=colors[str(window_size)])),
+                go.Scatter(
+                    x=window_df['timestamp'], 
+                    y=window_df['rmse'],
+                    name=f'RMSE ({name})',
+                    line=dict(color=colors[str(window_size)])
+                ),
                 row=1, col=1
             )
             
             # MAE
             fig.add_trace(
-                go.Scatter(x=window_df['timestamp'], y=window_df['mae'],
-                          name=f'MAE ({name})',
-                          line=dict(color=colors[str(window_size)])),
+                go.Scatter(
+                    x=window_df['timestamp'], 
+                    y=window_df['mae'],
+                    name=f'MAE ({name})',
+                    line=dict(color=colors[str(window_size)])
+                ),
                 row=1, col=2
             )
             
             # R²
             fig.add_trace(
-                go.Scatter(x=window_df['timestamp'], y=window_df['r2'],
-                          name=f'R² ({name})',
-                          line=dict(color=colors[str(window_size)])),
+                go.Scatter(
+                    x=window_df['timestamp'], 
+                    y=window_df['r2'],
+                    name=f'R² ({name})',
+                    line=dict(color=colors[str(window_size)])
+                ),
                 row=2, col=1
             )
             
             # Accuracy Rates
             fig.add_trace(
-                go.Scatter(x=window_df['timestamp'], y=window_df['accuracy_rate'],
-                          name=f'Accuracy ({name})',
-                          line=dict(color=colors[str(window_size)], dash='solid')),
+                go.Scatter(
+                    x=window_df['timestamp'], 
+                    y=window_df['accuracy_rate'],
+                    name=f'Accuracy ({name})',
+                    line=dict(color=colors[str(window_size)], dash='solid')
+                ),
                 row=2, col=2
             )
             
             fig.add_trace(
-                go.Scatter(x=window_df['timestamp'], y=window_df['confident_accuracy_rate'],
-                          name=f'Confident Accuracy ({name})',
-                          line=dict(color=colors[str(window_size)], dash='dot')),
+                go.Scatter(
+                    x=window_df['timestamp'], 
+                    y=window_df['confident_accuracy_rate'],
+                    name=f'Confident Accuracy ({name})',
+                    line=dict(color=colors[str(window_size)], dash='dot')
+                ),
                 row=2, col=2
             )
         
@@ -222,90 +405,319 @@ class PredictionMonitoringPage:
         
         return fig
 
-    def render_summary_metrics(self, df: pd.DataFrame):
-        """Render summary metrics in Streamlit"""
-        latest_metrics = df.iloc[-1]
+
+
+    def get_aggregate_statistics(self, run_id: str) -> pd.DataFrame:
+        """
+        Calculate enhanced aggregate statistics including multiple accuracy metrics.
+        """
+        query = """
+            WITH price_stats AS (
+                SELECT 
+                    model_name,
+                    COUNT(*) as total_predictions,
+                    AVG(ABS(prediction_error)) as mean_absolute_error,
+                    AVG(prediction_error * prediction_error) as mean_squared_error,
+                    AVG(CASE WHEN is_confident = 1 THEN 1 ELSE 0 END) as confident_prediction_rate,
+                    MIN(actual_price) as min_actual,
+                    MAX(actual_price) as max_actual,
+                    MIN(predicted_price) as min_predicted,
+                    MAX(predicted_price) as max_predicted,
+                    AVG(confidence) as avg_confidence,
+                    AVG((predicted_price - actual_price) * (predicted_price - actual_price)) as mse,
+                    AVG(actual_price * actual_price) - (AVG(actual_price) * AVG(actual_price)) as var_actual,
+                    -- Add prediction accuracy at different thresholds
+                    AVG(CASE 
+                        WHEN ABS(prediction_error) <= 0.01 * actual_price THEN 1.0 
+                        ELSE 0.0 
+                    END) as accuracy_1pct,
+                    AVG(CASE 
+                        WHEN ABS(prediction_error) <= 0.02 * actual_price THEN 1.0 
+                        ELSE 0.0 
+                    END) as accuracy_2pct,
+                    AVG(CASE 
+                        WHEN ABS(prediction_error) <= 0.05 * actual_price THEN 1.0 
+                        ELSE 0.0 
+                    END) as accuracy_5pct
+                FROM prediction_history
+                WHERE run_id = ?
+                GROUP BY model_name
+            ),
+            confident_metrics AS (
+                SELECT 
+                    model_name,
+                    AVG(CASE 
+                        WHEN ABS(prediction_error) <= 0.05 * actual_price THEN 1.0 
+                        ELSE 0.0 
+                    END) as confident_success_rate
+                FROM prediction_history
+                WHERE run_id = ? AND is_confident = 1
+                GROUP BY model_name
+            )
+            SELECT 
+                p.*,
+                SQRT(p.mean_squared_error) as rmse,
+                1 - (p.mse / NULLIF(p.var_actual, 0)) as r_squared,
+                COALESCE(c.confident_success_rate, 0) as confident_success_rate
+            FROM price_stats p
+            LEFT JOIN confident_metrics c ON p.model_name = c.model_name
+        """
         
-        col1, col2, col3, col4 = st.columns(4)
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # First, get the main statistics
+            df = pd.read_sql_query(query, conn, params=(run_id, run_id))
+            
+            if not df.empty:
+                # Calculate directional accuracy separately for each model
+                for index, row in df.iterrows():
+                    direction_query = """
+                        WITH ordered_prices AS (
+                            SELECT 
+                                actual_price,
+                                predicted_price,
+                                actual_price - LAG(actual_price) OVER (ORDER BY timestamp) as price_change
+                            FROM prediction_history
+                            WHERE run_id = ? AND model_name = ?
+                            ORDER BY timestamp
+                        )
+                        SELECT 
+                            AVG(CASE 
+                                WHEN (price_change > 0 AND predicted_price > actual_price) OR
+                                     (price_change < 0 AND predicted_price < actual_price)
+                                THEN 1.0 
+                                ELSE 0.0 
+                            END) as direction_accuracy
+                        FROM ordered_prices
+                        WHERE price_change IS NOT NULL
+                    """
+                    cursor.execute(direction_query, (run_id, row['model_name']))
+                    direction_accuracy = cursor.fetchone()[0] or 0
+                    df.at[index, 'directional_accuracy'] = direction_accuracy
+                
+                # Calculate Information Ratio
+                df['information_ratio'] = (df['confident_success_rate'] - 0.5) / \
+                                        df['rmse'].where(df['rmse'] != 0, np.inf)
+                
+                # Format percentages
+                percentage_cols = [
+                    'confident_prediction_rate', 'avg_confidence', 
+                    'directional_accuracy', 'confident_success_rate',
+                    'accuracy_1pct', 'accuracy_2pct', 'accuracy_5pct'
+                ]
+                for col in percentage_cols:
+                    df[col] = df[col] * 100
+                
+                # Reorder columns
+                columns = [
+                    'model_name',
+                    'total_predictions',
+                    'rmse',
+                    'mean_absolute_error',
+                    'r_squared',
+                    'accuracy_1pct',
+                    'accuracy_2pct',
+                    'accuracy_5pct',
+                    'directional_accuracy',
+                    'confident_success_rate',
+                    'confident_prediction_rate',
+                    'avg_confidence',
+                    'information_ratio',
+                    'min_actual',
+                    'max_actual',
+                    'min_predicted',
+                    'max_predicted'
+                ]
+                df = df[columns]
+            
+            return df
+            
+        except Exception as e:
+            logging.error(f"Error calculating aggregate statistics: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+
+    def display_aggregate_statistics(self, run_id: str):
+        """Display enhanced aggregate statistics in a formatted table."""
+        df = self.get_aggregate_statistics(run_id)
         
-        with col1:
-            st.metric(
-                "Latest RMSE",
-                f"{latest_metrics['rmse']:.4f}",
-                delta=f"{latest_metrics['rmse'] - df['rmse'].mean():.4f}"
-            )
+        if df.empty:
+            st.warning("No aggregate statistics available")
+            return
             
-        with col2:
-            st.metric(
-                "Latest MAE",
-                f"{latest_metrics['mae']:.4f}",
-                delta=f"{latest_metrics['mae'] - df['mae'].mean():.4f}"
-            )
+        # Format the DataFrame for display
+        display_df = df.copy()
+        display_df = display_df.round(4)
+        
+        # Rename columns for better display
+        display_df.columns = [
+            'Model Name',
+            'Total Predictions',
+            'RMSE',
+            'MAE',
+            'R²',
+            'Accuracy (1%)',
+            'Accuracy (2%)',
+            'Accuracy (5%)',
+            'Directional Accuracy (%)',
+            'Confident Success Rate (%)',
+            'Confident Pred. Rate (%)',
+            'Avg. Confidence (%)',
+            'Information Ratio',
+            'Min Actual',
+            'Max Actual',
+            'Min Predicted',
+            'Max Predicted'
+        ]
+        
+        st.subheader("Aggregate Model Performance")
+        st.dataframe(
+            display_df.style.format({
+                'RMSE': '{:.4f}',
+                'MAE': '{:.4f}',
+                'R²': '{:.4f}',
+                'Accuracy (1%)': '{:.2f}%',
+                'Accuracy (2%)': '{:.2f}%',
+                'Accuracy (5%)': '{:.2f}%',
+                'Directional Accuracy (%)': '{:.2f}%',
+                'Confident Success Rate (%)': '{:.2f}%',
+                'Confident Pred. Rate (%)': '{:.2f}%',
+                'Avg. Confidence (%)': '{:.2f}%',
+                'Information Ratio': '{:.4f}',
+                'Min Actual': '{:.4f}',
+                'Max Actual': '{:.4f}',
+                'Min Predicted': '{:.4f}',
+                'Max Predicted': '{:.4f}'
+            }),
+            use_container_width=True
+        )
+        
+        # Add metric explanations
+        with st.expander("Metric Explanations"):
+            st.markdown("""
+            ### Metric Definitions
+            - **RMSE**: Root Mean Square Error - measures prediction accuracy
+            - **MAE**: Mean Absolute Error - average absolute difference between predictions and actual values
+            - **R²**: Coefficient of determination (0-1) - how well the model explains price variations
+            - **Accuracy**: Percentage of predictions within X% of actual price (1%, 2%, 5% thresholds)
+            - **Directional Accuracy**: Percentage of correct predictions in terms of price movement direction
+            - **Confident Success Rate**: Success rate when the model is confident (within 5% margin)
+            - **Information Ratio**: Risk-adjusted performance metric (higher is better)
             
-        with col3:
-            st.metric(
-                "Latest R²",
-                f"{latest_metrics['r2']:.4f}",
-                delta=f"{latest_metrics['r2'] - df['r2'].mean():.4f}"
-            )
+            ### Interpretation Guide
+            - **RMSE & MAE**: Lower values indicate better accuracy
+            - **R²**: Closer to 1 is better (above 0.7 is typically good)
+            - **Accuracy**: Higher percentages indicate better prediction accuracy
+            - **Directional Accuracy**: Above 50% indicates better than random
+            - **Information Ratio**: Higher values indicate better risk-adjusted performance
+            - **Confident Pred. Rate**: Higher values show more decisive model behavior
+            """)
+
+# def prediction_monitoring_page():
+#     st.title("Real-Time Prediction Monitoring")
+    
+#     # Initialize monitoring
+#     db_path = "logs/trading_data.db"
+#     monitor = PredictionMonitoringPage(db_path)
+    
+#     # Check if database is initialized
+#     if not monitor.check_database_exists():
+#         st.warning("""
+#         Prediction monitoring database not initialized. 
+#         Please start the ZMQ server and make some predictions first.
+#         """)
+#         return
+    
+#     # Get available runs
+#     runs = monitor.get_available_runs()
+#     if not runs:
+#         st.info("No prediction data available yet.")
+#         return
+    
+#     # Sidebar controls
+#     st.sidebar.header("Controls")
+#     selected_run = st.sidebar.selectbox("Select Run ID", runs)
+#     window_size = st.sidebar.selectbox(
+#         "Metrics Window Size",
+#         [10, 50, 100],
+#         index=1  # Default to 50
+#     )
+    
+#     update_interval = st.sidebar.number_input(
+#         "Update Interval (seconds)",
+#         min_value=1,
+#         max_value=60,
+#         value=5
+#     )
+    
+#     auto_refresh = st.sidebar.checkbox("Auto Refresh", value=True)
+    
+#     try:
+#         # Display summary metrics for selected window size
+#         st.subheader(f"Summary Metrics (Window Size: {window_size})")
+#         monitor.render_summary_metrics(selected_run, window_size)
+        
+#         # Load data for charts
+#         predictions_df = monitor.load_recent_predictions(selected_run)
+        
+#         if not predictions_df.empty:
+#             # Display plots
+#             st.subheader("Price Comparison")
+#             price_fig = monitor.plot_price_comparison(predictions_df)
+#             st.plotly_chart(price_fig, use_container_width=True)
             
-        with col4:
-            st.metric(
-                "Latest Accuracy",
-                f"{latest_metrics['accuracy_rate']*100:.1f}%",
-                delta=f"{(latest_metrics['accuracy_rate'] - df['accuracy_rate'].mean())*100:.1f}%"
-            )
+#             st.subheader("Metrics History")
+#             metrics_df = monitor.load_metrics_history(selected_run)
+#             if not metrics_df.empty:
+#                 metrics_fig = monitor.plot_metrics_history(metrics_df)
+#                 st.plotly_chart(metrics_fig, use_container_width=True)
+#         else:
+#             st.warning("No predictions found for selected run.")
+        
+#         # Auto-refresh the page
+#         if auto_refresh:
+#             time.sleep(update_interval)
+#             st.rerun()
+            
+#     except Exception as e:
+#         st.error(f"Error loading data: {str(e)}")
+#         logging.error(f"Error in prediction monitoring page: {str(e)}")
+
+
 
 def prediction_monitoring_page():
     st.title("Real-Time Prediction Monitoring")
-
-    
     
     # Initialize monitoring
-    db_path = "logs/trading_data.db"  # Adjust path as needed
-
-    # Create logs directory if it doesn't exist
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-
-    
+    db_path = "logs/trading_data.db"
     monitor = PredictionMonitoringPage(db_path)
-
+    
     # Check if database is initialized
     if not monitor.check_database_exists():
         st.warning("""
         Prediction monitoring database not initialized. 
         Please start the ZMQ server and make some predictions first.
-        
-        Steps to get started:
-        1. Go to 'ZMQ Server Control' page
-        2. Start the ZMQ server
-        3. Run your MT5 strategy to generate predictions
-        4. Return to this page to see the monitoring
         """)
         return
     
     # Get available runs
     runs = monitor.get_available_runs()
     if not runs:
-        # st.error("No prediction data available. Please run some predictions first.")
-        st.info("""
-        No prediction data available yet. 
-        
-        This could mean:
-        - The ZMQ server hasn't received any prediction requests
-        - Your MT5 strategy hasn't started sending data
-        - The predictions haven't been recorded yet
-        
-        Please ensure:
-        1. ZMQ server is running
-        2. Your MT5 strategy is active
-        3. Data is being sent to the server
-        """)
+        st.info("No prediction data available yet.")
         return
-        
+    
     # Sidebar controls
     st.sidebar.header("Controls")
     selected_run = st.sidebar.selectbox("Select Run ID", runs)
+    window_size = st.sidebar.selectbox(
+        "Metrics Window Size",
+        [10, 50, 100],
+        index=1  # Default to 50
+    )
     
     update_interval = st.sidebar.number_input(
         "Update Interval (seconds)",
@@ -314,52 +726,38 @@ def prediction_monitoring_page():
         value=5
     )
     
-    # Auto-refresh checkbox
     auto_refresh = st.sidebar.checkbox("Auto Refresh", value=True)
     
-    # Main content
     try:
-        # Load data
+        # Display aggregate statistics first
+        monitor.display_aggregate_statistics(selected_run)
+        
+        # Display summary metrics for selected window size
+        st.subheader(f"Summary Metrics (Window Size: {window_size})")
+        monitor.render_summary_metrics(selected_run, window_size)
+        
+        # Load data for charts
         predictions_df = monitor.load_recent_predictions(selected_run)
-        metrics_df = monitor.load_metrics_history(selected_run)
         
-        if predictions_df.empty:
+        if not predictions_df.empty:
+            # Display plots
+            st.subheader("Price Comparison")
+            price_fig = monitor.plot_price_comparison(predictions_df)
+            st.plotly_chart(price_fig, use_container_width=True)
+            
+            st.subheader("Metrics History")
+            metrics_df = monitor.load_metrics_history(selected_run)
+            if not metrics_df.empty:
+                metrics_fig = monitor.plot_metrics_history(metrics_df)
+                st.plotly_chart(metrics_fig, use_container_width=True)
+        else:
             st.warning("No predictions found for selected run.")
-            return
-            
-        # Display summary metrics
-        st.subheader("Summary Metrics")
-        latest_window = metrics_df[metrics_df['window_size'] == 50].copy()
-        if not latest_window.empty:
-            monitor.render_summary_metrics(latest_window)
-            
-        # Display plots
-        st.subheader("Price Comparison")
-        price_fig = monitor.plot_price_comparison(predictions_df)
-        st.plotly_chart(price_fig, use_container_width=True)
         
-        st.subheader("Metrics History")
-        metrics_fig = monitor.plot_metrics_history(metrics_df)
-        st.plotly_chart(metrics_fig, use_container_width=True)
-        
-        # Add model performance analysis
-        st.subheader("Model Performance Analysis")
-        model_metrics = predictions_df.groupby('model_name').agg({
-            'prediction_error': ['mean', 'std'],
-            'confidence': 'mean',
-            'is_confident': 'mean'
-        }).round(4)
-        
-        st.dataframe(model_metrics)
-        
-        # # Auto-refresh logic
-        # if auto_refresh:
-        #     st.empty()
-        #     st.experimental_rerun()
-        # Auto-refresh logic
+        # Auto-refresh the page
         if auto_refresh:
             time.sleep(update_interval)
             st.rerun()
             
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
+        logging.error(f"Error in prediction monitoring page: {str(e)}")

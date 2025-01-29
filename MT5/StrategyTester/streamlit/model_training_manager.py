@@ -1,13 +1,13 @@
-import os
-import logging
 import sqlite3
 import threading
 import time
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Dict, List, Optional, Tuple, Union, Any
 import joblib
 import json
+import logging
 import numpy as np
+import pandas as pd
 from model_manager import ModelManager
 from model_trainer import TimeSeriesModelTrainer
 from feature_config import SELECTED_FEATURES
@@ -424,16 +424,54 @@ class ModelTrainingManager:
             logging.error(f"Error checking training trigger: {e}")
             return False
 
-    def retrain_model(self, table_name: str):
-        """Retrain the model with new data"""
+
+    def initialize_processing_status(self, table_name: str):
+        """Initialize or reset processing status for a table"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Check if there are any rows in the table
+            cursor.execute(f"SELECT MIN(id), MAX(id) FROM {table_name}")
+            min_id, max_id = cursor.fetchone()
+            
+            if min_id is not None:  # Table has data
+                # Initialize with starting point
+                cursor.execute("""
+                    INSERT OR REPLACE INTO data_processing_status 
+                    (table_name, last_processed_id, total_rows, last_update)
+                    VALUES (?, ?, ?, ?)
+                """, (table_name, min_id - 1, 0, datetime.now()))
+                
+            conn.commit()
+            logging.info(f"Initialized processing status for table {table_name}")
+            
+        except Exception as e:
+            logging.error(f"Error initializing processing status: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+
+    def retrain_model(self, table_name: str) -> Tuple[Optional[str], Optional[Dict]]:
+        """Retrain the model with new data and return model path and metrics"""
+        if not hasattr(self, 'training_lock'):
+            self.training_lock = threading.Lock()
+            
         if not self.training_lock.acquire(blocking=False):
             logging.info("Another training session is in progress")
-            return
+            return None, None
         
         conn = None
+        model_path = None
+        metrics = None
+        
         try:
             self.is_training = True
             session_id = self.start_training_session()
+            
+            # Initialize processing status if needed
+            self.initialize_processing_status(table_name)
             
             # Initialize model manager if available
             try:
@@ -441,28 +479,24 @@ class ModelTrainingManager:
                 model_manager = ModelManager()
                 model_type = model_manager.get_active_model()
                 model_params = model_manager.get_model_params()
+                logging.info(f"Using model type: {model_type} with params: {model_params}")
             except ImportError:
                 model_type = "xgboost"
                 from xgboost_train_model import get_model_params
                 model_params = get_model_params(model_type)
-            
-            # # Import feature definitions
-            # from xgboost_train_model import (
-            #     TECHNICAL_FEATURES,
-            #     ENTRY_FEATURES
-            # )
-            
-            # # Combine all features
-            # selected_features = TECHNICAL_FEATURES + ENTRY_FEATURES
+                logging.info(f"Using default model type: {model_type}")
+
             selected_features = SELECTED_FEATURES
             
-            # Initialize trainer with support for multiple model types
+            # Initialize trainer
             try:
                 from model_trainer import TimeSeriesModelTrainer
                 trainer = TimeSeriesModelTrainer(self.db_path, self.models_dir)
+                logging.info("Using TimeSeriesModelTrainer")
             except ImportError:
                 from xgboost_trainer import TimeSeriesXGBoostTrainer
                 trainer = TimeSeriesXGBoostTrainer(self.db_path, self.models_dir)
+                logging.info("Using TimeSeriesXGBoostTrainer")
             
             # Get last processed ID
             conn = sqlite3.connect(self.db_path)
@@ -477,24 +511,27 @@ class ModelTrainingManager:
             
             # Train model
             try:
-                if isinstance(trainer, TimeSeriesModelTrainer):
-                    model_path, metrics = trainer.train_and_save(
-                        table_name=table_name,
-                        model_type=model_type,
-                        target_col="Price",
-                        feature_cols=selected_features,
-                        prediction_horizon=1,
-                        model_params=model_params
-                    )
-                else:
-                    # Legacy training for XGBoost trainer
-                    model_path, metrics = trainer.train_and_save(
-                        table_name=table_name,
-                        target_col="Price",
-                        prediction_horizon=1,
-                        feature_cols=selected_features,
-                        model_params=model_params
-                    )
+                training_result = trainer.train_and_save(
+                    table_name=table_name,
+                    model_type=model_type,
+                    target_col="Price",
+                    feature_cols=selected_features,
+                    prediction_horizon=1,
+                    model_params=model_params
+                )
+                
+                if training_result is None or training_result == (None, None):
+                    logging.warning("Model training returned no results")
+                    return None, None
+                    
+                model_path, metrics = training_result
+                
+                if model_path is None or metrics is None:
+                    logging.warning("Invalid training results")
+                    return None, None
+                
+                logging.info(f"Model trained successfully: {model_path}")
+                
             except Exception as train_error:
                 logging.error(f"Training error: {train_error}")
                 self.update_training_status(
@@ -502,40 +539,55 @@ class ModelTrainingManager:
                     status='failed',
                     error_message=str(train_error)
                 )
-                raise
+                return None, None
             
-            # Get new last processed ID
+            # Get new last processed ID and count total rows
             cursor.execute(f"SELECT MAX(id) FROM {table_name}")
             new_last_id = cursor.fetchone()[0]
             
-            # Update status
-            self.update_training_status(
-                session_id=session_id,
-                status='completed',
-                model_path=model_path,
-                metrics=metrics,
-                rows_processed=new_last_id - last_processed_id if new_last_id else 0,
-                last_processed_id=new_last_id
-            )
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            total_rows = cursor.fetchone()[0]
             
-            # Update processing status
-            self.update_processing_status(table_name, new_last_id)
-            
-            logging.info(f"Model retraining completed successfully: {model_path}")
-            logging.info(f"Used features: {selected_features}")
+            if total_rows > 0:
+                # Update status
+                self.update_training_status(
+                    session_id=session_id,
+                    status='completed',
+                    model_path=model_path,
+                    metrics=metrics,
+                    rows_processed=total_rows,
+                    last_processed_id=new_last_id
+                )
+                
+                # Update processing status
+                self.update_processing_status(table_name, new_last_id)
+                
+                logging.info(f"Model retraining completed successfully: {model_path}")
+                logging.info(f"Used features: {selected_features}")
+                logging.info(f"Processed {total_rows} rows")
+                
+                return model_path, metrics
+            else:
+                logging.warning("No data found in table")
+                return None, None
             
         except Exception as e:
             logging.error(f"Error in model retraining: {e}")
-            self.update_training_status(
-                session_id=session_id,
-                status='failed',
-                error_message=str(e)
-            )
+            if 'session_id' in locals():
+                self.update_training_status(
+                    session_id=session_id,
+                    status='failed',
+                    error_message=str(e)
+                )
+            return None, None
+            
         finally:
             self.is_training = False
             self.training_lock.release()
             if conn:
                 conn.close()
+
+
 
     def get_latest_training_status(self) -> Dict[str, Any]:
         """Get the status of the latest training session"""
@@ -572,3 +624,55 @@ class ModelTrainingManager:
         finally:
             if conn:
                 conn.close()
+
+    def get_model_instance(self, model_type: str) -> Any:
+        """Get instance of a model with proper configuration"""
+        from model_implementations import ModelFactory
+        return ModelFactory.get_model(model_type)
+        
+
+    def get_new_data(self, table_name: str) -> pd.DataFrame:
+        """Get new data since last training"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get last processed ID
+            cursor.execute("""
+                SELECT last_processed_id 
+                FROM data_processing_status 
+                WHERE table_name = ?
+            """, (table_name,))
+            
+            result = cursor.fetchone()
+            
+            # If no processing status exists, return all data
+            if not result:
+                query = f"""
+                    SELECT * FROM {table_name}
+                    ORDER BY Date, Time
+                """
+                df = pd.read_sql_query(query, conn)
+                return df
+            
+            last_id = result[0]
+            
+            # Get new data
+            query = f"""
+                SELECT * FROM {table_name}
+                WHERE id > ?
+                ORDER BY Date, Time
+            """
+            df = pd.read_sql_query(query, conn, params=(last_id,))
+            
+            return df
+            
+        except Exception as e:
+            logging.error(f"Error getting new data: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+
+    def get_latest_training_status(self) -> Dict[str, Any]:
+        """Get the status of the latest training session"""

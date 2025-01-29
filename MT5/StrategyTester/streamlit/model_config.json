@@ -1,5 +1,5 @@
 {
-    "active_model": "decision_tree",
+    "active_model": "xgboost",
     "models": {
         "xgboost": {
             "params": {

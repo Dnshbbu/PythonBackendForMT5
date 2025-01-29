@@ -1,0 +1,10 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+models/
+logs/
+venv/
+ml_venv/
+MT5/reports/
+MT5/StrategyTester/streamlit/models/
+MT5/StrategyTester/streamlit/st_venv/
+MT5/StrategyTester/streamlit/logs/
+MT5/StrategyTester/st_venv/

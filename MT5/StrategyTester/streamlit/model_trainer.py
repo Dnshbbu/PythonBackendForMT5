@@ -12,20 +12,34 @@ from sklearn.model_selection import TimeSeriesSplit
 import joblib
 
 class TimeSeriesModelTrainer:
-    def __init__(self, db_path: str, model_save_dir: str = 'models'):
+    def __init__(self, db_path: str, models_dir: str):
+        """
+        Initialize the trainer with database and model paths
+        
+        Args:
+            db_path: Path to SQLite database
+            models_dir: Directory to save trained models
+        """
         self.db_path = db_path
-        self.model_save_dir = model_save_dir
+        self.models_dir = models_dir  # Fixed attribute name to match usage
         self.setup_logging()
         self.setup_directories()
         
+
+    def setup_directories(self):
+        """Create necessary directories"""
+        os.makedirs(self.models_dir, exist_ok=True)
+
+
+
     def setup_logging(self):
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         
-    def setup_directories(self):
-        os.makedirs(self.model_save_dir, exist_ok=True)
+    # def setup_directories(self):
+    #     os.makedirs(self.model_save_dir, exist_ok=True)
 
     def load_data_from_db(self, table_name: str) -> pd.DataFrame:
         try:
@@ -75,6 +89,8 @@ class TimeSeriesModelTrainer:
         tscv = TimeSeriesSplit(n_splits=n_splits)
         return list(tscv.split(X))
 
+
+
     def train_and_save(self, 
                       table_name: str,
                       model_type: str,
@@ -82,54 +98,67 @@ class TimeSeriesModelTrainer:
                       feature_cols: List[str],
                       prediction_horizon: int = 1,
                       model_params: Optional[Dict] = None) -> Tuple[str, Dict]:
+        """Train and save model with proper type conversion for serialization"""
         try:
             # Load and prepare data
             df = self.load_data_from_db(table_name)
+            if df.empty:
+                logging.warning("No data available for training")
+                return None, None
+                
             X, y = self.prepare_features_target(df, target_col, feature_cols, prediction_horizon)
+            if X.empty or y.empty:
+                logging.warning("No valid features/target data after preparation")
+                return None, None
             
             # Get model instance
             model = ModelFactory.get_model(model_type)
             model.feature_columns = feature_cols
             
             # Train model
-            _, raw_metrics = model.train(X, y, **(model_params or {}))
+            trained_model, raw_metrics = model.train(X, y, **(model_params or {}))
+            if trained_model is None or raw_metrics is None:
+                logging.warning("Model training failed")
+                return None, None
             
             # Convert numpy types to Python native types in metrics
             metrics = {}
             for key, value in raw_metrics.items():
                 if isinstance(value, dict):
                     # Handle nested dictionaries (like feature_importance)
-                    metrics[key] = {k: float(v) if hasattr(v, 'dtype') else v 
-                                  for k, v in value.items()}
+                    metrics[key] = {
+                        k: float(v) if hasattr(v, 'dtype') else v 
+                        for k, v in value.items()
+                    }
                 elif hasattr(value, 'dtype'):
-                    # Convert numpy scalars to Python native types
+                    # Convert any numpy type to Python float
                     metrics[key] = float(value)
                 else:
                     metrics[key] = value
             
-            # Save model and metadata
+            # Save model
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_path = model.save(self.model_save_dir, timestamp)
+            model_path = model.save(self.models_dir, timestamp)
             
             # Save scaler
             if self.scaler:
                 scaler_path = os.path.join(
-                    self.model_save_dir, 
+                    self.models_dir,
                     f"{model_type}_{timestamp}_scaler.joblib"
                 )
                 joblib.dump(self.scaler, scaler_path)
             
-            # Save feature configuration
+            # Save feature configuration with converted types
             config = {
-                'model_type': model_type,
-                'features': feature_cols,
-                'target': target_col,
-                'prediction_horizon': prediction_horizon,
+                'model_type': str(model_type),
+                'features': [str(f) for f in feature_cols],
+                'target': str(target_col),
+                'prediction_horizon': int(prediction_horizon),
                 'created_at': timestamp
             }
             
             config_path = os.path.join(
-                self.model_save_dir, 
+                self.models_dir, 
                 f"{model_type}_{timestamp}_config.json"
             )
             
@@ -138,18 +167,23 @@ class TimeSeriesModelTrainer:
 
             # Save global feature configuration
             feature_config = {
-                'features': feature_cols,
+                'features': [str(f) for f in feature_cols],
                 'timestamp': datetime.now().isoformat(),
-                'model_type': model_type,
-                'latest_model': model_path
+                'model_type': str(model_type),
+                'latest_model': str(model_path)
             }
 
-            global_config_path = os.path.join(self.model_save_dir, 'feature_config.json')
+            global_config_path = os.path.join(self.models_dir, 'feature_config.json')
             with open(global_config_path, 'w') as f:
                 json.dump(feature_config, f, indent=4)
+                
+            logging.info(f"Successfully saved model at: {model_path}")
+            logging.info(f"Metrics: {metrics}")
             
             return model_path, metrics
             
         except Exception as e:
             logging.error(f"Error in training pipeline: {e}")
             raise
+        
+

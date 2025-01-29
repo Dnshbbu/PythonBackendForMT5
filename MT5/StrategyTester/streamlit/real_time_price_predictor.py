@@ -7,6 +7,7 @@ from collections import deque
 from datetime import datetime
 from model_predictor import ModelPredictor
 import json
+from feature_config import TECHNICAL_FEATURES, ENTRY_FEATURES
 
 class RealTimePricePredictor:
     """
@@ -99,7 +100,7 @@ class RealTimePricePredictor:
                 return features
                 
             # If no feature files found, use default features from xgboost_train_model.py
-            from xgboost_train_model import TECHNICAL_FEATURES, ENTRY_FEATURES
+            # from xgboost_train_model import TECHNICAL_FEATURES, ENTRY_FEATURES
             default_features = TECHNICAL_FEATURES + ENTRY_FEATURES
             
             # Save default features as feature_config.json

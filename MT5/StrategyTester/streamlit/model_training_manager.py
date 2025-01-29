@@ -10,6 +10,7 @@ import json
 import numpy as np
 from model_manager import ModelManager
 from model_trainer import TimeSeriesModelTrainer
+from feature_config import SELECTED_FEATURES
 
 class ModelTrainingManager:
     def verify_database_schema(self):
@@ -445,14 +446,15 @@ class ModelTrainingManager:
                 from xgboost_train_model import get_model_params
                 model_params = get_model_params(model_type)
             
-            # Import feature definitions
-            from xgboost_train_model import (
-                TECHNICAL_FEATURES,
-                ENTRY_FEATURES
-            )
+            # # Import feature definitions
+            # from xgboost_train_model import (
+            #     TECHNICAL_FEATURES,
+            #     ENTRY_FEATURES
+            # )
             
-            # Combine all features
-            selected_features = TECHNICAL_FEATURES + ENTRY_FEATURES
+            # # Combine all features
+            # selected_features = TECHNICAL_FEATURES + ENTRY_FEATURES
+            selected_features = SELECTED_FEATURES
             
             # Initialize trainer with support for multiple model types
             try:

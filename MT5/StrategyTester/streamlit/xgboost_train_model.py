@@ -4,20 +4,22 @@ import logging
 from typing import Dict, Optional, List, Tuple
 from datetime import datetime
 
-# Define your feature sets
-TECHNICAL_FEATURES = [
-    'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
-    'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
-    'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
-    'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore'
-]
+from feature_config import SELECTED_FEATURES, TECHNICAL_FEATURES, ENTRY_FEATURES
 
-ENTRY_FEATURES = [
-    'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'
-]
+# # Define your feature sets
+# TECHNICAL_FEATURES = [
+#     'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
+#     'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
+#     'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
+#     'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore'
+# ]
+
+# ENTRY_FEATURES = [
+#     'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'
+# ]
 
 # Combine all features
-SELECTED_FEATURES = TECHNICAL_FEATURES + ENTRY_FEATURES
+# SELECTED_FEATURES = TECHNICAL_FEATURES + ENTRY_FEATURES
 
 def get_model_params(model_type: str) -> Dict:
     """Get model parameters based on model type"""

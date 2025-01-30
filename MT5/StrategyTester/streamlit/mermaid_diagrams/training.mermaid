@@ -1,0 +1,31 @@
+sequenceDiagram
+    participant TM as train_models.py
+    participant TST as TimeSeriesTrainer
+    participant DB as Database
+    participant MM as Model Manager
+    participant XGB as XGBoost Trainer
+
+    TM->>TST: train_multi_table() or train_model_incrementally()
+    
+    alt Multi-table training
+        TST->>DB: Load data from multiple tables
+        TST->>TST: Validate temporal order
+        TST->>TST: Prepare features & target
+        
+        opt Existing model check
+            TST->>TST: Load existing model
+        end
+        
+        TST->>XGB: Train/Update model
+        TST->>TST: Save model & metadata
+        TST->>TST: Update training history
+    else Incremental training
+        TST->>DB: Load base table
+        TST->>XGB: Initial training
+        
+        loop For each new table
+            TST->>DB: Load new table
+            TST->>XGB: Incremental update
+            TST->>TST: Update metrics
+        end
+    end

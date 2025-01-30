@@ -6,8 +6,6 @@ import json
 import pandas as pd
 from model_trainer import TimeSeriesModelTrainer
 from feature_config import SELECTED_FEATURES
-from unified_trainer import UnifiedModelTrainer
-from model_factory import ModelFactory
 
 def setup_logging():
     """Setup logging configuration"""
@@ -179,7 +177,6 @@ def train_model_incrementally(base_table: str, new_tables: List[str], force_retr
         logging.info(f"Initial training on base table: {base_table}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_model_name = f"xgboost_base_{timestamp}"
-        base_model_name =  "model_20250130_181424"
         
         model_path, metrics = trainer.train_and_save_multi_table(
             table_names=[base_table],
@@ -255,57 +252,33 @@ def train_model_incrementally(base_table: str, new_tables: List[str], force_retr
         logging.exception("Detailed traceback:")
         raise
 
-def train_model(table_name: str, model_type: str = 'xgboost', force_retrain: bool = False):
-    """High-level training function"""
-    try:
-        # Setup
-        trainer = UnifiedModelTrainer(db_path='path/to/db', models_dir='path/to/models')
-        
-        # Create model instance
-        model = ModelFactory.create(model_type)
-        
-        # Train
-        model_path, metrics = trainer.train_model(
-            model=model,
-            table_names=[table_name],
-            target_col="Price",
-            feature_cols=SELECTED_FEATURES,
-            force_retrain=force_retrain
-        )
-        
-        return model_path, metrics
-        
-    except Exception as e:
-        logging.error(f"Error in training: {e}")
-        raise
-
 if __name__ == "__main__":
     setup_logging()
     
     # Example usage of different training methods
     try:
         
-        # # 1. Single table training
-        # single_table = "strategy_TRIP_NAS_10019851"
-        # single_results = train_single_table(single_table)
-        # logging.info("\nSingle Table Training Results:")
-        # for model_key, result in single_results.items():
-        #     logging.info(f"\nModel: {model_key}")
-        #     logging.info(f"Model Path: {result['model_path']}")
-        #     logging.info(f"Metrics: {result['metrics']}")
+        # 1. Single table training
+        single_table = "strategy_TRIP_NAS_10019851"
+        single_results = train_single_table(single_table)
+        logging.info("\nSingle Table Training Results:")
+        for model_key, result in single_results.items():
+            logging.info(f"\nModel: {model_key}")
+            logging.info(f"Model Path: {result['model_path']}")
+            logging.info(f"Metrics: {result['metrics']}")
         
-        # # 2. Multi-table training
-        # multiple_tables = [
-        #     "strategy_TRIP_NAS_10019851",
-        #     "strategy_TRIP_NAS_10031622",
-        #     "strategy_TRIP_NAS_10026615"
-        # ]
-        # multi_results = train_multi_table(multiple_tables)
-        # logging.info("\nMulti-Table Training Results:")
-        # for model_key, result in multi_results.items():
-        #     logging.info(f"\nModel: {model_key}")
-        #     logging.info(f"Model Path: {result['model_path']}")
-        #     logging.info(f"Metrics: {result['metrics']}")
+        # 2. Multi-table training
+        multiple_tables = [
+            "strategy_TRIP_NAS_10019851",
+            "strategy_TRIP_NAS_10031622",
+            "strategy_TRIP_NAS_10026615"
+        ]
+        multi_results = train_multi_table(multiple_tables)
+        logging.info("\nMulti-Table Training Results:")
+        for model_key, result in multi_results.items():
+            logging.info(f"\nModel: {model_key}")
+            logging.info(f"Model Path: {result['model_path']}")
+            logging.info(f"Metrics: {result['metrics']}")
         
         # 3. Incremental training
         base_table = "strategy_TRIP_NAS_10019851"
@@ -314,18 +287,18 @@ if __name__ == "__main__":
             "strategy_TRIP_NAS_10026615"
         ]
         incremental_results = train_model_incrementally(base_table, new_tables)
-        # logging.info("\nIncremental Training Results:")
-        # logging.info("\nBase Training:")
-        # logging.info(f"Model Path: {incremental_results['base_training']['model_path']}")
-        # logging.info(f"Metrics: {incremental_results['base_training']['metrics']}")
+        logging.info("\nIncremental Training Results:")
+        logging.info("\nBase Training:")
+        logging.info(f"Model Path: {incremental_results['base_training']['model_path']}")
+        logging.info(f"Metrics: {incremental_results['base_training']['metrics']}")
         
-        # for i, update in enumerate(incremental_results['incremental_updates'], 1):
-        #     logging.info(f"\nIncremental Update {i}:")
-        #     logging.info(f"Table: {update['table']}")
-        #     logging.info(f"Model Path: {update['model_path']}")
-        #     logging.info(f"Metrics: {update['metrics']}")
-        #     if update.get('retrained'):
-        #         logging.info("Note: Full retrain was performed for this update")
+        for i, update in enumerate(incremental_results['incremental_updates'], 1):
+            logging.info(f"\nIncremental Update {i}:")
+            logging.info(f"Table: {update['table']}")
+            logging.info(f"Model Path: {update['model_path']}")
+            logging.info(f"Metrics: {update['metrics']}")
+            if update.get('retrained'):
+                logging.info("Note: Full retrain was performed for this update")
         
     except Exception as e:
         logging.error(f"Critical error in training script: {str(e)}")

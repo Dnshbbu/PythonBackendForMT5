@@ -6,7 +6,7 @@ import joblib
 import json
 import os
 import logging
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple
 import pandas as pd
 import numpy as np
 from incremental_learning import (
@@ -15,8 +15,6 @@ from incremental_learning import (
     ModelTrainingMetrics,
     ModelVersionManager
 )
-from model_base import BaseModel
-from datetime import datetime
 
 class BaseTimeSeriesModel(ABC):
     def __init__(self, model_name: str):
@@ -42,12 +40,9 @@ class BaseTimeSeriesModel(ABC):
         """Get feature importance"""
         pass
 
-    def save(self, save_dir: str, timestamp: Optional[str] = None) -> str:
+    def save(self, save_dir: str, timestamp: str) -> str:
         """Save model and metadata with proper type conversion"""
         try:
-            if timestamp is None:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
             model_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}.joblib")
             joblib.dump(self.model, model_path)
             
@@ -55,14 +50,9 @@ class BaseTimeSeriesModel(ABC):
                 scaler_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}_scaler.joblib")
                 joblib.dump(self.scaler, scaler_path)
 
-            # Save feature names
-            if self.feature_columns:
-                feature_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}_feature_names.json")
-                with open(feature_path, 'w') as f:
-                    json.dump({'feature_names': self.feature_columns}, f)
-
-            # Save feature importance
+            # Get and convert feature importance
             importance = self.get_feature_importance()
+            # Ensure all values are Python native types
             converted_importance = {
                 str(k): float(v) if hasattr(v, 'dtype') else float(v)
                 for k, v in importance.items()
@@ -78,31 +68,21 @@ class BaseTimeSeriesModel(ABC):
             logging.error(f"Error saving model: {e}")
             raise
 
-    def load(self, model_path: str) -> None:
-        """Load model and associated metadata"""
-        try:
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file not found: {model_path}")
+    def load(self, model_path: str):
+        """Load model and associated files"""
+        self.model = joblib.load(model_path)
+        base_path = model_path.rsplit('.', 1)[0]
+        
+        scaler_path = f"{base_path}_scaler.joblib"
+        if os.path.exists(scaler_path):
+            self.scaler = joblib.load(scaler_path)
 
-            # Load model
-            self.model = joblib.load(model_path)
-            base_name = os.path.splitext(model_path)[0]
-            
-            # Load feature names
-            feature_path = f"{base_name}_feature_names.json"
-            if os.path.exists(feature_path):
-                with open(feature_path, 'r') as f:
-                    feature_data = json.load(f)
-                self.feature_columns = feature_data['feature_names']
-            
-            # Load scaler if available
-            scaler_path = f"{base_name}_scaler.joblib"
-            if os.path.exists(scaler_path):
-                self.scaler = joblib.load(scaler_path)
-                
-        except Exception as e:
-            logging.error(f"Error loading model: {e}")
-            raise
+        importance_path = f"{base_path}_feature_importance.json"
+        if os.path.exists(importance_path):
+            with open(importance_path, 'r') as f:
+                self.feature_columns = list(json.load(f).keys())
+
+
 
 class XGBoostTimeSeriesModel(BaseTimeSeriesModel, IncrementalLearningMixin):
     def __init__(self):
@@ -113,7 +93,6 @@ class XGBoostTimeSeriesModel(BaseTimeSeriesModel, IncrementalLearningMixin):
             'n_estimators': 100,
             'objective': 'reg:squarederror'
         }
-        self.training_history = []
 
     def supports_incremental_learning(self) -> bool:
         return True
@@ -122,80 +101,49 @@ class XGBoostTimeSeriesModel(BaseTimeSeriesModel, IncrementalLearningMixin):
         try:
             params = {**self.default_params, **kwargs}
             self.model = xgb.XGBRegressor(**params)
-            
-            # Store feature columns during training
-            self.feature_columns = list(X.columns)
-            
-            # Train the model
             self.model.fit(X, y)
             
-            # Calculate metrics
-            score = float(self.model.score(X, y))
-            feature_importance = self.get_feature_importance()
+            # Get predictions
+            predictions = self.model.predict(X)
+            score = float(self.model.score(X, y))  # Convert score to Python float
+            
+            # Get feature importances with explicit conversion to Python types
+            importance_dict = {}
+            importances = self.model.feature_importances_
+            feature_names = self.feature_columns or X.columns.tolist()
+            
+            for feat, imp in zip(feature_names, importances):
+                importance_dict[str(feat)] = float(imp)
             
             metrics = {
                 'training_score': score,
-                'feature_importance': feature_importance,
-                'n_features': len(self.feature_columns),
+                'feature_importance': importance_dict,
+                'n_features': len(feature_names),
                 'n_samples': len(X)
             }
             
-            # Save feature names alongside model
-            if hasattr(self, 'model_path'):
-                self._save_feature_names()
-            
+            self.metrics_tracker.add_metrics(metrics, 'full')
             return self.model, metrics
             
         except Exception as e:
             logging.error(f"Error in XGBoost training: {e}")
             raise
 
-    def _save_feature_names(self):
-        """Save feature names to a JSON file"""
-        if hasattr(self, 'feature_columns') and self.feature_columns:
-            base_name = os.path.splitext(os.path.basename(self.model_path))[0]
-            feature_path = os.path.join(
-                os.path.dirname(self.model_path), 
-                f"{base_name}_features.json"
-            )
-            with open(feature_path, 'w') as f:
-                json.dump({
-                    'feature_names': self.feature_columns,
-                    'timestamp': datetime.now().isoformat()
-                }, f, indent=4)
-            logging.info(f"Saved feature names to {feature_path}")
-
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         if self.model is None:
-            raise ValueError("Model not trained yet")
+            raise ValueError("Model not trained")
         return self.model.predict(X)
 
     def get_feature_importance(self) -> Dict[str, float]:
-        if self.model is None:
+        if not self.model:
             return {}
-            
-        importance_dict = {}
-        importances = self.model.feature_importances_
-        feature_names = self.feature_columns or range(len(importances))
         
-        for feat, imp in zip(feature_names, importances):
-            importance_dict[str(feat)] = float(imp)
-            
-        return importance_dict
-
-    def partial_fit(self, X: pd.DataFrame, y: pd.Series, **kwargs) -> Dict:
-        if self.model is None:
-            return self.train(X, y, **kwargs)[1]
-            
-        n_new_trees = kwargs.get('n_estimators', 10)
-        self.model.n_estimators += n_new_trees
-        self.model.fit(X, y, xgb_model=self.model)
-        
-        return {
-            'training_score': self.model.score(X, y),
-            'feature_importance': self.get_feature_importance(),
-            'n_trees': self.model.n_estimators
-        }
+        importances = {}
+        feature_names = self.feature_columns or []
+        for feat, imp in zip(feature_names, self.model.feature_importances_):
+            importances[str(feat)] = float(imp)
+        return importances
+    
 
     def needs_retraining(self, new_data_size: int) -> bool:
         """Determine if XGBoost model needs retraining"""
@@ -216,14 +164,56 @@ class XGBoostTimeSeriesModel(BaseTimeSeriesModel, IncrementalLearningMixin):
             return True
             
         # Check if new data is too large compared to original training set
-        if self.training_history:
+        if hasattr(self, 'training_history') and self.training_history:
             last_training = self.training_history[-1]
             original_size = last_training.get('data_size', 0)
             if original_size > 0 and new_data_size / original_size > 0.5:
-                logging.info("New data too large compared to original training set")
+                logging.info(f"New data too large compared to original training set")
                 return True
                 
         return False
+
+    def partial_fit(self, X: pd.DataFrame, y: pd.Series, **kwargs) -> Dict:
+        """Incrementally train XGBoost model"""
+        if not self.model:
+            _, metrics = self.train(X, y, **kwargs)
+            return metrics
+            
+        try:
+            n_new_trees = kwargs.get('n_estimators', 10)
+            new_model = xgb.XGBRegressor(
+                max_depth=self.model.max_depth,
+                learning_rate=self.model.learning_rate,
+                n_estimators=n_new_trees,
+                objective=self.model.objective
+            )
+            
+            new_model.fit(X, y)
+            
+            self.model.n_estimators += n_new_trees
+            self.model._Booster = xgb.Booster({
+                'nthread': self.model.n_jobs
+            })
+            self.model._Booster.feature_names = [str(f) for f in self.feature_columns]
+            
+            # Update metrics
+            score = float(self.model.score(X, y))
+            importance_dict = self.get_feature_importance()
+            
+            metrics = {
+                'training_score': score,
+                'feature_importance': importance_dict,
+                'n_trees_added': n_new_trees,
+                'n_samples': len(X)
+            }
+            
+            self.metrics_tracker.add_metrics(metrics, 'incremental')
+            return metrics
+            
+        except Exception as e:
+            logging.error(f"Error in partial_fit: {e}")
+            raise
+
 
 class DecisionTreeTimeSeriesModel(BaseTimeSeriesModel, BatchedRetrainingMixin, IncrementalLearningMixin):
     def __init__(self):
@@ -263,32 +253,24 @@ class DecisionTreeTimeSeriesModel(BaseTimeSeriesModel, BatchedRetrainingMixin, I
     def get_feature_importance(self) -> Dict[str, float]:
         if not self.model:
             return {}
-        return dict(zip(self.feature_columns or [], 
+        return dict(zip(self.feature_columns or X.columns, 
                        self.model.feature_importances_))
 
 class ModelFactory:
-    _models = {}
-
-    @classmethod
-    def register(cls, name: str, model_class: type):
-        """Register a new model type"""
-        if not issubclass(model_class, BaseTimeSeriesModel):
-            raise ValueError("Model must inherit from BaseTimeSeriesModel")
-        cls._models[name.lower()] = model_class
+    _models = {
+        'xgboost': XGBoostTimeSeriesModel,
+        'decision_tree': DecisionTreeTimeSeriesModel
+    }
 
     @classmethod
     def get_model(cls, model_type: str) -> BaseTimeSeriesModel:
-        """Get a model instance by type"""
         model_class = cls._models.get(model_type.lower())
         if not model_class:
             raise ValueError(f"Unknown model type: {model_type}")
         return model_class()
 
     @classmethod
-    def get_available_models(cls) -> List[str]:
-        """Get list of registered model types"""
-        return list(cls._models.keys())
-
-# Register models with factory
-ModelFactory.register('xgboost', XGBoostTimeSeriesModel)
-ModelFactory.register('decision_tree', DecisionTreeTimeSeriesModel)
+    def register_model(cls, name: str, model_class: type):
+        if not issubclass(model_class, BaseTimeSeriesModel):
+            raise ValueError("Model must inherit from BaseTimeSeriesModel")
+        cls._models[name.lower()] = model_class

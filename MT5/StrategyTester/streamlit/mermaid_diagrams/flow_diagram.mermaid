@@ -1,0 +1,34 @@
+graph TB
+    subgraph Real-time Prediction Flow
+        A[RealTimePricePredictor] -->|Uses| B[ModelPredictor]
+        B -->|Loads| C[Trained Model]
+        A -->|Processes| D[Raw Data]
+        D -->|Batch Processing| E[Feature Generation]
+        E -->|Prediction| C
+    end
+
+    subgraph Model Training Flow
+        F[TimeSeriesModelTrainer] -->|Trains| G[XGBoost/Decision Tree]
+        H[UnifiedModelTrainer] -->|Uses| F
+        I[ModelTrainingManager] -->|Controls| H
+        J[ModelManager] -->|Configures| I
+        K[FeatureProcessor] -->|Provides| L[Feature Engineering]
+        F -->|Uses| L
+        G -->|Saves| M[Model Files]
+        M -->|Metadata| N[feature_config.json]
+        M -->|Model| O[model.joblib]
+        M -->|Scaler| P[scaler.joblib]
+    end
+
+    subgraph Base Classes
+        Q[BaseModel] -.->|Implements| R[BaseTimeSeriesModel]
+        R -.->|Extended by| S[Model Implementations]
+    end
+
+    subgraph Monitoring
+        T[PredictionMonitoringPage] -->|Monitors| U[Real-time Predictions]
+        T -->|Tracks| V[Metrics History]
+    end
+
+    C -->|Loaded by| B
+    M -->|Used by| B

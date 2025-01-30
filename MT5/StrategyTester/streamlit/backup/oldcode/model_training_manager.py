@@ -674,30 +674,5 @@ class ModelTrainingManager:
             if conn:
                 conn.close()
 
-    def check_training_status(self, table_name: str) -> Dict:
-        """Check if model needs training/retraining"""
-        try:
-            # Get latest training status
-            status = self.get_latest_training_status()
-            
-            if not status:
-                return {
-                    'needs_training': True,
-                    'reason': 'No training history found'
-                }
-            
-            last_training = status.get('last_training_time')
-            if not last_training:
-                return {
-                    'needs_training': True,
-                    'reason': 'No previous training timestamp found'
-                }
-            
-            # Rest of the method remains the same
-            
-        except Exception as e:
-            logging.warning(f"Error checking training status: {e}")
-            return {
-                'needs_training': False,
-                'reason': f'Error checking status: {str(e)}'
-            }
+    def get_latest_training_status(self) -> Dict[str, Any]:
+        """Get the status of the latest training session"""

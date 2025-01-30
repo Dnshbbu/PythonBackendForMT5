@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant MT5 as MT5 Client
+    participant ZMQ as ZMQ Server
+    participant DB as Database Manager
+    participant PP as Price Predictor
+    participant TM as Training Manager
+    participant PT as Prediction Tracker
+
+    MT5->>ZMQ: Send trading data
+    Note over ZMQ: process_message()
+    
+    alt alldetails message type
+        ZMQ->>DB: Create/Update table
+        ZMQ->>PP: Add data point
+        
+        alt prediction available
+            PP-->>ZMQ: Return prediction
+            ZMQ->>TM: Get training status
+            ZMQ->>PT: Record prediction
+            PT-->>ZMQ: Return metrics
+            ZMQ->>MT5: Send prediction message
+        end
+    else csv data type
+        ZMQ->>DB: Handle CSV data
+    else sequence of events
+        ZMQ->>DB: Log events
+    end

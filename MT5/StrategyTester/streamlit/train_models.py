@@ -1,10 +1,11 @@
 import os
 import logging
 from datetime import datetime
-from model_training_manager import ModelTrainingManager
-from model_manager import ModelManager
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 import json
+import pandas as pd
+from model_trainer import TimeSeriesModelTrainer
+from feature_config import SELECTED_FEATURES
 
 def setup_logging():
     """Setup logging configuration"""
@@ -13,200 +14,293 @@ def setup_logging():
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
-class IncrementalTrainer:
-    def __init__(self, db_path: str, models_dir: str):
-        self.db_path = db_path
-        self.models_dir = models_dir
-        self.model_manager = ModelManager()
-        self.training_manager = ModelTrainingManager(
-            db_path=db_path,
-            models_dir=models_dir,
-            min_rows_for_training=20
-        )
-        
-        # Track training history
-        self.history_file = os.path.join(models_dir, 'training_history.json')
-        self.training_history = self.load_training_history()
-        
-    def load_training_history(self) -> Dict[str, Any]:
-        """Load training history from file"""
-        if os.path.exists(self.history_file):
-            with open(self.history_file, 'r') as f:
-                return json.load(f)
-        return {'models': {}}
-        
-    def save_training_history(self):
-        """Save training history to file"""
-        with open(self.history_file, 'w') as f:
-            json.dump(self.training_history, f, indent=4)
-            
-    def update_training_history(self, model_type: str, metrics: Dict[str, Any], 
-                              training_type: str = 'full'):
-        """Update training history with new metrics"""
-        if model_type not in self.training_history['models']:
-            self.training_history['models'][model_type] = []
-            
-        entry = {
-            'timestamp': datetime.now().isoformat(),
-            'training_type': training_type,
-            'metrics': metrics
+def get_model_params(model_type: str) -> Dict:
+    """Get model parameters based on model type"""
+    params = {
+        'xgboost': {
+            'max_depth': 8,
+            'learning_rate': 0.05,
+            'n_estimators': 1000,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'min_child_weight': 2,
+            'objective': 'reg:squarederror',
+            'random_state': 42
+        },
+        'decision_tree': {
+            'max_depth': 8,
+            'min_samples_split': 5,
+            'min_samples_leaf': 2,
+            'random_state': 42
         }
-        self.training_history['models'][model_type].append(entry)
-        self.save_training_history()
+    }
+    return params.get(model_type, {})
 
-    def train_models(self, table_name: str, force_retrain: bool = False):
-        """Train or incrementally update models"""
-        try:
-            # Get configurations to try
-            configurations = [
-                {'model_type': 'xgboost', 'prediction_horizon': 1},
-                # {'model_type': 'decision_tree', 'prediction_horizon': 1}
-            ]
-            
-            for config in configurations:
-                model_type = config['model_type']
-                logging.info(f"\nProcessing {model_type} model")
-                
-                # Set active model
-                self.model_manager.set_active_model(model_type)
-                
-                # Get model instance
-                model = self.training_manager.get_model_instance(model_type)
-                
-                # Check if model supports incremental learning
-                try:
-                    if not force_retrain and model.supports_incremental_learning():
-                        logging.info(f"{model_type} supports incremental learning")
-                        self.handle_incremental_training(model, table_name, config)
-                    else:
-                        logging.info(f"{model_type} requires full training")
-                        self.handle_full_training(model, table_name, config)
-                except AttributeError as e:
-                    logging.warning(f"{model_type} does not implement incremental learning interface, defaulting to full training")
-                    self.handle_full_training(model, table_name, config)
-                    
-        except Exception as e:
-            logging.error(f"Error in model training: {str(e)}")
-            raise
-
-
-    def handle_incremental_training(self, model, table_name: str, config: Dict):
-        """Handle incremental training for supported models"""
-        try:
-            # Check if model file exists
-            model_files = [f for f in os.listdir(self.models_dir) if f.startswith(config['model_type']) and f.endswith('.joblib')]
-            
-            if not model_files:
-                logging.info(f"No existing {config['model_type']} model found. Performing full training.")
-                self.handle_full_training(model, table_name, config)
-                return
-
-            # Get new data since last training
-            new_data = self.training_manager.get_new_data(table_name)
-            
-            if new_data.empty:
-                logging.info("No new data available for training")
-                return
-                
-            if model.needs_retraining(len(new_data)):
-                logging.info("Model needs full retraining based on data size")
-                self.handle_full_training(model, table_name, config)
-                return
-                
-            # Prepare new data for incremental training
-            X_new, y_new = self.training_manager.prepare_features_target(
-                new_data,
-                config['prediction_horizon']
-            )
-            
-            # Perform incremental training
-            metrics = model.partial_fit(X_new, y_new)
-            
-            # Update training history
-            self.update_training_history(
-                config['model_type'],
-                metrics,
-                'incremental'
-            )
-            
-            # Save updated model
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_path = model.save(self.models_dir, timestamp)
-            
-            logging.info(f"Incremental training completed: {model_path}")
-            logging.info(f"Metrics: {metrics}")
-            
-        except FileNotFoundError as fe:
-            logging.error(f"Model or directory not found: {fe}")
-            self.handle_full_training(model, table_name, config)
-        except PermissionError as pe:
-            logging.error(f"Permission error accessing model files: {pe}")
-        except Exception as e:
-            logging.error(f"Error in incremental training: {e}")
-            raise
-
-    def handle_full_training(self, model, table_name: str, config: Dict):
-        """Handle full model retraining"""
-        try:
-            # Trigger full training
-            result = self.training_manager.retrain_model(table_name)
-            
-            # Debug log
-            logging.info(f"Retrain model returned: {result}")
-            
-            if result is None or result == (None, None):
-                logging.warning("Training skipped or failed") 
-                return
-                
-            model_path, metrics = result
-            if model_path is None or metrics is None:
-                logging.warning("No valid model path or metrics returned")
-                return
-                
-            # Update training history
-            self.update_training_history(
-                config['model_type'],
-                metrics,
-                'full'
-            )
-            
-            logging.info(f"Full training completed: {model_path}")
-            logging.info(f"Training metrics: {metrics}")
-            
-        except ValueError as ve:
-            logging.error(f"Value error in full training: {ve}")
-        except TypeError as te:
-            logging.error(f"Type error in full training: {te}")
-        except Exception as e:
-            logging.error(f"Error in full training: {e}")
-            raise
-
-
-def main():
-    """Main function for model training"""
-    setup_logging()
-    
+def train_single_table(table_name: str, force_retrain: bool = False):
+    """Train a model using a single table"""
     try:
         # Setup paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
         db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
         models_dir = os.path.join(current_dir, 'models')
         
-        # Ensure directories exist
-        os.makedirs(models_dir, exist_ok=True)
-        
         # Initialize trainer
-        trainer = IncrementalTrainer(db_path, models_dir)
+        trainer = TimeSeriesModelTrainer(db_path=db_path, models_dir=models_dir)
         
-        # Train models
-        # table_name = "strategy_TRIP_NAS_10019851"  # Replace with your table name
-        # table_name = "strategy_TRIP_NAS_10031622"  # Replace with your table name
-        table_name = "strategy_TRIP_NAS_10026615"  # Replace with your table name
-        trainer.train_models(table_name)
+        # Get configurations
+        configurations = [
+            {'model_type': 'xgboost', 'prediction_horizon': 1}
+        ]
+        
+        results = {}
+        for config in configurations:
+            model_type = config['model_type']
+            logging.info(f"\nTraining {model_type} model for table: {table_name}")
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_name = f"{model_type}_{timestamp}" if force_retrain else None
+            
+            try:
+                model_path, metrics = trainer.train_and_save_multi_table(
+                    table_names=[table_name],
+                    target_col="Price",
+                    feature_cols=SELECTED_FEATURES,
+                    prediction_horizon=config['prediction_horizon'],
+                    model_params=get_model_params(model_type),
+                    model_name=model_name
+                )
+                
+                # results[(model_type, config['prediction_horizon'])] = {
+                #     'model_path': model_path,
+                #     'metrics': metrics
+                # }
+                results[f"{model_type}_h{config['prediction_horizon']}"] = {
+                    'model_path': model_path,
+                    'metrics': metrics,
+                    'model_type': model_type,
+                    'prediction_horizon': config['prediction_horizon']
+                }
+                
+                logging.info(f"Training completed: {model_path}")
+                logging.info(f"Metrics: {metrics}")
+                
+            except Exception as e:
+                logging.error(f"Error training {model_type} model: {e}")
+                continue
+                
+        return results
         
     except Exception as e:
-        logging.error(f"Critical error in training script: {str(e)}")
+        logging.error(f"Error in single table training: {str(e)}")
+        logging.exception("Detailed traceback:")
+        raise
+
+def train_multi_table(table_names: List[str], force_retrain: bool = False):
+    """Train a model using multiple tables simultaneously"""
+    try:
+        # Setup paths
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
+        models_dir = os.path.join(current_dir, 'models')
+        
+        # Initialize trainer
+        trainer = TimeSeriesModelTrainer(db_path=db_path, models_dir=models_dir)
+        
+        # Get configurations
+        configurations = [
+            {'model_type': 'xgboost', 'prediction_horizon': 1}
+        ]
+        
+        results = {}
+        for config in configurations:
+            model_type = config['model_type']
+            logging.info(f"\nProcessing {model_type} model with tables: {table_names}")
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_name = f"{model_type}_{timestamp}" if force_retrain else None
+            
+            try:
+                # Train model with multiple tables
+                model_path, metrics = trainer.train_and_save_multi_table(
+                    table_names=table_names,
+                    target_col="Price",
+                    feature_cols=SELECTED_FEATURES,
+                    prediction_horizon=config['prediction_horizon'],
+                    model_params=get_model_params(model_type),
+                    model_name=model_name
+                )
+                
+                # results[(model_type, config['prediction_horizon'])] = {
+                #     'model_path': model_path,
+                #     'metrics': metrics
+                # }
+                results[f"{model_type}_h{config['prediction_horizon']}"] = {
+                    'model_path': model_path,
+                    'metrics': metrics,
+                    'model_type': model_type,
+                    'prediction_horizon': config['prediction_horizon']
+                }
+                
+                logging.info(f"Training completed: {model_path}")
+                logging.info(f"Metrics: {metrics}")
+                
+            except Exception as e:
+                logging.error(f"Error training {model_type} model: {e}")
+                continue
+                
+        return results
+        
+    except Exception as e:
+        logging.error(f"Error in multi-table training: {str(e)}")
+        logging.exception("Detailed traceback:")
+        raise
+
+def train_model_incrementally(base_table: str, new_tables: List[str], force_retrain: bool = False):
+    """
+    Train a model incrementally using a base table and new tables
+    
+    Args:
+        base_table: Initial table to train on
+        new_tables: List of new tables to incrementally train with
+        force_retrain: Whether to force a full retrain instead of incremental
+    """
+    try:
+        # Setup paths
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
+        models_dir = os.path.join(current_dir, 'models')
+        
+        # Initialize trainer
+        trainer = TimeSeriesModelTrainer(db_path=db_path, models_dir=models_dir)
+        
+        # First, train on base table
+        logging.info(f"Initial training on base table: {base_table}")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_model_name = f"xgboost_base_{timestamp}"
+        
+        model_path, metrics = trainer.train_and_save_multi_table(
+            table_names=[base_table],
+            target_col="Price",
+            feature_cols=SELECTED_FEATURES,
+            prediction_horizon=1,
+            model_params=get_model_params('xgboost'),
+            model_name=base_model_name
+        )
+        
+        logging.info(f"Base model trained: {model_path}")
+        logging.info(f"Base metrics: {metrics}")
+        
+        # Store results
+        results = {
+            'base_training': {
+                'model_path': model_path,
+                'metrics': metrics
+            },
+            'incremental_updates': []
+        }
+        
+        # Incrementally train on new tables
+        for i, table in enumerate(new_tables, 1):
+            logging.info(f"Incremental training {i}/{len(new_tables)} with table: {table}")
+            
+            try:
+                updated_path, updated_metrics = trainer.train_and_save_multi_table(
+                    table_names=[table],
+                    target_col="Price",
+                    feature_cols=SELECTED_FEATURES,
+                    prediction_horizon=1,
+                    model_params=get_model_params('xgboost'),
+                    model_name=base_model_name  # Keep same name for incremental updates
+                )
+                
+                results['incremental_updates'].append({
+                    'table': table,
+                    'model_path': updated_path,
+                    'metrics': updated_metrics
+                })
+                
+                logging.info(f"Incremental update completed: {updated_path}")
+                logging.info(f"Updated metrics: {updated_metrics}")
+                
+            except Exception as e:
+                logging.error(f"Error during incremental training on table {table}: {e}")
+                if not force_retrain:
+                    raise
+                    
+                logging.info("Attempting full retrain due to force_retrain=True")
+                # If force_retrain is True, do a full retrain with all data up to this point
+                all_tables = [base_table] + new_tables[:i+1]
+                updated_path, updated_metrics = trainer.train_and_save_multi_table(
+                    table_names=all_tables,
+                    target_col="Price",
+                    feature_cols=SELECTED_FEATURES,
+                    prediction_horizon=1,
+                    model_params=get_model_params('xgboost')
+                )
+                
+                results['incremental_updates'].append({
+                    'table': table,
+                    'model_path': updated_path,
+                    'metrics': updated_metrics,
+                    'retrained': True
+                })
+        
+        return results
+        
+    except Exception as e:
+        logging.error(f"Error in incremental training: {str(e)}")
+        logging.exception("Detailed traceback:")
         raise
 
 if __name__ == "__main__":
-    main()
+    setup_logging()
+    
+    # Example usage of different training methods
+    try:
+        
+        # 1. Single table training
+        single_table = "strategy_TRIP_NAS_10019851"
+        single_results = train_single_table(single_table)
+        logging.info("\nSingle Table Training Results:")
+        for model_key, result in single_results.items():
+            logging.info(f"\nModel: {model_key}")
+            logging.info(f"Model Path: {result['model_path']}")
+            logging.info(f"Metrics: {result['metrics']}")
+        
+        # 2. Multi-table training
+        multiple_tables = [
+            "strategy_TRIP_NAS_10019851",
+            "strategy_TRIP_NAS_10031622",
+            "strategy_TRIP_NAS_10026615"
+        ]
+        multi_results = train_multi_table(multiple_tables)
+        logging.info("\nMulti-Table Training Results:")
+        for model_key, result in multi_results.items():
+            logging.info(f"\nModel: {model_key}")
+            logging.info(f"Model Path: {result['model_path']}")
+            logging.info(f"Metrics: {result['metrics']}")
+        
+        # 3. Incremental training
+        base_table = "strategy_TRIP_NAS_10019851"
+        new_tables = [
+            "strategy_TRIP_NAS_10031622",
+            "strategy_TRIP_NAS_10026615"
+        ]
+        incremental_results = train_model_incrementally(base_table, new_tables)
+        logging.info("\nIncremental Training Results:")
+        logging.info("\nBase Training:")
+        logging.info(f"Model Path: {incremental_results['base_training']['model_path']}")
+        logging.info(f"Metrics: {incremental_results['base_training']['metrics']}")
+        
+        for i, update in enumerate(incremental_results['incremental_updates'], 1):
+            logging.info(f"\nIncremental Update {i}:")
+            logging.info(f"Table: {update['table']}")
+            logging.info(f"Model Path: {update['model_path']}")
+            logging.info(f"Metrics: {update['metrics']}")
+            if update.get('retrained'):
+                logging.info("Note: Full retrain was performed for this update")
+        
+    except Exception as e:
+        logging.error(f"Critical error in training script: {str(e)}")
+        logging.exception("Detailed traceback:")
+        raise

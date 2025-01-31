@@ -1,0 +1,120 @@
+PS C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit> python .\train_models.py
+2025-01-31 01:18:10,962 - INFO -
+Training xgboost model for table: strategy_TRIP_NAS_10019851
+2025-01-31 01:18:11,832 - INFO - Loaded data from 1 tables
+2025-01-31 01:18:11,832 - INFO - Total rows: 11893
+2025-01-31 01:18:11,833 - INFO - Time range: 2022-07-11 16:36:00 to 2022-10-10 22:54:00
+2025-01-31 01:18:11,836 - INFO - Combined data shape: (11893, 137)
+2025-01-31 01:18:11,849 - INFO - Prepared features shape: (11892, 18), target shape: (11892,)
+2025-01-31 01:18:11,850 - INFO - Performing full training (no valid existing model)
+2025-01-31 01:18:17,532 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011817.joblib
+2025-01-31 01:18:17,534 - INFO - Training history updated successfully
+2025-01-31 01:18:17,555 - INFO - Training completed: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011817.joblib
+2025-01-31 01:18:17,556 - INFO - Metrics: {'rmse': 1.1624540446615559, 'r2': 0.8533231170175468, 'training_samples': 11892, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'n_trees': 1000, 'validation_rmse': 0.5118271918258902, 'training_tables': ['strategy_TRIP_NAS_10019851'], 'training_time': '2025-01-31T01:18:17.389718', 'data_points': 11892, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:17,556 - INFO - 
+Training decision_tree model for table: strategy_TRIP_NAS_10019851
+2025-01-31 01:18:18,660 - INFO - Loaded data from 1 tables
+2025-01-31 01:18:18,661 - INFO - Total rows: 11893
+2025-01-31 01:18:18,662 - INFO - Time range: 2022-07-11 16:36:00 to 2022-10-10 22:54:00
+2025-01-31 01:18:18,664 - INFO - Combined data shape: (11893, 137)
+2025-01-31 01:18:18,678 - INFO - Prepared features shape: (11892, 18), target shape: (11892,)
+2025-01-31 01:18:18,872 - INFO - Training Decision Tree model
+2025-01-31 01:18:18,954 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011818.joblib
+2025-01-31 01:18:18,958 - INFO - Training history updated successfully
+2025-01-31 01:18:18,971 - INFO - Training completed: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011818.joblib
+2025-01-31 01:18:18,971 - INFO - Metrics: {'rmse': 2.5040764479651414, 'r2': 0.31937914322391425, 'training_samples': 11892, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'training_tables': ['strategy_TRIP_NAS_10019851'], 'training_time': '2025-01-31T01:18:18.946118', 'data_points': 11892, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:18,971 - INFO -
+Single Table Training Results:================================================================
+2025-01-31 01:18:18,972 - INFO -
+Model: xgboost_h1
+2025-01-31 01:18:18,972 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011817.joblib
+2025-01-31 01:18:18,973 - INFO - Metrics: {'rmse': 1.1624540446615559, 'r2': 0.8533231170175468, 'training_samples': 11892, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'n_trees': 1000, 'validation_rmse': 0.5118271918258902, 'training_tables': ['strategy_TRIP_NAS_10019851'], 'training_time': '2025-01-31T01:18:17.389718', 'data_points': 11892, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:18,974 - INFO -
+Model: decision_tree_h1
+2025-01-31 01:18:18,974 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011818.joblib
+2025-01-31 01:18:18,974 - INFO - Metrics: {'rmse': 2.5040764479651414, 'r2': 0.31937914322391425, 'training_samples': 11892, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'training_tables': ['strategy_TRIP_NAS_10019851'], 'training_time': '2025-01-31T01:18:18.946118', 'data_points': 11892, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:18,975 - INFO -
+Processing xgboost model with tables: ['strategy_TRIP_NAS_10019851', 'strategy_TRIP_NAS_10031622', 'strategy_TRIP_NAS_10026615']
+2025-01-31 01:18:20,391 - INFO - Loaded data from 3 tables
+2025-01-31 01:18:20,392 - INFO - Total rows: 14234
+2025-01-31 01:18:20,392 - INFO - Time range: 2022-07-11 16:36:00 to 2022-10-10 22:54:00
+2025-01-31 01:18:20,396 - INFO - Combined data shape: (14234, 137)
+2025-01-31 01:18:20,416 - INFO - Prepared features shape: (14233, 18), target shape: (14233,)
+2025-01-31 01:18:20,417 - INFO - Performing full training (no valid existing model)
+2025-01-31 01:18:27,512 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011827.joblib
+2025-01-31 01:18:27,515 - INFO - Training history updated successfully
+2025-01-31 01:18:27,541 - INFO - Training completed: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011827.joblib
+2025-01-31 01:18:27,541 - INFO - Metrics: {'rmse': 1.210592648362953, 'r2': 0.8539076594071888, 'training_samples': 14233, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'n_trees': 1000, 'validation_rmse': 0.8658288762766696, 'training_tables': ['strategy_TRIP_NAS_10019851', 'strategy_TRIP_NAS_10031622', 'strategy_TRIP_NAS_10026615'], 'training_time': '2025-01-31T01:18:27.376084', 'data_points': 14233, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:27,543 - INFO -
+Processing decision_tree model with tables: ['strategy_TRIP_NAS_10019851', 'strategy_TRIP_NAS_10031622', 'strategy_TRIP_NAS_10026615']
+2025-01-31 01:18:28,870 - INFO - Loaded data from 3 tables
+2025-01-31 01:18:28,870 - INFO - Total rows: 14234
+2025-01-31 01:18:28,871 - INFO - Time range: 2022-07-11 16:36:00 to 2022-10-10 22:54:00
+2025-01-31 01:18:28,874 - INFO - Combined data shape: (14234, 137)
+2025-01-31 01:18:28,896 - INFO - Prepared features shape: (14233, 18), target shape: (14233,)
+2025-01-31 01:18:28,897 - INFO - Training Decision Tree model
+2025-01-31 01:18:28,982 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011828.joblib
+2025-01-31 01:18:28,987 - INFO - Training history updated successfully
+2025-01-31 01:18:29,001 - INFO - Training completed: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011828.joblib
+2025-01-31 01:18:29,001 - INFO - Metrics: {'rmse': 2.572376578307929, 'r2': 0.3403698833461153, 'training_samples': 14233, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'training_tables': ['strategy_TRIP_NAS_10019851', 'strategy_TRIP_NAS_10031622', 'strategy_TRIP_NAS_10026615'], 'training_time': '2025-01-31T01:18:28.976422', 'data_points': 14233, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:29,002 - INFO -
+Multi-Table Training Results:================================================================
+2025-01-31 01:18:29,003 - INFO -
+Model: xgboost_h1
+2025-01-31 01:18:29,003 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011827.joblib
+2025-01-31 01:18:29,004 - INFO - Metrics: {'rmse': 1.210592648362953, 'r2': 0.8539076594071888, 'training_samples': 14233, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'n_trees': 1000, 'validation_rmse': 0.8658288762766696, 'training_tables': ['strategy_TRIP_NAS_10019851', 'strategy_TRIP_NAS_10031622', 'strategy_TRIP_NAS_10026615'], 'training_time': '2025-01-31T01:18:27.376084', 'data_points': 14233, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:29,005 - INFO -
+Model: decision_tree_h1
+2025-01-31 01:18:29,006 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\model_20250131_011828.joblib
+2025-01-31 01:18:29,007 - INFO - Metrics: {'rmse': 2.572376578307929, 'r2': 0.3403698833461153, 'training_samples': 14233, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'training_tables': ['strategy_TRIP_NAS_10019851', 'strategy_TRIP_NAS_10031622', 'strategy_TRIP_NAS_10026615'], 'training_time': '2025-01-31T01:18:28.976422', 'data_points': 14233, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': None}
+2025-01-31 01:18:29,008 - INFO - Initial training on base table: strategy_TRIP_NAS_10019851
+2025-01-31 01:18:30,258 - INFO - Loaded data from 1 tables
+2025-01-31 01:18:30,259 - INFO - Total rows: 11893
+2025-01-31 01:18:30,260 - INFO - Time range: 2022-07-11 16:36:00 to 2022-10-10 22:54:00
+2025-01-31 01:18:30,263 - INFO - Combined data shape: (11893, 137)
+2025-01-31 01:18:30,275 - INFO - Prepared features shape: (11892, 18), target shape: (11892,)
+2025-01-31 01:18:30,276 - INFO - Performing full training (no valid existing model)
+2025-01-31 01:18:37,280 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:37,283 - INFO - Training history updated successfully
+2025-01-31 01:18:37,308 - INFO - Base model trained: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:37,309 - INFO - Base metrics: {'rmse': 1.1624540446615559, 'r2': 0.8533231170175468, 'training_samples': 11892, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'n_trees': 1000, 'validation_rmse': 0.5118271918258902, 'training_tables': ['strategy_TRIP_NAS_10019851'], 'training_time': '2025-01-31T01:18:37.141056', 'data_points': 11892, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': 'xgboost_base_20250131_011829'}
+2025-01-31 01:18:37,310 - INFO - Incremental training 1/2 with table: strategy_TRIP_NAS_10031622
+2025-01-31 01:18:37,370 - INFO - Loaded data from 1 tables
+2025-01-31 01:18:37,371 - INFO - Total rows: 253
+2025-01-31 01:18:37,372 - INFO - Time range: 2022-07-11 16:36:00 to 2022-07-12 18:40:00
+2025-01-31 01:18:37,372 - INFO - Combined data shape: (253, 137)
+2025-01-31 01:18:37,379 - INFO - Prepared features shape: (252, 18), target shape: (252,)
+2025-01-31 01:18:37,502 - INFO - Successfully loaded existing model: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:37,502 - INFO - Performing incremental training with existing model
+2025-01-31 01:18:38,231 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:38,235 - INFO - Training history updated successfully
+2025-01-31 01:18:38,259 - INFO - Incremental update completed: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:38,259 - INFO - Updated metrics: {'rmse': 0.8208530933334521, 'r2': -63.007606528649916, 'training_samples': 252, 'training_type': 'incremental', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-07-12 18:38:00'}, 'n_trees': 1050, 'validation_rmse': 1.199602630840302, 'training_tables': ['strategy_TRIP_NAS_10031622'], 'training_time': '2025-01-31T01:18:38.103509', 'data_points': 252, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': 'xgboost_base_20250131_011829'}
+2025-01-31 01:18:38,261 - INFO - Incremental training 2/2 with table: strategy_TRIP_NAS_10026615
+2025-01-31 01:18:38,494 - INFO - Loaded data from 1 tables
+2025-01-31 01:18:38,495 - INFO - Total rows: 2088
+2025-01-31 01:18:38,495 - INFO - Time range: 2022-08-11 16:36:00 to 2022-08-26 21:44:00
+2025-01-31 01:18:38,496 - INFO - Combined data shape: (2088, 137)
+2025-01-31 01:18:38,502 - INFO - Prepared features shape: (2087, 18), target shape: (2087,)
+2025-01-31 01:18:38,603 - INFO - Successfully loaded existing model: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:38,604 - INFO - Performing incremental training with existing model
+2025-01-31 01:18:39,467 - INFO - Model saved to: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:39,470 - INFO - Training history updated successfully
+2025-01-31 01:18:39,500 - INFO - Incremental update completed: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:39,501 - INFO - Updated metrics: {'rmse': 1.233412188384341, 'r2': -0.9225894848659733, 'training_samples': 2087, 'training_type': 'incremental', 'training_period': {'start': '2022-08-11 16:36:00', 'end': '2022-08-26 21:42:00'}, 'n_trees': 100, 'validation_rmse': 1.4028180809198378, 'training_tables': ['strategy_TRIP_NAS_10026615'], 'training_time': '2025-01-31T01:18:39.341848', 'data_points': 2087, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': 'xgboost_base_20250131_011829'}
+2025-01-31 01:18:39,502 - INFO -
+Incremental Training Results:================================================================
+2025-01-31 01:18:39,502 - INFO -
+Base Training:
+2025-01-31 01:18:39,502 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:39,504 - INFO - Metrics: {'rmse': 1.1624540446615559, 'r2': 0.8533231170175468, 'training_samples': 11892, 'training_type': 'full', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-10-10 22:52:00'}, 'n_trees': 1000, 'validation_rmse': 0.5118271918258902, 'training_tables': ['strategy_TRIP_NAS_10019851'], 'training_time': '2025-01-31T01:18:37.141056', 'data_points': 11892, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': 'xgboost_base_20250131_011829'}
+2025-01-31 01:18:39,504 - INFO -
+Incremental Update 1:
+2025-01-31 01:18:39,505 - INFO - Table: strategy_TRIP_NAS_10031622
+2025-01-31 01:18:39,505 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:39,506 - INFO - Metrics: {'rmse': 0.8208530933334521, 'r2': -63.007606528649916, 'training_samples': 252, 'training_type': 'incremental', 'training_period': {'start': '2022-07-11 16:36:00', 'end': '2022-07-12 18:38:00'}, 'n_trees': 1050, 'validation_rmse': 1.199602630840302, 'training_tables': ['strategy_TRIP_NAS_10031622'], 'training_time': '2025-01-31T01:18:38.103509', 'data_points': 252, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': 'xgboost_base_20250131_011829'}
+2025-01-31 01:18:39,507 - INFO -
+Incremental Update 2:
+2025-01-31 01:18:39,507 - INFO - Table: strategy_TRIP_NAS_10026615
+2025-01-31 01:18:39,508 - INFO - Model Path: C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\models\xgboost_base_20250131_011829.joblib
+2025-01-31 01:18:39,508 - INFO - Metrics: {'rmse': 1.233412188384341, 'r2': -0.9225894848659733, 'training_samples': 2087, 'training_type': 'incremental', 'training_period': {'start': '2022-08-11 16:36:00', 'end': '2022-08-26 21:42:00'}, 'n_trees': 100, 'validation_rmse': 1.4028180809198378, 'training_tables': ['strategy_TRIP_NAS_10026615'], 'training_time': '2025-01-31T01:18:39.341848', 'data_points': 2087, 'features_used': ['Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore', 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore', 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore', 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore', 'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'], 'model_name': 'xgboost_base_20250131_011829'}

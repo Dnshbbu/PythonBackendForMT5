@@ -1,0 +1,4198 @@
+{
+    "training_events": [
+        {
+            "timestamp": "2025-01-31T01:18:17.532795",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_011817.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T01:18:17.389718",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T01:18:18.955121",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_011818.joblib",
+            "metrics": {
+                "rmse": 2.5040764479651414,
+                "r2": 0.31937914322391425,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T01:18:18.946118",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T01:18:27.513165",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_011827.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T01:18:27.376084",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T01:18:28.983949",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_011828.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T01:18:28.976422",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T01:18:37.281131",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_011829.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T01:18:37.141056",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_011829"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T01:18:38.231039",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_011829.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T01:18:38.103509",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_011829"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T01:18:39.468408",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_011829.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T01:18:39.341848",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_011829"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:38.440113",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_081738.joblib",
+            "metrics": {
+                "rmse": 1.9232079344480077,
+                "r2": 0.5985212433328772,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T08:17:38.419113",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:39.775896",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_081739.joblib",
+            "metrics": {
+                "rmse": 2.5040764479651414,
+                "r2": 0.31937914322391425,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T08:17:39.768898",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:41.535841",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_081741.joblib",
+            "metrics": {
+                "rmse": 1.973661486459914,
+                "r2": 0.6116916624017257,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T08:17:41.515325",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:42.730494",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_081742.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T08:17:42.722498",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:46.195703",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_081742.joblib",
+            "metrics": {
+                "rmse": 1.9232079344480077,
+                "r2": 0.5985212433328772,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T08:17:46.167173",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_081742"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:46.562052",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_081742.joblib",
+            "metrics": {
+                "rmse": 0.5651377314258023,
+                "r2": -29.33956273593463,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 150,
+                "validation_rmse": 0.6749485851208126,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T08:17:46.538050",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_081742"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:17:47.156499",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_081742.joblib",
+            "metrics": {
+                "rmse": 0.9759213250144345,
+                "r2": -0.20364857807604198,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.0527237850939677,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T08:17:47.126485",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_081742"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:58:45.416849",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_085845.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T08:58:45.278266",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:58:47.513419",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_085847.joblib",
+            "metrics": {
+                "rmse": 2.5040764479651414,
+                "r2": 0.31937914322391425,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T08:58:47.504409",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:58:56.708812",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_085856.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T08:58:56.571776",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:58:58.150897",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_085858.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T08:58:58.140872",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:59:07.075148",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_085858.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T08:59:06.939623",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_085858"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:59:08.179993",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_085858.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T08:59:08.045451",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_085858"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T08:59:09.553144",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_085858.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T08:59:09.428086",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_085858"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:29.284892",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_090329.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:03:29.169334",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:30.366367",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_090330.joblib",
+            "metrics": {
+                "rmse": 2.5040764479651414,
+                "r2": 0.31937914322391425,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:03:30.337977",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:37.711022",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_090337.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:03:37.556894",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:39.087942",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\model_20250131_090339.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:03:39.076944",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:47.441447",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_090339.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:03:47.309296",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_090339"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:48.487034",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_090339.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T09:03:48.361916",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_090339"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:03:49.657915",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_090339.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:03:49.529811",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_090339"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:05:52.515584",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_090552.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:05:52.410509",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:05:53.768218",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_single_20250131_090553.joblib",
+            "metrics": {
+                "rmse": 2.5040764479651414,
+                "r2": 0.31937914322391425,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:05:53.750692",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:06:03.126771",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_090602.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:06:02.996714",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:06:04.588089",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_multi_20250131_090604.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:06:04.577075",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:06:12.919908",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_090604.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:06:12.782330",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_090604"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:06:13.781416",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_090604.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T09:06:13.655304",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_090604"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:06:15.001530",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_090604.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:06:14.868213",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_090604"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:36:42.214586",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_093642.joblib",
+            "metrics": {
+                "rmse": 1.163897510821954,
+                "r2": 0.8528701342732007,
+                "training_samples": 11888,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:44:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5126435437864509,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:36:42.026104",
+                "data_points": 11888,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:36:44.243080",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_single_20250131_093644.joblib",
+            "metrics": {
+                "rmse": 2.502563761081504,
+                "r2": 0.31979211400690555,
+                "training_samples": 11888,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:44:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:36:44.185264",
+                "data_points": 11888,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:36:57.559762",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_093657.joblib",
+            "metrics": {
+                "rmse": 1.2125030890000066,
+                "r2": 0.8533656313207001,
+                "training_samples": 14229,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:44:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8661438811522355,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:36:57.422707",
+                "data_points": 14229,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:36:59.861161",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_multi_20250131_093659.joblib",
+            "metrics": {
+                "rmse": 2.567062016135993,
+                "r2": 0.3427315473786915,
+                "training_samples": 14229,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:44:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:36:59.849146",
+                "data_points": 14229,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:37:12.431325",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_093659.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T09:37:12.290222",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_093659"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:37:14.168036",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_093659.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T09:37:13.988001",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_093659"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T09:37:16.014046",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_093659.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T09:37:15.859627",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_093659"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:18:37.705468",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_111831.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:18:37.533581",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_111831"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:18:38.898224",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_111831.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T11:18:38.759686",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_111831"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:18:40.148078",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_111831.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:18:40.013836",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_111831"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:34:06.201995",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_113406.joblib",
+            "metrics": {
+                "rmse": 1.6126118967899026,
+                "r2": 0.7177266969535419,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:34:06.165989",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:34:08.713473",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_113408.joblib",
+            "metrics": {
+                "rmse": 1.6221499506116073,
+                "r2": 0.7376908875292815,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:34:08.678447",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:34:15.353251",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_113408.joblib",
+            "metrics": {
+                "rmse": 0.8567742017040935,
+                "r2": 0.9203211883325457,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:34:15.232709",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_113408"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:34:16.712583",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_113408.joblib",
+            "metrics": {
+                "rmse": 0.012379876350054242,
+                "r2": 0.9854409404174177,
+                "training_samples": 252,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T11:34:16.669061",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_113408"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:34:19.443600",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_113408.joblib",
+            "metrics": {
+                "rmse": 0.0460994399608521,
+                "r2": 0.9973142759386383,
+                "training_samples": 2087,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:34:19.377078",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_113408"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:35:04.202394",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_113504.joblib",
+            "metrics": {
+                "rmse": 1.6126118967899026,
+                "r2": 0.7177266969535419,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:35:04.169867",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:35:06.399393",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_113506.joblib",
+            "metrics": {
+                "rmse": 1.6221499506116073,
+                "r2": 0.7376908875292815,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:35:06.363811",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:35:12.705728",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_113506.joblib",
+            "metrics": {
+                "rmse": 0.8567742017040935,
+                "r2": 0.9203211883325457,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:35:12.553676",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_113506"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:35:14.499134",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_113506.joblib",
+            "metrics": {
+                "rmse": 0.012379876350054242,
+                "r2": 0.9854409404174177,
+                "training_samples": 252,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T11:35:14.444612",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_113506"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:35:18.158915",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_113506.joblib",
+            "metrics": {
+                "rmse": 0.0460994399608521,
+                "r2": 0.9973142759386383,
+                "training_samples": 2087,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:35:18.055856",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_113506"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:37:35.075904",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_113735.joblib",
+            "metrics": {
+                "rmse": 1.6126118967899026,
+                "r2": 0.7177266969535419,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:37:35.043910",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:37:37.368307",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_113737.joblib",
+            "metrics": {
+                "rmse": 1.6221499506116073,
+                "r2": 0.7376908875292815,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:37:37.334306",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:45:04.291177",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_114504.joblib",
+            "metrics": {
+                "rmse": 1.6126118967899026,
+                "r2": 0.7177266969535419,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T11:45:04.260659",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T11:45:06.320440",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_114506.joblib",
+            "metrics": {
+                "rmse": 1.6221499506116073,
+                "r2": 0.7376908875292815,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T11:45:06.289442",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:03:49.137869",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_120349.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:03:49.029834",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:03:50.344570",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_multi_20250131_120350.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:03:50.332569",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:03:59.036283",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_120350.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:03:58.898672",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_120350"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:03:59.944018",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_120350.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T12:03:59.821924",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_120350"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:04:01.375018",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_120350.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:04:01.242491",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_120350"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:09:24.987835",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_120924.joblib",
+            "metrics": {
+                "rmse": 1.9169579230038676,
+                "r2": 0.6011264422020048,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:09:24.966837",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:09:30.975906",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_120930.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:09:30.848274",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:09:39.247449",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_120939.joblib",
+            "metrics": {
+                "rmse": 1.1907610030470284,
+                "r2": 0.8586549547722968,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:09:39.104906",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:09:46.900394",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_120939.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:09:46.765251",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_120939"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:09:47.816350",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_120939.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T12:09:47.679779",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_120939"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:09:49.026031",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_120939.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:09:48.889366",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_120939"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:27:59.813274",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_122759.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:27:59.677212",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:28:01.284461",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_multi_20250131_122801.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:28:01.277444",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:28:09.091270",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_122801.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:28:08.954736",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_122801"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:28:10.262655",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_122801.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T12:28:10.125058",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_122801"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:28:11.644652",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_122801.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:28:11.467715",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_122801"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:32:08.331950",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\random_forest_single_20250131_123208.joblib",
+            "metrics": {
+                "rmse": 2.121021670183996,
+                "r2": 0.5116847384367422,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "random_forest",
+                "n_trees": 100,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:32:08.294928",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:33:05.322648",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_123305.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:33:05.181582",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:33:06.990854",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_multi_20250131_123306.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "decision_tree",
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:33:06.979316",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:33:40.389721",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\random_forest_multi_20250131_123340.joblib",
+            "metrics": {
+                "rmse": 2.141658686775831,
+                "r2": 0.5427729657051121,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "random_forest",
+                "n_trees": 100,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:33:40.354180",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:49:27.201077",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\random_forest_multi_20250131_124927.joblib",
+            "metrics": {
+                "rmse": 2.141658686775831,
+                "r2": 0.5427729657051121,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "random_forest",
+                "n_trees": 100,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:49:27.152507",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:50:01.089043",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_124956.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:50:00.973018",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_124956"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:50:01.921416",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_124956.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T12:50:01.779986",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_124956"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:50:03.113033",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_124956.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:50:02.982787",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_124956"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:50:22.288917",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_125016.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T12:50:22.155857",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_125016"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:50:23.296134",
+            "tables_used": [
+                "strategy_TRIP_NAS_10031622"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_125016.joblib",
+            "metrics": {
+                "rmse": 0.8208530933334521,
+                "r2": -63.007606528649916,
+                "training_samples": 252,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-07-12 18:38:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1050,
+                "validation_rmse": 1.199602630840302,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10031622"
+                ],
+                "training_time": "2025-01-31T12:50:23.164541",
+                "data_points": 252,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_125016"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T12:50:24.603947",
+            "tables_used": [
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_base_20250131_125016.joblib",
+            "metrics": {
+                "rmse": 1.233412188384341,
+                "r2": -0.9225894848659733,
+                "training_samples": 2087,
+                "training_type": "incremental",
+                "training_period": {
+                    "start": "2022-08-11 16:36:00",
+                    "end": "2022-08-26 21:42:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 100,
+                "validation_rmse": 1.4028180809198378,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T12:50:24.459273",
+                "data_points": 2087,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": "xgboost_base_20250131_125016"
+            }
+        },
+        {
+            "timestamp": "2025-01-31T13:18:22.848752",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_multi_20250131_131822.joblib",
+            "metrics": {
+                "rmse": 1.210592648362953,
+                "r2": 0.8539076594071888,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1000,
+                "validation_rmse": 0.8658288762766696,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T13:18:22.714158",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T13:18:24.630416",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_multi_20250131_131824.joblib",
+            "metrics": {
+                "rmse": 2.572376578307929,
+                "r2": 0.3403698833461153,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "decision_tree",
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T13:18:24.622418",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T13:18:31.841036",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851",
+                "strategy_TRIP_NAS_10031622",
+                "strategy_TRIP_NAS_10026615"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\random_forest_multi_20250131_131831.joblib",
+            "metrics": {
+                "rmse": 2.141658686775831,
+                "r2": 0.5427729657051121,
+                "training_samples": 14233,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "random_forest",
+                "n_trees": 100,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851",
+                    "strategy_TRIP_NAS_10031622",
+                    "strategy_TRIP_NAS_10026615"
+                ],
+                "training_time": "2025-01-31T13:18:31.796920",
+                "data_points": 14233,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T13:19:46.681352",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\xgboost_single_20250131_131946.joblib",
+            "metrics": {
+                "rmse": 1.1624540446615559,
+                "r2": 0.8533231170175468,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "xgboost",
+                "n_trees": 1000,
+                "validation_rmse": 0.5118271918258902,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T13:19:46.552814",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T13:19:48.025491",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\decision_tree_single_20250131_131948.joblib",
+            "metrics": {
+                "rmse": 2.5040764479651414,
+                "r2": 0.31937914322391425,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "decision_tree",
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T13:19:48.013465",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        },
+        {
+            "timestamp": "2025-01-31T13:19:54.224431",
+            "tables_used": [
+                "strategy_TRIP_NAS_10019851"
+            ],
+            "model_path": "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\models\\random_forest_single_20250131_131954.joblib",
+            "metrics": {
+                "rmse": 2.121021670183996,
+                "r2": 0.5116847384367422,
+                "training_samples": 11892,
+                "training_type": "full",
+                "training_period": {
+                    "start": "2022-07-11 16:36:00",
+                    "end": "2022-10-10 22:52:00"
+                },
+                "model_type": "random_forest",
+                "n_trees": 100,
+                "training_tables": [
+                    "strategy_TRIP_NAS_10019851"
+                ],
+                "training_time": "2025-01-31T13:19:54.180819",
+                "data_points": 11892,
+                "features_used": [
+                    "Factors_maScore",
+                    "Factors_rsiScore",
+                    "Factors_macdScore",
+                    "Factors_stochScore",
+                    "Factors_bbScore",
+                    "Factors_atrScore",
+                    "Factors_sarScore",
+                    "Factors_ichimokuScore",
+                    "Factors_adxScore",
+                    "Factors_volumeScore",
+                    "Factors_mfiScore",
+                    "Factors_priceMAScore",
+                    "Factors_emaScore",
+                    "Factors_emaCrossScore",
+                    "Factors_cciScore",
+                    "EntryScore_AVWAP",
+                    "EntryScore_EMA",
+                    "EntryScore_SR"
+                ],
+                "model_name": null
+            }
+        }
+    ]
+}

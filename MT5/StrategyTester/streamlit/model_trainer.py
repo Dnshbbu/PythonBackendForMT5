@@ -10,6 +10,7 @@ import json
 from datetime import datetime
 from sklearn.model_selection import TimeSeriesSplit
 import xgboost as xgb
+from sklearn.tree import DecisionTreeRegressor
 
 class TimeSeriesModelTrainer:
     def __init__(self, db_path: str, models_dir: str):
@@ -389,8 +390,17 @@ class TimeSeriesModelTrainer:
                               model_name: Optional[str] = None) -> str:
         """Save model and associated metadata"""
         if model_name is None:
+            # Determine model type
+            if isinstance(model, xgb.XGBRegressor):
+                model_type = 'xgboost'
+            elif isinstance(model, DecisionTreeRegressor):
+                model_type = 'decision_tree'
+            else:
+                model_type = 'unknown'
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = f"model_{timestamp}"
+            # Use consistent naming convention
+            model_name = f"{model_type}_single_{timestamp}"
             
         # Save model
         model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
@@ -428,9 +438,7 @@ class TimeSeriesModelTrainer:
                                 feature_cols: Optional[List[str]] = None,
                                 model_params: Optional[Dict] = None,
                                 model_name: Optional[str] = None) -> Tuple[str, Dict]:
-        """
-        Train model using data from multiple tables with support for incremental learning
-        """
+        """Train model using data from multiple tables with support for incremental learning"""
         try:
             # Load and combine data from all tables
             df = self.load_data_from_multiple_tables(table_names)
@@ -480,8 +488,17 @@ class TimeSeriesModelTrainer:
             
             # Save model with same name if updating, or generate new name if new model
             if not model_name:
+                # Determine model type
+                if isinstance(model, xgb.XGBRegressor):
+                    model_type = 'xgboost'
+                elif isinstance(model, DecisionTreeRegressor):
+                    model_type = 'decision_tree'
+                else:
+                    model_type = 'unknown'
+                    
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                model_name = f"model_{timestamp}"
+                training_type = 'multi' if len(table_names) > 1 else 'single'
+                model_name = f"{model_type}_{training_type}_{timestamp}"
                 
             model_path = self.save_model_and_metadata(
                 model=model,

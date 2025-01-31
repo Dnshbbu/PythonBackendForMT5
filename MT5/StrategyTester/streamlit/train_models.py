@@ -38,6 +38,18 @@ def get_model_params(model_type: str) -> Dict:
     }
     return params.get(model_type, {})
 
+def generate_model_name(model_type: str, training_type: str, timestamp: Optional[str] = None) -> str:
+    """Generate consistent model name
+    
+    Args:
+        model_type: Type of model (e.g., 'xgboost', 'decision_tree')
+        training_type: Type of training ('single', 'multi', 'incremental', 'base')
+        timestamp: Optional timestamp, will generate if None
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{model_type}_{training_type}_{timestamp}"
+
 def train_single_table(table_name: str, force_retrain: bool = False):
     """Train a model using a single table"""
     try:
@@ -61,7 +73,7 @@ def train_single_table(table_name: str, force_retrain: bool = False):
             logging.info(f"\nTraining {model_type} model for table: {table_name}")
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = f"{model_type}_{timestamp}" if force_retrain else None
+            model_name = generate_model_name(model_type, 'single', timestamp) if force_retrain else None
             
             try:
                 model_path, metrics = trainer.train_and_save_multi_table(
@@ -121,7 +133,7 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
             logging.info(f"\nProcessing {model_type} model with tables: {table_names}")
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = f"{model_type}_{timestamp}" if force_retrain else None
+            model_name = generate_model_name(model_type, 'multi', timestamp) if force_retrain else None
             
             try:
                 # Train model with multiple tables
@@ -180,7 +192,7 @@ def train_model_incrementally(base_table: str, new_tables: List[str], force_retr
         # First, train on base table
         logging.info(f"Initial training on base table: {base_table}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_model_name = f"xgboost_base_{timestamp}"
+        base_model_name = generate_model_name('xgboost', 'base', timestamp)
         # base_model_name =  "model_20250130_181424"
         
         model_path, metrics = trainer.train_and_save_multi_table(

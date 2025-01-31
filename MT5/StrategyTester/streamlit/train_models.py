@@ -157,8 +157,8 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
         
         # Get configurations
         configurations = [
-            {'model_type': 'xgboost', 'prediction_horizon': 1},
-            {'model_type': 'decision_tree', 'prediction_horizon': 1},
+            # {'model_type': 'xgboost', 'prediction_horizon': 1},
+            # {'model_type': 'decision_tree', 'prediction_horizon': 1},
             {'model_type': 'random_forest', 'prediction_horizon': 1}
         ]
         
@@ -338,27 +338,27 @@ if __name__ == "__main__":
     # Example usage of different training methods
     try:
         
-        # 1. Single table training
-        single_table = "strategy_TRIP_NAS_10019851"
-        single_results = train_single_table(single_table)
-        logging.info("\nSingle Table Training Results:================================================================")
-        for model_key, result in single_results.items():
-            logging.info(f"\nModel: {model_key}")
-            logging.info(f"Model Path: {result['model_path']}")
-            logging.info(f"Metrics: {result['metrics']}")
-        
-        # # 2. Multi-table training
-        # multiple_tables = [
-        #     "strategy_TRIP_NAS_10019851",
-        #     "strategy_TRIP_NAS_10031622",
-        #     "strategy_TRIP_NAS_10026615"
-        # ]
-        # multi_results = train_multi_table(multiple_tables)
-        # logging.info("\nMulti-Table Training Results:================================================================")
-        # for model_key, result in multi_results.items():
+        # # 1. Single table training
+        # single_table = "strategy_TRIP_NAS_10019851"
+        # single_results = train_single_table(single_table)
+        # logging.info("\nSingle Table Training Results:================================================================")
+        # for model_key, result in single_results.items():
         #     logging.info(f"\nModel: {model_key}")
         #     logging.info(f"Model Path: {result['model_path']}")
         #     logging.info(f"Metrics: {result['metrics']}")
+        
+        # 2. Multi-table training
+        multiple_tables = [
+            "strategy_TRIP_NAS_10019851",
+            "strategy_TRIP_NAS_10031622",
+            "strategy_TRIP_NAS_10026615"
+        ]
+        multi_results = train_multi_table(multiple_tables)
+        logging.info("\nMulti-Table Training Results:================================================================")
+        for model_key, result in multi_results.items():
+            logging.info(f"\nModel: {model_key}")
+            logging.info(f"Model Path: {result['model_path']}")
+            logging.info(f"Metrics: {result['metrics']}")
         
         # # 3. Incremental training
         # base_table = "strategy_TRIP_NAS_10019851"

@@ -1,0 +1,7 @@
+{
+    "total_predictions": 2594,
+    "mean_absolute_error": 8.573383039697859,
+    "mean_confidence": 0.9450607705137074,
+    "correct_direction": 0.9996144949884348,
+    "timestamp": "2025-01-31T21:11:29.526160"
+}

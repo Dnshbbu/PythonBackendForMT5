@@ -1,0 +1,284 @@
+import os
+import logging
+import pandas as pd
+import numpy as np
+import sqlite3
+from datetime import datetime
+from model_predictor import ModelPredictor
+from typing import Dict, List, Optional
+import json
+
+class HistoricalPredictor:
+    def __init__(self, db_path: str, models_dir: str):
+        """Initialize the predictor with database and model paths"""
+        self.db_path = db_path
+        self.models_dir = models_dir
+        self.model_predictor = ModelPredictor(db_path, models_dir)
+        self.setup_logging()
+
+    def setup_logging(self):
+        """Configure logging settings"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+
+    def load_data(self, table_name: str) -> pd.DataFrame:
+        """Load data from the database table"""
+        try:
+            query = f"SELECT * FROM {table_name} ORDER BY Date, Time"
+            with sqlite3.connect(self.db_path) as conn:
+                df = pd.read_sql_query(query, conn)
+            
+            # Convert Date and Time to datetime
+            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+            df = df.set_index('DateTime')
+            
+            # Convert Price to float
+            df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
+            
+            # Convert numeric columns to float
+            numeric_columns = [
+                col for col in df.columns 
+                if any(prefix in col for prefix in ['Factors_', 'EntryScore_', 'ExitScore'])
+            ]
+            for col in numeric_columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # Fill any NaN values with 0
+            df = df.fillna(0)
+            
+            logging.info(f"Loaded {len(df)} rows from {table_name}")
+            return df
+        except Exception as e:
+            logging.error(f"Error loading data: {e}")
+            raise
+
+    def run_predictions(self, table_name: str) -> pd.DataFrame:
+        """Run predictions on historical data"""
+        try:
+            # Load data
+            df = self.load_data(table_name)
+            
+            # Initialize results storage
+            predictions = []
+            
+            # Get required features from model
+            required_features = self.model_predictor.feature_columns
+            
+            # Prepare features for prediction
+            X = self.model_predictor.prepare_features(df)
+            
+            # Run predictions for each row
+            for i in range(len(df)):
+                try:
+                    current_row = df.iloc[i]
+                    current_features = X.iloc[i:i+1]
+                    
+                    # Make prediction
+                    prediction = self.model_predictor.model.predict(current_features)
+                    
+                    # Store results
+                    predictions.append({
+                        'DateTime': current_row.name,
+                        'Actual_Price': float(current_row['Price']),
+                        'Predicted_Price': float(prediction[0]),
+                        'Error': float(current_row['Price']) - float(prediction[0])
+                    })
+                    
+                    if i % 100 == 0:
+                        logging.info(f"Processed {i}/{len(df)} rows")
+                        
+                except Exception as e:
+                    logging.warning(f"Error processing row {i}: {e}")
+                    continue
+            
+            # Convert results to DataFrame
+            results_df = pd.DataFrame(predictions)
+            results_df.set_index('DateTime', inplace=True)
+            
+            return results_df
+            
+        except Exception as e:
+            logging.error(f"Error running predictions: {e}")
+            raise
+
+    def generate_summary(self, results_df: pd.DataFrame) -> Dict:
+        """Generate comprehensive summary statistics for predictions"""
+        try:
+            # Calculate price changes
+            results_df['Price_Change'] = results_df['Actual_Price'].diff()
+            results_df['Predicted_Change'] = results_df['Predicted_Price'].diff()
+            
+            # Direction calculations
+            correct_direction = (
+                (results_df['Price_Change'] > 0) & (results_df['Predicted_Change'] > 0) |
+                (results_df['Price_Change'] < 0) & (results_df['Predicted_Change'] < 0)
+            )
+            
+            # Calculate various metrics
+            mape = np.mean(np.abs(results_df['Error'] / results_df['Actual_Price'])) * 100
+            r2 = 1 - (np.sum(results_df['Error']**2) / np.sum((results_df['Actual_Price'] - results_df['Actual_Price'].mean())**2))
+            
+            # Calculate directional metrics
+            total_predictions = len(results_df) - 1  # Subtract 1 because of diff()
+            correct_ups = sum((results_df['Price_Change'] > 0) & (results_df['Predicted_Change'] > 0))
+            correct_downs = sum((results_df['Price_Change'] < 0) & (results_df['Predicted_Change'] < 0))
+            total_ups = sum(results_df['Price_Change'] > 0)
+            total_downs = sum(results_df['Price_Change'] < 0)
+            
+            # Add price movement analysis
+            results_df['Price_Volatility'] = results_df['Price_Change'].rolling(window=20).std()
+            
+            # Calculate additional metrics
+            summary = {
+                'total_predictions': len(results_df),
+                'mean_absolute_error': float(results_df['Error'].abs().mean()),
+                'root_mean_squared_error': float(np.sqrt((results_df['Error'] ** 2).mean())),
+                'mean_absolute_percentage_error': float(mape),
+                'r_squared': float(r2),
+                'direction_accuracy': float(correct_direction.mean()),
+                'up_prediction_accuracy': float(correct_ups / total_ups if total_ups > 0 else 0),
+                'down_prediction_accuracy': float(correct_downs / total_downs if total_downs > 0 else 0),
+                'correct_ups': int(correct_ups),
+                'correct_downs': int(correct_downs),
+                'total_ups': int(total_ups),
+                'total_downs': int(total_downs),
+                'max_error': float(results_df['Error'].abs().max()),
+                'min_error': float(results_df['Error'].abs().min()),
+                'std_error': float(results_df['Error'].std()),
+                'timestamp': datetime.now().isoformat(),
+                
+                # Price movement metrics
+                'avg_price_change': float(results_df['Price_Change'].mean()),
+                'price_volatility': float(results_df['Price_Volatility'].mean()),
+                'max_price_change': float(results_df['Price_Change'].abs().max()),
+                'min_price_change': float(results_df['Price_Change'].abs().min()),
+                
+                # Prediction bias metrics
+                'mean_prediction_error': float(results_df['Error'].mean()),
+                'median_prediction_error': float(results_df['Error'].median()),
+                'error_skewness': float(results_df['Error'].skew()),
+                
+                # Time-based accuracy
+                'first_quarter_accuracy': float(results_df[:len(results_df)//4]['Error'].abs().mean()),
+                'last_quarter_accuracy': float(results_df[3*len(results_df)//4:]['Error'].abs().mean()),
+                
+                # Streak analysis
+                'max_correct_streak': self._calculate_max_streak(correct_direction),
+                'avg_correct_streak': self._calculate_avg_streak(correct_direction),
+                
+                # Error distribution
+                'error_quartiles': {
+                    'q25': float(results_df['Error'].quantile(0.25)),
+                    'q50': float(results_df['Error'].quantile(0.50)),
+                    'q75': float(results_df['Error'].quantile(0.75))
+                }
+            }
+            
+            return summary
+            
+        except Exception as e:
+            logging.error(f"Error generating summary: {e}")
+            raise
+
+    def _calculate_max_streak(self, correct_series):
+        """Calculate maximum streak of correct predictions"""
+        current_streak = max_streak = 0
+        for correct in correct_series:
+            if correct:
+                current_streak += 1
+                max_streak = max(max_streak, current_streak)
+            else:
+                current_streak = 0
+        return max_streak
+
+    def _calculate_avg_streak(self, correct_series):
+        """Calculate average streak length of correct predictions"""
+        streaks = []
+        current_streak = 0
+        for correct in correct_series:
+            if correct:
+                current_streak += 1
+            elif current_streak > 0:
+                streaks.append(current_streak)
+                current_streak = 0
+        if current_streak > 0:
+            streaks.append(current_streak)
+        return float(np.mean(streaks)) if streaks else 0.0
+
+def main():
+    """Main function to run predictions"""
+    try:
+        # Setup paths
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
+        models_dir = os.path.join(current_dir, 'models')
+        
+        # Initialize predictor
+        predictor = HistoricalPredictor(db_path, models_dir)
+        
+        # Run predictions
+        table_name = "strategy_TRIP_NAS_10024022"  # Replace with your table name
+        results_df = predictor.run_predictions(table_name)
+        
+        # Generate and print summary
+        summary = predictor.generate_summary(results_df)
+        
+        print("\nPrediction Summary:")
+        print(f"Total predictions: {summary['total_predictions']}")
+        
+        print("\nError Metrics:")
+        print(f"Mean absolute error: {summary['mean_absolute_error']:.4f}")
+        print(f"Root mean squared error: {summary['root_mean_squared_error']:.4f}")
+        print(f"Mean absolute percentage error: {summary['mean_absolute_percentage_error']:.2f}%")
+        print(f"R-squared score: {summary['r_squared']:.4f}")
+        
+        print("\nError Distribution:")
+        print(f"Mean prediction error: {summary['mean_prediction_error']:.4f}")
+        print(f"Median prediction error: {summary['median_prediction_error']:.4f}")
+        print(f"Error skewness: {summary['error_skewness']:.4f}")
+        print(f"Error quartiles: Q25={summary['error_quartiles']['q25']:.4f}, "
+              f"Q50={summary['error_quartiles']['q50']:.4f}, "
+              f"Q75={summary['error_quartiles']['q75']:.4f}")
+        
+        print("\nPrice Movement Analysis:")
+        print(f"Average price change: {summary['avg_price_change']:.4f}")
+        print(f"Price volatility: {summary['price_volatility']:.4f}")
+        print(f"Maximum price change: {summary['max_price_change']:.4f}")
+        
+        print("\nPrediction Streaks:")
+        print(f"Maximum correct streak: {summary['max_correct_streak']}")
+        print(f"Average correct streak: {summary['avg_correct_streak']:.2f}")
+        
+        print("\nTime-based Performance:")
+        print(f"First quarter MAE: {summary['first_quarter_accuracy']:.4f}")
+        print(f"Last quarter MAE: {summary['last_quarter_accuracy']:.4f}")
+        
+        print("\nDirectional Accuracy:")
+        print(f"Overall direction accuracy: {summary['direction_accuracy']*100:.2f}%")
+        print(f"Upward movement accuracy: {summary['up_prediction_accuracy']*100:.2f}%")
+        print(f"Downward movement accuracy: {summary['down_prediction_accuracy']*100:.2f}%")
+        
+        print("\nMovement Breakdown:")
+        print(f"Correct upward predictions: {summary['correct_ups']}/{summary['total_ups']}")
+        print(f"Correct downward predictions: {summary['correct_downs']}/{summary['total_downs']}")
+        
+        # Save results
+        results_path = os.path.join(current_dir, 'prediction_results')
+        os.makedirs(results_path, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        results_df.to_csv(os.path.join(results_path, f'predictions_{timestamp}.csv'))
+        
+        with open(os.path.join(results_path, f'summary_{timestamp}.json'), 'w') as f:
+            json.dump(summary, f, indent=4)
+            
+        print(f"\nResults saved to {results_path}")
+        
+    except Exception as e:
+        logging.error(f"Error in main: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()

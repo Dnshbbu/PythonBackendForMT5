@@ -219,7 +219,7 @@ def main():
         predictor = HistoricalPredictor(db_path, models_dir)
         
         # Run predictions
-        table_name = "strategy_TRIP_NAS_10024022"  # Replace with your table name
+        table_name = "strategy_TRIP_NAS_10026258"  # Replace with your table name
         results_df = predictor.run_predictions(table_name)
         
         # Generate and print summary

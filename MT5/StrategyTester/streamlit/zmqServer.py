@@ -66,7 +66,6 @@ class MT5ZMQClient:
             # Initialize data structures
             self.headers = {}
             self.message_batch = []
-            self.batch_size = MODEL_CONFIG['batch_size']
             
             # Create logs directory if it doesn't exist
             self.logs_dir = DATABASE_CONFIG['logs_dir']
@@ -103,8 +102,7 @@ class MT5ZMQClient:
                 self.price_predictor = RealTimePricePredictor(
                     db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name']),
                     models_dir=self.models_dir,
-                    batch_size=MODEL_CONFIG['batch_size'],
-                    training_manager=self.training_manager
+                    training_manager=self.training_manager  # Only pass the required parameters
                 )
                 logging.info("Price predictor initialized successfully")
             except Exception as e:
@@ -132,8 +130,6 @@ class MT5ZMQClient:
 
         except Exception as e:
             logging.error(f"Critical error during MT5 ZMQ Client initialization: {e}")
-            # Clean up any partially initialized resources
-            # self.cleanup_resources()
             raise
 
     async def handle_all_details(self, run_id, msg_content):

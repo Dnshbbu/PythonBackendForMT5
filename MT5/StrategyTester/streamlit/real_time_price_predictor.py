@@ -31,25 +31,22 @@ class RealTimePricePredictor:
     #         logging.info(f"Number of features: {len(self.selected_features)}")
     #         logging.info(f"Features: {self.selected_features}")
 
-    def __init__(self, db_path: str, models_dir: str, batch_size: int = 10, training_manager=None):
-            """Initialize the predictor"""
-            self.model_predictor = ModelPredictor(db_path, models_dir)
-            self.batch_size = batch_size
-            self.data_buffer = deque(maxlen=batch_size)
-            self.last_prediction = None
-            self.models_dir = models_dir
-            self.setup_logging()
-            
-            # Store training manager reference
-            self.training_manager = training_manager
-            
-            # Load feature configuration
-            self.selected_features = self.load_feature_config()
-            
-            if self.model_predictor.model:
-                logging.info("Model loaded successfully")
-                logging.info(f"Number of features: {len(self.selected_features)}")
-                logging.info(f"Features: {self.selected_features}")
+    def __init__(self, db_path: str, models_dir: str, training_manager=None):
+        """Initialize the predictor"""
+        self.model_predictor = ModelPredictor(db_path, models_dir)
+        self.models_dir = models_dir
+        self.setup_logging()
+        
+        # Store training manager reference
+        self.training_manager = training_manager
+        
+        # Load feature configuration
+        self.selected_features = self.load_feature_config()
+        
+        if self.model_predictor.model:
+            logging.info("Model loaded successfully")
+            logging.info(f"Number of features: {len(self.selected_features)}")
+            logging.info(f"Features: {self.selected_features}")
 
     def setup_logging(self):
         """Configure logging settings"""
@@ -183,20 +180,17 @@ class RealTimePricePredictor:
             logging.error(f"Error processing raw data: {e}")
             raise
 
-    def prepare_batch_features(self, batch_data: List[Dict]) -> pd.DataFrame:
-        """Prepare features from batch data"""
+    def prepare_features(self, data: Dict) -> pd.DataFrame:
+        """Prepare features from single data point"""
         try:
-            # Convert batch to DataFrame
-            df = pd.DataFrame(batch_data)
-            
-            # Log initial data shape
-            logging.info(f"Initial batch data shape: {df.shape}")
+            # Convert single data point to DataFrame
+            df = pd.DataFrame([data])
             
             # Handle missing features
             missing_features = [f for f in self.selected_features if f not in df.columns]
             if missing_features:
-                missing_df = pd.DataFrame(0.0, index=df.index, columns=missing_features)
-                df = pd.concat([df, missing_df], axis=1)
+                for feature in missing_features:
+                    df[feature] = 0.0
             
             # Select only required features
             X = df[self.selected_features].copy()
@@ -213,114 +207,20 @@ class RealTimePricePredictor:
                     index=X.index
                 )
             
-            logging.info(f"Final feature matrix shape: {X.shape}")
+            logging.debug(f"Prepared features shape: {X.shape}")
             return X
             
         except Exception as e:
-            logging.error(f"Error preparing batch features: {e}")
+            logging.error(f"Error preparing features: {e}")
             raise
 
-    # def add_data_point(self, data_point: Dict) -> Optional[Dict]:
-    #     """Add a new data point and make prediction if batch is full"""
-    #     try:
-    #         # Process raw data
-    #         processed_data = self.process_raw_data(data_point)
-    #         current_price = float(data_point.get('Price', 0))
-            
-    #         # Add to buffer
-    #         self.data_buffer.append(processed_data)
-            
-    #         # Log buffer status
-    #         logging.info(f"Buffer size: {len(self.data_buffer)}/{self.batch_size}")
-            
-    #         # Make prediction if buffer is full
-    #         if len(self.data_buffer) == self.batch_size:
-    #             prediction_result = self.make_prediction()
-                
-    #             # Log prediction change
-    #             if self.last_prediction is not None:
-    #                 # Get previous price from the second-to-last item in buffer
-    #                 previous_data = list(self.data_buffer)[-2]
-    #                 previous_price = float(previous_data.get('Price', 0))
-    #                 price_change = current_price - previous_price
-                    
-    #                 pred_change = prediction_result['prediction'] - self.last_prediction
-    #                 logging.info(f"Price change: {price_change:.4f}")
-    #                 logging.info(f"Prediction change: {pred_change:.4f}")
-                
-    #             self.last_prediction = prediction_result['prediction']
-    #             return prediction_result
-            
-    #         return None
-            
-    #     except Exception as e:
-    #         logging.error(f"Error adding data point: {e}")
-    #         raise
-
-    def add_data_point(self, data_point: Dict) -> Optional[Dict]:
-        """Add a new data point and make prediction if batch is full"""
+    def make_prediction(self, features: pd.DataFrame) -> Dict:
+        """Make prediction for single data point"""
         try:
-            # Process raw data
-            processed_data = self.process_raw_data(data_point)
-            current_price = float(data_point.get('Price', 0))
-            
-            # Add to buffer
-            self.data_buffer.append(processed_data)
-            
-            # Log buffer status
-            logging.info(f"Buffer size: {len(self.data_buffer)}/{self.batch_size}")
-            
-            # Make prediction if buffer is full
-            if len(self.data_buffer) == self.batch_size:
-                # Check and reload model if needed
-                if self.training_manager is not None:
-                    try:
-                        training_status = self.training_manager.get_latest_training_status()
-                        if training_status.get('status') == 'completed':
-                            latest_model = training_status.get('model_path')
-                            if latest_model and latest_model != getattr(self.model_predictor, 'current_model_name', None):
-                                logging.info(f"New model available, reloading: {latest_model}")
-                                self.model_predictor.load_latest_model()
-                    except Exception as e:
-                        logging.warning(f"Error checking training status: {e}")
-
-                prediction_result = self.make_prediction()
-                
-                # Log prediction change
-                if self.last_prediction is not None:
-                    # Get previous price from the second-to-last item in buffer
-                    previous_data = list(self.data_buffer)[-2]
-                    previous_price = float(previous_data.get('Price', 0))
-                    price_change = current_price - previous_price
-                    
-                    pred_change = prediction_result['prediction'] - self.last_prediction
-                    logging.info(f"Price change: {price_change:.4f}")
-                    logging.info(f"Prediction change: {pred_change:.4f}")
-                
-                self.last_prediction = prediction_result['prediction']
-                return prediction_result
-            
-            return None
-            
-        except Exception as e:
-            logging.error(f"Error adding data point: {e}")
-            raise
-
-    def make_prediction(self) -> Dict:
-        """Make prediction using current batch of data"""
-        try:
-            # Prepare features
-            batch_data = list(self.data_buffer)
-            X = self.prepare_batch_features(batch_data)
-            
             # Make prediction
-            prediction = self.model_predictor.model.predict(X.iloc[-1:])
+            prediction = self.model_predictor.model.predict(features)
             
-            # Calculate confidence
-            batch_predictions = self.model_predictor.model.predict(X)
-            confidence = 1.0 - (np.std(batch_predictions) / abs(prediction[0]))
-            
-            # Get feature importance from the model's get_feature_importance method
+            # Get feature importance
             feature_importance = self.model_predictor.model.get_feature_importance()
             
             # Get top features
@@ -330,12 +230,8 @@ class RealTimePricePredictor:
                 reverse=True
             )[:5])
             
-            # Log prediction details
-            logging.info(f"Prediction: {prediction[0]:.4f}")
-            logging.info(f"Confidence: {confidence:.4f}")
-            logging.info("Top features:")
-            for feature, importance in top_features.items():
-                logging.info(f"  {feature}: {importance:.4f}")
+            # Calculate confidence based on feature importance values
+            confidence = min(sum(abs(v) for v in top_features.values()) / len(top_features), 1.0)
             
             return {
                 'prediction': float(prediction[0]),
@@ -346,5 +242,41 @@ class RealTimePricePredictor:
             
         except Exception as e:
             logging.error(f"Error making prediction: {e}")
+            raise
+
+    def add_data_point(self, data_point: Dict) -> Optional[Dict]:
+        """Process single data point and return prediction"""
+        try:
+            # Check and reload model if needed
+            if self.training_manager is not None:
+                try:
+                    training_status = self.training_manager.get_latest_training_status()
+                    if training_status.get('status') == 'completed':
+                        latest_model = training_status.get('model_path')
+                        if latest_model and latest_model != getattr(self.model_predictor, 'current_model_name', None):
+                            logging.info(f"New model available, reloading: {latest_model}")
+                            self.model_predictor.load_latest_model()
+                except Exception as e:
+                    logging.warning(f"Error checking training status: {e}")
+
+            # Process raw data
+            processed_data = self.process_raw_data(data_point)
+            current_price = float(data_point.get('Price', 0))
+            
+            # Prepare features
+            features = self.prepare_features(processed_data)
+            
+            # Make prediction
+            prediction_result = self.make_prediction(features)
+            
+            # Log prediction details
+            logging.info(f"Time: {data_point.get('Time')}")
+            logging.info(f"Current Price: {current_price}")
+            logging.info(f"Prediction: {prediction_result['prediction']}")
+            
+            return prediction_result
+            
+        except Exception as e:
+            logging.error(f"Error processing data point: {e}")
             raise
 

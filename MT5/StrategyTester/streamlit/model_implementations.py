@@ -17,6 +17,7 @@ from incremental_learning import (
 )
 from model_base import BaseModel
 from datetime import datetime
+from sklearn.ensemble import RandomForestRegressor
 
 class BaseTimeSeriesModel(ABC):
     def __init__(self, model_name: str):
@@ -266,6 +267,79 @@ class DecisionTreeTimeSeriesModel(BaseTimeSeriesModel, BatchedRetrainingMixin, I
         return dict(zip(self.feature_columns or [], 
                        self.model.feature_importances_))
 
+
+
+class RandomForestTimeSeriesModel(BaseTimeSeriesModel, BatchedRetrainingMixin):
+    def __init__(self):
+        super().__init__("random_forest")
+        BatchedRetrainingMixin.__init__(self)
+        self.default_params = {
+            'n_estimators': 100,
+            'max_depth': 10,
+            'min_samples_split': 2,
+            'min_samples_leaf': 1,
+            'random_state': 42
+        }
+
+    def supports_incremental_learning(self) -> bool:
+        return False  # Random Forests don't support true incremental learning
+
+    def train(self, X: pd.DataFrame, y: pd.Series, **kwargs) -> Tuple[Any, Dict]:
+        try:
+            params = {**self.default_params, **kwargs}
+            self.model = RandomForestRegressor(**params)
+            
+            # Store feature columns during training
+            self.feature_columns = list(X.columns)
+            
+            # Train the model
+            self.model.fit(X, y)
+            
+            # Calculate metrics
+            score = float(self.model.score(X, y))
+            predictions = self.model.predict(X)
+            mse = np.mean((y - predictions) ** 2)
+            rmse = np.sqrt(mse)
+            
+            metrics = {
+                'training_score': score,
+                'rmse': float(rmse),
+                'feature_importance': self.get_feature_importance(),
+                'n_features': len(self.feature_columns),
+                'n_samples': len(X),
+                'n_trees': self.model.n_estimators
+            }
+            
+            self.metrics_tracker.add_metrics(metrics, 'full')
+            self.record_training(metrics, len(X))
+            return self.model, metrics
+            
+        except Exception as e:
+            logging.error(f"Error in Random Forest training: {e}")
+            raise
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        if self.model is None:
+            raise ValueError("Model not trained yet")
+        return self.model.predict(X)
+
+    def get_feature_importance(self) -> Dict[str, float]:
+        if not self.model:
+            return {}
+            
+        importance_dict = {}
+        importances = self.model.feature_importances_
+        feature_names = self.feature_columns or range(len(importances))
+        
+        for feat, imp in zip(feature_names, importances):
+            importance_dict[str(feat)] = float(imp)
+            
+        return importance_dict
+
+
+
+
+
 class ModelFactory:
     _models = {}
 
@@ -292,3 +366,5 @@ class ModelFactory:
 # Register models with factory
 ModelFactory.register('xgboost', XGBoostTimeSeriesModel)
 ModelFactory.register('decision_tree', DecisionTreeTimeSeriesModel)
+# Register models with factory
+ModelFactory.register('random_forest', RandomForestTimeSeriesModel)

@@ -12,6 +12,7 @@ from model_pipeline import ModelPipeline, create_pipeline_from_analyzer
 from prediction_monitoring_page import prediction_monitoring_page
 from historical_predictions_page import historical_predictions_page
 # from realtime_monitoring_page import realtime_monitoring
+from model_comparison_page import model_comparison_page
 
 # from model_manager import ModelManager
 
@@ -172,7 +173,8 @@ def main():
         "ML: Predictions": prediction_page,
         "ZMQ Server Control": server_control_page,
         "Real-Time Prediction Monitor": prediction_monitoring_page,
-        "Historical Predictions Analysis": historical_predictions_page
+        "Historical Predictions Analysis": historical_predictions_page,
+        "Model Comparison": model_comparison_page
     }
     
     # Add the navigation to the sidebar

@@ -6,11 +6,14 @@ from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime
 import logging
+import json
 from typing import List, Dict, Optional
+from model_repository import ModelRepository
 
 class ModelComparison:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self.model_repository = ModelRepository(db_path)
         
     def get_available_models(self) -> List[Dict[str, str]]:
         """Get list of unique models with their metadata"""
@@ -305,6 +308,69 @@ class ModelComparison:
 
         return fig
 
+    def get_model_repository_details(self, model_name: str) -> Dict:
+        """Get detailed model information from the repository"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Debug logging
+            logging.info(f"Searching for model details with name: {model_name}")
+            
+            # Remove .joblib extension if present
+            model_name_without_ext = model_name.replace('.joblib', '')
+            
+            # First try exact match without extension
+            query = """
+                SELECT *
+                FROM model_repository
+                WHERE model_name = ?
+            """
+            
+            cursor.execute(query, (model_name_without_ext,))
+            row = cursor.fetchone()
+            
+            # If no exact match, try matching the base name
+            if not row:
+                base_model_name = model_name_without_ext.split('_20')[0]  # Split before the timestamp
+                logging.info(f"No exact match found, trying with base name: {base_model_name}")
+                
+                query = """
+                    SELECT *
+                    FROM model_repository
+                    WHERE model_name LIKE ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                cursor.execute(query, (f"{base_model_name}%",))
+                row = cursor.fetchone()
+            
+            if row:
+                columns = [description[0] for description in cursor.description]
+                model_details = dict(zip(columns, row))
+                logging.info(f"Found model details: {model_details['model_name']}")
+                
+                # Parse JSON strings
+                for key in ['features', 'feature_importance', 'model_params', 'metrics', 
+                          'training_tables', 'additional_metadata']:
+                    if model_details.get(key):
+                        try:
+                            model_details[key] = json.loads(model_details[key])
+                        except json.JSONDecodeError as e:
+                            logging.error(f"Error parsing JSON for {key}: {e}")
+                            model_details[key] = None
+                return model_details
+            
+            logging.warning(f"No model details found for {model_name}")
+            return None
+            
+        except Exception as e:
+            logging.error(f"Error getting model repository details: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
+
 def create_compact_model_card(model: Dict) -> str:
     """Create a compact HTML card for model details"""
     return f"""
@@ -320,8 +386,237 @@ def create_compact_model_card(model: Dict) -> str:
         </div>
     """
 
+def display_model_details_section(model_details: Dict):
+    """Display model details using Streamlit components with modern styling"""
+    if not model_details:
+        st.warning("No details available for this model.")
+        return
+    
+    try:
+        # Custom CSS for modern styling
+        st.markdown("""
+            <style>
+            .stExpander {
+                background-color: #1a1c23;
+                border: 1px solid #2d2d2d;
+                border-radius: 8px;
+                margin-bottom: 10px;
+            }
+            .stTabs {
+                background-color: transparent;
+            }
+            .info-container {
+                background-color: #252830;
+                padding: 10px;
+                border-radius: 6px;
+                border: 1px solid #2d2d2d;
+                margin-bottom: 10px;
+            }
+            .info-label {
+                color: #00ADB5;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            .info-value {
+                color: #e0e0e0;
+                font-size: 14px;
+                margin-top: 4px;
+            }
+            .features-container {
+                color: #e0e0e0;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+            .features-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                margin-top: 10px;
+            }
+            .feature-count {
+                color: #00ADB5;
+                font-size: 16px;
+                font-weight: 500;
+                margin-bottom: 15px;
+            }
+            .feature-text {
+                color: #e0e0e0;
+                font-family: 'Arial', sans-serif;
+                font-size: 14px;
+                padding: 2px 0;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        # Create expandable section for each model
+        with st.expander(f"📊 Model: {model_details['model_name'].split('_')[-1]}", expanded=False):
+            # Create tabs for different sections
+            tab1, tab2, tab3, tab4 = st.tabs(["Basic Info", "Training", "Features", "Importance"])
+            
+            # Tab 1: Basic Information
+            with tab1:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("""
+                        <div class="info-container">
+                            <div class="info-label">Model Type</div>
+                            <div class="info-value">{}</div>
+                        </div>
+                        <div class="info-container">
+                            <div class="info-label">Training Type</div>
+                            <div class="info-value">{}</div>
+                        </div>
+                    """.format(
+                        model_details.get('model_type', 'xgboost'),
+                        model_details.get('training_type', 'multi')
+                    ), unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown("""
+                        <div class="info-container">
+                            <div class="info-label">Prediction Horizon</div>
+                            <div class="info-value">{}</div>
+                        </div>
+                        <div class="info-container">
+                            <div class="info-label">Data Points</div>
+                            <div class="info-value">{:,}</div>
+                        </div>
+                    """.format(
+                        model_details.get('prediction_horizon', 5),
+                        model_details.get('data_points', 0)
+                    ), unsafe_allow_html=True)
+
+            # Tab 2: Training Period
+            with tab2:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("""
+                        <div class="info-container">
+                            <div class="info-label">Start Date</div>
+                            <div class="info-value">{}</div>
+                        </div>
+                    """.format(model_details.get('training_period_start', '')[:10]), unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown("""
+                        <div class="info-container">
+                            <div class="info-label">End Date</div>
+                            <div class="info-value">{}</div>
+                        </div>
+                    """.format(model_details.get('training_period_end', '')[:10]), unsafe_allow_html=True)
+
+            # Tab 3: Features
+            with tab3:
+                if model_details.get('features'):
+                    st.markdown(f"""
+                        <div class="feature-count">
+                            Total Features: {len(model_details['features'])}
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Display features with consistent styling
+                    for feature in model_details['features']:
+                        st.markdown(f"""
+                            <div class="feature-text">
+                                {feature}
+                            </div>
+                        """, unsafe_allow_html=True)
+
+            # Tab 4: Feature Importance
+            with tab4:
+                if model_details.get('feature_importance'):
+                    # Sort and get top features
+                    sorted_features = dict(sorted(
+                        model_details['feature_importance'].items(), 
+                        key=lambda x: float(x[1]) if isinstance(x[1], (int, float, str)) else 0, 
+                        reverse=False
+                    )[:10])  # Show top 8 features
+                    
+                    # Reverse the order for display (highest at top)
+                    values = list(sorted_features.values())
+                    keys = list(sorted_features.keys())
+                    
+                    # Create bar chart with improved styling
+                    fig = go.Figure()
+                    
+                    # Add bars with reversed order
+                    fig.add_trace(go.Bar(
+                        x=values,
+                        y=keys[::-1],  # Reverse the order of feature names
+                        orientation='h',
+                        marker=dict(
+                            color=['rgba(0, 173, 181, 0.8)'] * len(sorted_features),
+                            line=dict(color='#00ADB5', width=1)
+                        ),
+                        hovertemplate='<b>%{y}</b><br>' +
+                                    'Importance: %{x:.4f}<extra></extra>'
+                    ))
+                    
+                    # Update layout with better styling
+                    fig.update_layout(
+                        template="plotly_dark",
+                        height=350,
+                        margin=dict(l=20, r=20, t=30, b=20),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(26,28,35,0.5)',
+                        title=dict(
+                            text='Feature Importance (Top 10)',
+                            x=0.5,
+                            y=0.95,
+                            xanchor='center',
+                            yanchor='top',
+                            font=dict(size=16, color='#00ADB5')
+                        ),
+                        xaxis=dict(
+                            title='Importance Score',
+                            showgrid=True,
+                            gridwidth=1,
+                            gridcolor='rgba(128, 128, 128, 0.2)',
+                            zeroline=False,
+                            tickformat='.3f',
+                            title_font=dict(size=12, color='#8b8c8e'),
+                            tickfont=dict(size=10, color='#8b8c8e')
+                        ),
+                        yaxis=dict(
+                            title=None,
+                            showgrid=False,
+                            zeroline=False,
+                            tickfont=dict(size=11, color='#e0e0e0')
+                        ),
+                        hoverlabel=dict(
+                            bgcolor='#252830',
+                            font_size=12,
+                            font_family="Arial"
+                        ),
+                        bargap=0.2
+                    )
+                    
+                    # Add value labels on bars
+                    fig.update_traces(
+                        texttemplate='%{x:.3f}',
+                        textposition='outside',
+                        textfont=dict(size=10, color='#e0e0e0'),
+                        cliponaxis=False
+                    )
+                    
+                    # Add subtle grid lines
+                    fig.update_xaxes(showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.2)')
+                    fig.update_yaxes(showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.2)')
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.markdown("""
+                        <div style='color: #8b8c8e; font-size: 12px; margin-top: 10px;'>
+                            * Higher values indicate greater importance in the model's predictions
+                        </div>
+                    """, unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Error displaying model details: {str(e)}")
+        logging.error(f"Error in display_model_details_section: {str(e)}")
+
 def model_comparison_page():
-    # Add custom CSS with enhanced styling
+    # Add additional CSS for sidebars
     st.markdown("""
         <style>
         .stApp {
@@ -367,130 +662,174 @@ def model_comparison_page():
             padding-bottom: 0.3rem;
             border-bottom: 2px solid #333;
         }
+        .detail-section {
+            background-color: #1E1E1E;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #333;
+        }
+        .detail-section h4 {
+            color: #00ADB5;
+            margin-bottom: 5px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-        <h2 style='text-align: center; color: #00ADB5; padding: 1rem 0;'>
-            Model Performance Comparison
-        </h2>
-    """, unsafe_allow_html=True)
+    # Initialize session state for sidebar toggle
+    if 'show_details_sidebar' not in st.session_state:
+        st.session_state.show_details_sidebar = False
 
-    # Initialize comparison
-    db_path = "logs/trading_data.db"
-    comparison = ModelComparison(db_path)
+    # Left sidebar toggle button
+    with st.sidebar:
+        st.button(
+            "Show Model Details",
+            key="toggle_details",
+            on_click=lambda: setattr(st.session_state, 'show_details_sidebar', 
+                                   not st.session_state.show_details_sidebar)
+        )
 
-    # Get available models
-    models = comparison.get_available_models()
-    if not models:
-        st.warning("No model metrics available in the database.")
-        return
+    # Main content and details sidebar layout
+    if st.session_state.show_details_sidebar:
+        main_col, details_col = st.columns([3, 1])
+    else:
+        main_col = st.container()
+        details_col = None
 
-    # Model Selection Section
-    st.markdown("<div class='section-header'>🤖 Select Models to Compare</div>", unsafe_allow_html=True)
-    
-    # Create a mapping of display names to full model info
-    model_display_names = {
-        f"{m['model_name'].split('_')[-1]} ({m['source_table']})": m['model_name']
-        for m in models
-    }
+    with main_col:
+        # Existing page content
+        st.markdown("""
+            <h2 style='text-align: center; color: #00ADB5; padding: 1rem 0;'>
+                Model Performance Comparison
+            </h2>
+        """, unsafe_allow_html=True)
 
-    # Multi-select for models
-    selected_display_names = st.multiselect(
-        "Choose models to compare:",
-        options=list(model_display_names.keys()),
-        default=[list(model_display_names.keys())[0]] if model_display_names else None,
-        key="model_selector"
-    )
+        # Initialize comparison
+        db_path = "logs/trading_data.db"
+        comparison = ModelComparison(db_path)
 
-    # Convert selected display names to model names
-    selected_models = [model_display_names[display_name] for display_name in selected_display_names]
-
-    # Show selected model details in an expander
-    if selected_models:
-        with st.expander("📋 Selected Models Details", expanded=False):
-            for model in models:
-                if model['model_name'] in selected_models:
-                    st.markdown(create_compact_model_card(model), unsafe_allow_html=True)
-
-    if not selected_models:
-        st.info("👆 Please select at least one model to analyze.")
-        return
-
-    try:
-        # Get metrics for selected models
-        metrics_df = comparison.get_model_metrics(selected_models)
-
-        if metrics_df.empty:
-            st.warning("No metrics data available for selected models.")
+        # Get available models
+        models = comparison.get_available_models()
+        if not models:
+            st.warning("No model metrics available in the database.")
             return
 
-        # Summary Cards in an expander
-        with st.expander("📊 Summary Metrics", expanded=False):
-            # Create metric cards in a grid
-            metric_cols = st.columns(len(selected_models))
-            for idx, model_name in enumerate(selected_models):
-                model_metrics = metrics_df[metrics_df['model_name'] == model_name].iloc[0]
+        # Model Selection Section
+        st.markdown("<div class='section-header'>🤖 Select Models to Compare</div>", unsafe_allow_html=True)
+        
+        # Create a mapping of display names to full model info
+        model_display_names = {
+            f"{m['model_name'].split('_')[-1]} ({m['source_table']})": m['model_name']
+            for m in models
+        }
+
+        # Multi-select for models
+        selected_display_names = st.multiselect(
+            "Choose models to compare:",
+            options=list(model_display_names.keys()),
+            default=[list(model_display_names.keys())[0]] if model_display_names else None,
+            key="model_selector"
+        )
+
+        # Convert selected display names to model names
+        selected_models = [model_display_names[display_name] for display_name in selected_display_names]
+
+        # Show selected model details in an expander
+        if selected_models:
+            with st.expander("📋 Selected Models Details", expanded=False):
+                for model in models:
+                    if model['model_name'] in selected_models:
+                        st.markdown(create_compact_model_card(model), unsafe_allow_html=True)
+
+        if not selected_models:
+            st.info("👆 Please select at least one model to analyze.")
+            return
+
+        try:
+            # Get metrics for selected models
+            metrics_df = comparison.get_model_metrics(selected_models)
+
+            if metrics_df.empty:
+                st.warning("No metrics data available for selected models.")
+                return
+
+            # Summary Cards in an expander
+            with st.expander("📊 Summary Metrics", expanded=False):
+                # Create metric cards in a grid
+                metric_cols = st.columns(len(selected_models))
+                for idx, model_name in enumerate(selected_models):
+                    model_metrics = metrics_df[metrics_df['model_name'] == model_name].iloc[0]
+                    
+                    with metric_cols[idx]:
+                        st.markdown(f"""
+                            <div class='metric-card'>
+                                <div class='metric-label'>Model</div>
+                                <div class='metric-value'>{model_name.split('_')[-1]}</div>
+                                <hr style='border-color: #333; margin: 0.5rem 0;'>
+                                <div class='metric-label'>Direction Accuracy</div>
+                                <div class='metric-value'>{model_metrics['avg_direction_accuracy']*100:.2f}%</div>
+                                <div class='metric-label'>R² Score</div>
+                                <div class='metric-value'>{model_metrics['avg_r2']:.4f}</div>
+                                <div class='metric-label'>MAPE</div>
+                                <div class='metric-value'>{model_metrics['avg_mape']:.2f}%</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+            # Detailed Metrics Table
+            with st.expander("Detailed Metrics", expanded=True):
+                detailed_metrics = metrics_df[[
+                    'model_name', 'source_table', 'total_runs',
+                    'avg_mae', 'avg_rmse', 'avg_mape', 'avg_r2',
+                    'avg_direction_accuracy'
+                ]].copy()
                 
-                with metric_cols[idx]:
-                    st.markdown(f"""
-                        <div class='metric-card'>
-                            <div class='metric-label'>Model</div>
-                            <div class='metric-value'>{model_name.split('_')[-1]}</div>
-                            <hr style='border-color: #333; margin: 0.5rem 0;'>
-                            <div class='metric-label'>Direction Accuracy</div>
-                            <div class='metric-value'>{model_metrics['avg_direction_accuracy']*100:.2f}%</div>
-                            <div class='metric-label'>R² Score</div>
-                            <div class='metric-value'>{model_metrics['avg_r2']:.4f}</div>
-                            <div class='metric-label'>MAPE</div>
-                            <div class='metric-value'>{model_metrics['avg_mape']:.2f}%</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                detailed_metrics['avg_direction_accuracy'] = detailed_metrics['avg_direction_accuracy'] * 100
+                detailed_metrics.columns = [
+                    'Model Name', 'Data Source', 'Total Runs',
+                    'Avg MAE', 'Avg RMSE', 'Avg MAPE (%)',
+                    'Avg R²', 'Direction Accuracy (%)'
+                ]
+                
+                st.dataframe(
+                    detailed_metrics.style.format({
+                        'Avg MAE': '{:.4f}',
+                        'Avg RMSE': '{:.4f}',
+                        'Avg MAPE (%)': '{:.2f}',
+                        'Avg R²': '{:.4f}',
+                        'Direction Accuracy (%)': '{:.2f}'
+                    }).background_gradient(cmap='RdYlGn', subset=['Avg R²', 'Direction Accuracy (%)']),
+                    use_container_width=True
+                )
 
-        # Detailed Metrics Table
-        with st.expander("📈 Detailed Metrics", expanded=True):
-            detailed_metrics = metrics_df[[
-                'model_name', 'source_table', 'total_runs',
-                'avg_mae', 'avg_rmse', 'avg_mape', 'avg_r2',
-                'avg_direction_accuracy'
-            ]].copy()
-            
-            detailed_metrics['avg_direction_accuracy'] = detailed_metrics['avg_direction_accuracy'] * 100
-            detailed_metrics.columns = [
-                'Model Name', 'Data Source', 'Total Runs',
-                'Avg MAE', 'Avg RMSE', 'Avg MAPE (%)',
-                'Avg R²', 'Direction Accuracy (%)'
-            ]
-            
-            st.dataframe(
-                detailed_metrics.style.format({
-                    'Avg MAE': '{:.4f}',
-                    'Avg RMSE': '{:.4f}',
-                    'Avg MAPE (%)': '{:.2f}',
-                    'Avg R²': '{:.4f}',
-                    'Direction Accuracy (%)': '{:.2f}'
-                }).background_gradient(cmap='RdYlGn', subset=['Avg R²', 'Direction Accuracy (%)']),
-                use_container_width=True
-            )
+            # Visualization Section
+            with st.expander("🎯 Performance Visualization", expanded=True):
+                fig = comparison.plot_metrics_comparison(metrics_df)
+                st.plotly_chart(fig, use_container_width=True)
 
-        # Visualization Section
-        with st.expander("🎯 Performance Visualization", expanded=True):
-            fig = comparison.plot_metrics_comparison(metrics_df)
-            st.plotly_chart(fig, use_container_width=True)
+            # Download Section
+            with st.expander("💾 Export Data", expanded=False):
+                csv = metrics_df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Comparison Data (CSV)",
+                    data=csv,
+                    file_name=f"model_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
 
-        # Download Section
-        with st.expander("💾 Export Data", expanded=False):
-            csv = metrics_df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Comparison Data (CSV)",
-                data=csv,
-                file_name=f"model_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv"
-            )
+        except Exception as e:
+            st.error(f"Error comparing models: {str(e)}")
+            logging.error(f"Error in model comparison page: {str(e)}")
 
-    except Exception as e:
-        st.error(f"Error comparing models: {str(e)}")
-        logging.error(f"Error in model comparison page: {str(e)}")
+    # Model details sidebar
+    if st.session_state.show_details_sidebar and details_col:
+        with details_col:
+            st.markdown("## Model Details")
+            for model_name in selected_models:
+                model_details = comparison.get_model_repository_details(model_name)
+                if model_details:
+                    display_model_details_section(model_details)
+                else:
+                    st.warning(f"No repository details found for {model_name}")
 
 if __name__ == "__main__":
     model_comparison_page() 

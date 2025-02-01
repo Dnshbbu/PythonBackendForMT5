@@ -374,6 +374,20 @@ class HistoricalPredictionsPage:
         
         return [fig]
 
+def format_metric_value(name: str, value: float) -> str:
+    """Format metric values based on their type/name."""
+    if 'accuracy' in name.lower() or 'ratio' in name.lower() or 'rate' in name.lower():
+        return f"{value*100:.1f}%"
+    elif 'streak' in name.lower() and 'max' in name.lower():
+        return f"{int(value)}"
+    elif isinstance(value, (int, float)):
+        return f"{value:.4f}"
+    return str(value)
+
+def format_column_name(col_name: str) -> str:
+    """Convert snake_case column names to Title Case for display."""
+    return ' '.join(word.capitalize() for word in col_name.split('_'))
+
 def historical_predictions_page():
     """Main function for the historical predictions analysis page."""
     st.title("Historical Predictions Analysis")
@@ -417,16 +431,35 @@ def historical_predictions_page():
     selected_run = next(run for run in runs if run['run_id'] == selected_run_id)
     
     # Display run information
-    with st.expander("Run Information", expanded=True):
+    with st.expander("Run Information", expanded=False):
+        st.markdown("""
+            <style>
+                .small-font {
+                    font-size: 14px;
+                }
+                .metric-label {
+                    font-size: 12px;
+                    color: #808495;
+                }
+                .metric-value {
+                    font-size: 16px;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Model", selected_run['model_name'])
+            st.markdown('<p class="metric-label">Model</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="metric-value">{selected_run["model_name"]}</p>', unsafe_allow_html=True)
         with col2:
-            st.metric("Data Source", selected_run['source_table'])
+            st.markdown('<p class="metric-label">Data Source</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="metric-value">{selected_run["source_table"]}</p>', unsafe_allow_html=True)
         with col3:
-            st.metric("Predictions", selected_run['prediction_count'])
+            st.markdown('<p class="metric-label">Predictions</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="metric-value">{selected_run["prediction_count"]}</p>', unsafe_allow_html=True)
         
-        st.write(f"Period: {selected_run['start_date']} to {selected_run['end_date']}")
+        st.markdown(f'<p class="small-font">Period: {selected_run["start_date"]} to {selected_run["end_date"]}</p>', 
+                   unsafe_allow_html=True)
     
     try:
         # Load data
@@ -434,33 +467,31 @@ def historical_predictions_page():
         metrics_df = analyzer.load_metrics(selected_run_id)
         
         if not predictions_df.empty:
+            # Display metrics first if available
+            if not metrics_df.empty:
+                st.subheader("Performance Metrics")
+                
+                # Get the latest metrics
+                display_metrics = metrics_df.iloc[-1].copy()
+                
+                # Exclude non-metric columns if they exist
+                exclude_columns = ['run_id', 'timestamp', 'id']
+                metric_columns = [col for col in display_metrics.index if col not in exclude_columns]
+                
+                # Create metrics table with all available metrics
+                metrics_dict = {
+                    format_column_name(col): [format_metric_value(col, display_metrics[col])]
+                    for col in metric_columns
+                }
+                
+                metrics_table = pd.DataFrame(metrics_dict)
+                st.table(metrics_table)
+            
             # Display predictions plots
             st.subheader("Prediction Analysis")
             prediction_figs = analyzer.plot_predictions(predictions_df)
             for fig in prediction_figs:
                 st.plotly_chart(fig, use_container_width=True)
-            
-            if not metrics_df.empty:
-                # Display metrics plots
-                st.subheader("Metrics Analysis")
-                metrics_figs = analyzer.plot_metrics_history(metrics_df)
-                for fig in metrics_figs:
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                # Display latest metrics
-                latest_metrics = metrics_df.iloc[-1]
-                
-                st.subheader("Final Performance Metrics")
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric("RMSE", f"{latest_metrics['root_mean_squared_error']:.4f}")
-                with col2:
-                    st.metric("MAE", f"{latest_metrics['mean_absolute_error']:.4f}")
-                with col3:
-                    st.metric("Direction Accuracy", f"{latest_metrics['direction_accuracy']*100:.1f}%")
-                with col4:
-                    st.metric("Max Correct Streak", int(latest_metrics['max_correct_streak']))
             
             # Add download options
             st.sidebar.subheader("Download Data")

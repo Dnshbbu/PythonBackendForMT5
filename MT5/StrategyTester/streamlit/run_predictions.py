@@ -15,6 +15,7 @@ class HistoricalPredictor:
         self.models_dir = models_dir
         self.model_predictor = ModelPredictor(db_path, models_dir)
         self.setup_logging()
+        self.setup_prediction_database()
 
     def setup_logging(self):
         """Configure logging settings"""
@@ -22,6 +23,74 @@ class HistoricalPredictor:
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
+
+    def setup_prediction_database(self):
+        """Setup SQLite database for predictions and metrics"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Drop existing tables if they exist
+            cursor.execute("DROP TABLE IF EXISTS historical_predictions")
+            cursor.execute("DROP TABLE IF EXISTS historical_prediction_metrics")
+            
+            # Create predictions table with source_table column
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS historical_predictions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    datetime TIMESTAMP,
+                    actual_price REAL,
+                    predicted_price REAL,
+                    error REAL,
+                    price_change REAL,
+                    predicted_change REAL,
+                    price_volatility REAL,
+                    run_id TEXT,
+                    source_table TEXT
+                )
+            """)
+            
+            # Create metrics table with source_table column
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS historical_prediction_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TIMESTAMP,
+                    run_id TEXT,
+                    source_table TEXT,
+                    total_predictions INTEGER,
+                    mean_absolute_error REAL,
+                    root_mean_squared_error REAL,
+                    mean_absolute_percentage_error REAL,
+                    r_squared REAL,
+                    direction_accuracy REAL,
+                    up_prediction_accuracy REAL,
+                    down_prediction_accuracy REAL,
+                    correct_ups INTEGER,
+                    correct_downs INTEGER,
+                    total_ups INTEGER,
+                    total_downs INTEGER,
+                    max_error REAL,
+                    min_error REAL,
+                    std_error REAL,
+                    avg_price_change REAL,
+                    price_volatility REAL,
+                    mean_prediction_error REAL,
+                    median_prediction_error REAL,
+                    error_skewness REAL,
+                    first_quarter_accuracy REAL,
+                    last_quarter_accuracy REAL,
+                    max_correct_streak INTEGER,
+                    avg_correct_streak REAL
+                )
+            """)
+            
+            conn.commit()
+        except Exception as e:
+            logging.error(f"Error setting up database: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
 
     def load_data(self, table_name: str) -> pd.DataFrame:
         """Load data from the database table"""
@@ -54,6 +123,105 @@ class HistoricalPredictor:
             logging.error(f"Error loading data: {e}")
             raise
 
+    def store_predictions(self, results_df: pd.DataFrame, run_id: str, source_table: str):
+        """Store predictions in SQLite database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            
+            # Prepare data for insertion
+            data_to_insert = []
+            for idx, row in results_df.iterrows():
+                data_to_insert.append((
+                    idx.strftime('%Y-%m-%d %H:%M:%S'),  # Convert Timestamp to string
+                    row['Actual_Price'],
+                    row['Predicted_Price'],
+                    row['Error'],
+                    row['Price_Change'],
+                    row['Predicted_Change'],
+                    row.get('Price_Volatility', 0),  # Handle case where volatility might be None
+                    run_id,
+                    source_table
+                ))
+            
+            # Insert predictions in batch
+            cursor = conn.cursor()
+            cursor.executemany("""
+                INSERT INTO historical_predictions (
+                    datetime, actual_price, predicted_price, error,
+                    price_change, predicted_change, price_volatility, run_id,
+                    source_table
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, data_to_insert)
+            
+            conn.commit()
+            logging.info(f"Stored {len(data_to_insert)} predictions in database")
+            
+        except Exception as e:
+            logging.error(f"Error storing predictions: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+
+    def store_metrics(self, summary: Dict, run_id: str, source_table: str):
+        """Store metrics in SQLite database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO historical_prediction_metrics (
+                    timestamp, run_id, source_table, total_predictions, mean_absolute_error,
+                    root_mean_squared_error, mean_absolute_percentage_error,
+                    r_squared, direction_accuracy, up_prediction_accuracy,
+                    down_prediction_accuracy, correct_ups, correct_downs,
+                    total_ups, total_downs, max_error, min_error,
+                    std_error, avg_price_change, price_volatility,
+                    mean_prediction_error, median_prediction_error,
+                    error_skewness, first_quarter_accuracy,
+                    last_quarter_accuracy, max_correct_streak,
+                    avg_correct_streak
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                datetime.now().isoformat(),
+                run_id,
+                source_table,
+                summary['total_predictions'],
+                summary['mean_absolute_error'],
+                summary['root_mean_squared_error'],
+                summary['mean_absolute_percentage_error'],
+                summary['r_squared'],
+                summary['direction_accuracy'],
+                summary['up_prediction_accuracy'],
+                summary['down_prediction_accuracy'],
+                summary['correct_ups'],
+                summary['correct_downs'],
+                summary['total_ups'],
+                summary['total_downs'],
+                summary['max_error'],
+                summary['min_error'],
+                summary['std_error'],
+                summary['avg_price_change'],
+                summary['price_volatility'],
+                summary['mean_prediction_error'],
+                summary['median_prediction_error'],
+                summary['error_skewness'],
+                summary['first_quarter_accuracy'],
+                summary['last_quarter_accuracy'],
+                summary['max_correct_streak'],
+                summary['avg_correct_streak']
+            ))
+            
+            conn.commit()
+            logging.info("Stored metrics in database")
+            
+        except Exception as e:
+            logging.error(f"Error storing metrics: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+
     def run_predictions(self, table_name: str) -> pd.DataFrame:
         """Run predictions on historical data"""
         try:
@@ -69,21 +237,22 @@ class HistoricalPredictor:
             # Prepare features for prediction
             X = self.model_predictor.prepare_features(df)
             
-            # Run predictions for each row
-            for i in range(len(df)):
+            # Run predictions for each row except the last one
+            for i in range(len(df)-1):  # Note the -1 here
                 try:
                     current_row = df.iloc[i]
+                    next_row = df.iloc[i+1]  # Get the next row for actual price
                     current_features = X.iloc[i:i+1]
                     
-                    # Make prediction
+                    # Make prediction for next price
                     prediction = self.model_predictor.model.predict(current_features)
                     
-                    # Store results
+                    # Store results - compare prediction with next row's price
                     predictions.append({
-                        'DateTime': current_row.name,
-                        'Actual_Price': float(current_row['Price']),
+                        'DateTime': next_row.name,  # Use next row's datetime
+                        'Actual_Price': float(next_row['Price']),
                         'Predicted_Price': float(prediction[0]),
-                        'Error': float(current_row['Price']) - float(prediction[0])
+                        'Error': float(next_row['Price']) - float(prediction[0])
                     })
                     
                     if i % 100 == 0:
@@ -220,11 +389,16 @@ def main():
         
         # Run predictions
         table_name = "strategy_TRIP_NAS_10026258"  # Replace with your table name
-        results_df = predictor.run_predictions(table_name)
+        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        # Generate and print summary
+        results_df = predictor.run_predictions(table_name)
         summary = predictor.generate_summary(results_df)
         
+        # Store results in database with source table
+        predictor.store_predictions(results_df, run_id, table_name)
+        predictor.store_metrics(summary, run_id, table_name)
+        
+        # Print summary (keeping the existing print statements)
         print("\nPrediction Summary:")
         print(f"Total predictions: {summary['total_predictions']}")
         
@@ -264,17 +438,7 @@ def main():
         print(f"Correct upward predictions: {summary['correct_ups']}/{summary['total_ups']}")
         print(f"Correct downward predictions: {summary['correct_downs']}/{summary['total_downs']}")
         
-        # Save results
-        results_path = os.path.join(current_dir, 'prediction_results')
-        os.makedirs(results_path, exist_ok=True)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        results_df.to_csv(os.path.join(results_path, f'predictions_{timestamp}.csv'))
-        
-        with open(os.path.join(results_path, f'summary_{timestamp}.json'), 'w') as f:
-            json.dump(summary, f, indent=4)
-            
-        print(f"\nResults saved to {results_path}")
+        logging.info(f"Completed prediction run: {run_id} for table: {table_name}")
         
     except Exception as e:
         logging.error(f"Error in main: {e}")

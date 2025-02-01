@@ -34,7 +34,7 @@ class HistoricalPredictor:
             cursor.execute("DROP TABLE IF EXISTS historical_predictions")
             cursor.execute("DROP TABLE IF EXISTS historical_prediction_metrics")
             
-            # Create predictions table with source_table column
+            # Create predictions table with model_name column
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS historical_predictions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,17 +46,19 @@ class HistoricalPredictor:
                     predicted_change REAL,
                     price_volatility REAL,
                     run_id TEXT,
-                    source_table TEXT
+                    source_table TEXT,
+                    model_name TEXT
                 )
             """)
             
-            # Create metrics table with source_table column
+            # Create metrics table with model_name column
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS historical_prediction_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TIMESTAMP,
                     run_id TEXT,
                     source_table TEXT,
+                    model_name TEXT,
                     total_predictions INTEGER,
                     mean_absolute_error REAL,
                     root_mean_squared_error REAL,
@@ -128,19 +130,23 @@ class HistoricalPredictor:
         try:
             conn = sqlite3.connect(self.db_path)
             
+            # Get model name from ModelPredictor - fixed attribute name
+            model_name = self.model_predictor.current_model_name
+            
             # Prepare data for insertion
             data_to_insert = []
             for idx, row in results_df.iterrows():
                 data_to_insert.append((
-                    idx.strftime('%Y-%m-%d %H:%M:%S'),  # Convert Timestamp to string
+                    idx.strftime('%Y-%m-%d %H:%M:%S'),
                     row['Actual_Price'],
                     row['Predicted_Price'],
                     row['Error'],
                     row['Price_Change'],
                     row['Predicted_Change'],
-                    row.get('Price_Volatility', 0),  # Handle case where volatility might be None
+                    row.get('Price_Volatility', 0),
                     run_id,
-                    source_table
+                    source_table,
+                    model_name
                 ))
             
             # Insert predictions in batch
@@ -149,8 +155,8 @@ class HistoricalPredictor:
                 INSERT INTO historical_predictions (
                     datetime, actual_price, predicted_price, error,
                     price_change, predicted_change, price_volatility, run_id,
-                    source_table
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_table, model_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, data_to_insert)
             
             conn.commit()
@@ -169,23 +175,27 @@ class HistoricalPredictor:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # Get model name from ModelPredictor - fixed attribute name
+            model_name = self.model_predictor.current_model_name
+            
             cursor.execute("""
                 INSERT INTO historical_prediction_metrics (
-                    timestamp, run_id, source_table, total_predictions, mean_absolute_error,
-                    root_mean_squared_error, mean_absolute_percentage_error,
-                    r_squared, direction_accuracy, up_prediction_accuracy,
-                    down_prediction_accuracy, correct_ups, correct_downs,
-                    total_ups, total_downs, max_error, min_error,
+                    timestamp, run_id, source_table, model_name, total_predictions,
+                    mean_absolute_error, root_mean_squared_error,
+                    mean_absolute_percentage_error, r_squared, direction_accuracy,
+                    up_prediction_accuracy, down_prediction_accuracy, correct_ups,
+                    correct_downs, total_ups, total_downs, max_error, min_error,
                     std_error, avg_price_change, price_volatility,
                     mean_prediction_error, median_prediction_error,
                     error_skewness, first_quarter_accuracy,
                     last_quarter_accuracy, max_correct_streak,
                     avg_correct_streak
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 datetime.now().isoformat(),
                 run_id,
                 source_table,
+                model_name,
                 summary['total_predictions'],
                 summary['mean_absolute_error'],
                 summary['root_mean_squared_error'],

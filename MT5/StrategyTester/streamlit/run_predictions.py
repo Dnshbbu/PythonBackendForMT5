@@ -394,7 +394,7 @@ def main():
         predictor = HistoricalPredictor(db_path, models_dir)
         
         # Run predictions
-        table_name = "strategy_TRIP_NAS_10031622"  # Replace with your table name
+        table_name = "strategy_TRIP_NAS_10032544"  # Replace with your table name
         run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         results_df = predictor.run_predictions(table_name)

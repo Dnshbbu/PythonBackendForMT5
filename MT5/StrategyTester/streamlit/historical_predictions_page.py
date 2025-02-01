@@ -57,15 +57,18 @@ class HistoricalPredictionsPage:
         try:
             query = """
                 SELECT DISTINCT 
-                    run_id,
-                    source_table,
-                    model_name,
-                    MIN(datetime) as start_date,
-                    MAX(datetime) as end_date,
-                    COUNT(*) as prediction_count
-                FROM historical_predictions
-                GROUP BY run_id, source_table, model_name
-                ORDER BY datetime DESC
+                    p.run_id,
+                    p.source_table,
+                    p.model_name,
+                    MIN(p.datetime) as start_date,
+                    MAX(p.datetime) as end_date,
+                    COUNT(*) as prediction_count,
+                    MAX(m.timestamp) as run_timestamp
+                FROM historical_predictions p
+                LEFT JOIN historical_prediction_metrics m 
+                ON p.run_id = m.run_id
+                GROUP BY p.run_id, p.source_table, p.model_name
+                ORDER BY p.datetime DESC
             """
             
             conn = sqlite3.connect(self.db_path)
@@ -444,6 +447,16 @@ def historical_predictions_page():
                 .metric-value {
                     font-size: 16px;
                 }
+                .info-separator {
+                    margin: 0 15px;
+                    color: #808495;
+                }
+                .info-label {
+                    color: #808495;
+                }
+                .info-value {
+                    color: #FFFFFF;
+                }
             </style>
         """, unsafe_allow_html=True)
         
@@ -458,8 +471,11 @@ def historical_predictions_page():
             st.markdown('<p class="metric-label">Predictions</p>', unsafe_allow_html=True)
             st.markdown(f'<p class="metric-value">{selected_run["prediction_count"]}</p>', unsafe_allow_html=True)
         
-        st.markdown(f'<p class="small-font">Period: {selected_run["start_date"]} to {selected_run["end_date"]}</p>', 
-                   unsafe_allow_html=True)
+        run_time = pd.to_datetime(selected_run["run_timestamp"]).strftime("%Y-%m-%d %H:%M")
+        st.markdown(
+            f'<p class="small-font"><span class="info-label">Period:</span> <span class="info-value">{selected_run["start_date"]} to {selected_run["end_date"]}</span> <span class="info-separator">|</span> <span class="info-label">Run Time:</span> <span class="info-value">{run_time}</span></p>', 
+            unsafe_allow_html=True
+        )
     
     try:
         # Load data

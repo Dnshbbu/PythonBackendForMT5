@@ -37,10 +37,10 @@ class RealTimePricePredictor:
         self.models_dir = models_dir
         self.setup_logging()
         
-        # Store training manager reference
-        self.training_manager = training_manager
+        # Add data buffer for maintaining price history
+        self.data_buffer = deque(maxlen=2)  # Keep current and previous data points
         
-        # Load feature configuration
+        self.training_manager = training_manager
         self.selected_features = self.load_feature_config()
         
         if self.model_predictor.model:
@@ -215,9 +215,9 @@ class RealTimePricePredictor:
             raise
 
     def make_prediction(self, features: pd.DataFrame) -> Dict:
-        """Make prediction for single data point"""
+        """Make prediction for next price point"""
         try:
-            # Make prediction
+            # Make prediction for next price
             prediction = self.model_predictor.model.predict(features)
             
             # Get feature importance
@@ -233,19 +233,28 @@ class RealTimePricePredictor:
             # Calculate confidence based on feature importance values
             confidence = min(sum(abs(v) for v in top_features.values()) / len(top_features), 1.0)
             
-            return {
-                'prediction': float(prediction[0]),
+            prediction_value = float(prediction[0])
+            
+            # Get current price if available
+            current_price = self.data_buffer[-1]['price'] if self.data_buffer else None
+            
+            result = {
+                'prediction': prediction_value,
+                'predicted_change': (prediction_value - current_price) if current_price else None,
                 'confidence': float(confidence),
                 'is_confident': bool(confidence >= 0.8),
-                'top_features': top_features
+                'top_features': top_features,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
+            
+            return result
             
         except Exception as e:
             logging.error(f"Error making prediction: {e}")
             raise
 
     def add_data_point(self, data_point: Dict) -> Optional[Dict]:
-        """Process single data point and return prediction"""
+        """Process single data point and return prediction for next price"""
         try:
             # Check and reload model if needed
             if self.training_manager is not None:
@@ -263,18 +272,39 @@ class RealTimePricePredictor:
             processed_data = self.process_raw_data(data_point)
             current_price = float(data_point.get('Price', 0))
             
-            # Prepare features
-            features = self.prepare_features(processed_data)
+            # Add to data buffer
+            self.data_buffer.append({
+                'processed_data': processed_data,
+                'price': current_price,
+                'timestamp': data_point.get('Time')
+            })
             
-            # Make prediction
-            prediction_result = self.make_prediction(features)
+            # Only make prediction if we have previous data point
+            if len(self.data_buffer) >= 1:
+                # Prepare features from current data point
+                features = self.prepare_features(processed_data)
+                
+                # Make prediction for next price
+                prediction_result = self.make_prediction(features)
+                
+                # Add previous price info if available for comparison
+                if len(self.data_buffer) == 2:
+                    previous_price = self.data_buffer[0]['price']
+                    price_change = current_price - previous_price
+                    prediction_result.update({
+                        'current_price': current_price,
+                        'previous_price': previous_price,
+                        'price_change': price_change,
+                    })
+                
+                # Log prediction details
+                logging.info(f"Time: {data_point.get('Time')}")
+                logging.info(f"Current Price: {current_price}")
+                logging.info(f"Predicted Next Price: {prediction_result['prediction']}")
+                
+                return prediction_result
             
-            # Log prediction details
-            logging.info(f"Time: {data_point.get('Time')}")
-            logging.info(f"Current Price: {current_price}")
-            logging.info(f"Prediction: {prediction_result['prediction']}")
-            
-            return prediction_result
+            return None
             
         except Exception as e:
             logging.error(f"Error processing data point: {e}")

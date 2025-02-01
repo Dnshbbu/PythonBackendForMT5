@@ -11,6 +11,7 @@ from datetime import datetime
 from sklearn.model_selection import TimeSeriesSplit
 import xgboost as xgb
 from sklearn.tree import DecisionTreeRegressor
+from model_repository import ModelRepository
 
 class TimeSeriesModelTrainer:
     def __init__(self, db_path: str, models_dir: str):
@@ -758,6 +759,39 @@ class TimeSeriesModelTrainer:
                 self._update_training_history(model_path, table_names, metrics)
             except Exception as history_error:
                 logging.warning(f"Error updating training history: {history_error}")
+            
+            # Store model information in repository
+            try:
+                model_repo = ModelRepository(self.db_path)
+                feature_importance = {}
+                
+                # Get feature importance if available
+                if hasattr(model, 'feature_importances_'):
+                    feature_importance = dict(zip(X.columns, model.feature_importances_))
+                elif model_type == 'xgboost':
+                    importance_scores = model.get_booster().get_score(importance_type='gain')
+                    feature_importance = {k: v for k, v in importance_scores.items()}
+                
+                model_repo.store_model_info(
+                    model_name=model_name,
+                    model_type=model_type,
+                    training_type='multi' if len(table_names) > 1 else 'single',
+                    prediction_horizon=prediction_horizon,
+                    features=X.columns.tolist(),
+                    feature_importance=feature_importance,
+                    model_params=model_params,
+                    metrics=metrics,
+                    training_tables=table_names,
+                    training_period={
+                        'start': str(X.index.min()),
+                        'end': str(X.index.max())
+                    },
+                    data_points=len(X),
+                    model_path=model_path,
+                    scaler_path=os.path.join(self.models_dir, f"{model_name}_scaler.joblib")
+                )
+            except Exception as repo_error:
+                logging.warning(f"Error storing model in repository: {repo_error}")
             
             return model_path, metrics
             

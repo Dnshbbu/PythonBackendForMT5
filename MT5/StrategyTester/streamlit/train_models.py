@@ -229,8 +229,8 @@ def train_model_incrementally(base_table: str, new_tables: List[str], force_retr
         # First, train on base table
         logging.info(f"Initial training on base table: {base_table}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_model_name = generate_model_name('xgboost', 'base', timestamp)
-        # base_model_name =  "model_20250130_181424"
+        # base_model_name = generate_model_name('xgboost', 'base', timestamp)
+        base_model_name =  "xgboost_base_20250201_210455"
 
         model_type = 'xgboost'  # Define model type explicitly
         
@@ -348,26 +348,26 @@ if __name__ == "__main__":
         #     logging.info(f"Model Path: {result['model_path']}")
         #     logging.info(f"Metrics: {result['metrics']}")
         
-        # 2. Multi-table training
-        multiple_tables = [
-            "strategy_TRIP_NAS_10019851",
-            "strategy_TRIP_NAS_10031622",
-            "strategy_TRIP_NAS_10026615"
-        ]
-        multi_results = train_multi_table(multiple_tables)
-        logging.info("\nMulti-Table Training Results:================================================================")
-        for model_key, result in multi_results.items():
-            logging.info(f"\nModel: {model_key}")
-            logging.info(f"Model Path: {result['model_path']}")
-            logging.info(f"Metrics: {result['metrics']}")
-        
-        # # 3. Incremental training
-        # base_table = "strategy_TRIP_NAS_10019851"
-        # new_tables = [
+        # # 2. Multi-table training
+        # multiple_tables = [
+        #     "strategy_TRIP_NAS_10019851",
         #     "strategy_TRIP_NAS_10031622",
         #     "strategy_TRIP_NAS_10026615"
         # ]
-        # incremental_results = train_model_incrementally(base_table, new_tables)
+        # multi_results = train_multi_table(multiple_tables)
+        # logging.info("\nMulti-Table Training Results:================================================================")
+        # for model_key, result in multi_results.items():
+        #     logging.info(f"\nModel: {model_key}")
+        #     logging.info(f"Model Path: {result['model_path']}")
+        #     logging.info(f"Metrics: {result['metrics']}")
+        
+        # 3. Incremental training
+        base_table = "strategy_TRIP_NAS_10019851"
+        new_tables = [
+            "strategy_TRIP_NAS_10031622",
+            "strategy_TRIP_NAS_10026615"
+        ]
+        incremental_results = train_model_incrementally(base_table, new_tables)
 
         # logging.info("\nIncremental Training Results:================================================================")
         # logging.info("\nBase Training:")

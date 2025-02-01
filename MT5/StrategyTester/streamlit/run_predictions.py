@@ -30,11 +30,7 @@ class HistoricalPredictor:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Drop existing tables if they exist
-            cursor.execute("DROP TABLE IF EXISTS historical_predictions")
-            cursor.execute("DROP TABLE IF EXISTS historical_prediction_metrics")
-            
-            # Create predictions table with model_name column
+            # Create predictions table if it doesn't exist (removed DROP TABLE statements)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS historical_predictions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +47,7 @@ class HistoricalPredictor:
                 )
             """)
             
-            # Create metrics table with model_name column
+            # Create metrics table if it doesn't exist (removed DROP TABLE statements)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS historical_prediction_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -398,7 +394,7 @@ def main():
         predictor = HistoricalPredictor(db_path, models_dir)
         
         # Run predictions
-        table_name = "strategy_TRIP_NAS_10000348"  # Replace with your table name
+        table_name = "strategy_TRIP_NAS_10031622"  # Replace with your table name
         run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         results_df = predictor.run_predictions(table_name)

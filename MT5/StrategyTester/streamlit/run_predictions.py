@@ -9,11 +9,23 @@ from typing import Dict, List, Optional
 import json
 
 class HistoricalPredictor:
-    def __init__(self, db_path: str, models_dir: str):
-        """Initialize the predictor with database and model paths"""
+    def __init__(self, db_path: str, models_dir: str, model_name: Optional[str] = None):
+        """
+        Initialize the predictor with database and model paths
+        
+        Args:
+            db_path: Path to the database
+            models_dir: Directory containing models
+            model_name: Optional specific model to use
+        """
         self.db_path = db_path
         self.models_dir = models_dir
         self.model_predictor = ModelPredictor(db_path, models_dir)
+        
+        # Load specific model if provided
+        if model_name:
+            self.model_predictor.load_model_by_name(model_name)
+            
         self.setup_logging()
         self.setup_prediction_database()
 
@@ -390,8 +402,11 @@ def main():
         db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
         models_dir = os.path.join(current_dir, 'models')
         
-        # Initialize predictor
-        predictor = HistoricalPredictor(db_path, models_dir)
+        # Optional: Specify model name
+        model_name = "random_forest_multi_20250202_105717"  # Replace with your model name or None for latest
+        
+        # Initialize predictor with optional model name
+        predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions
         table_name = "strategy_TRIP_NAS_10032544"  # Replace with your table name

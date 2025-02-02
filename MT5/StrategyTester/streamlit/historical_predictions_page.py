@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 import numpy as np
 import logging
 from typing import List, Dict, Optional, Tuple
+# Import the required functions from model_comparison_page
+from model_comparison_page import display_model_details_section, ModelComparison
+
 
 class HistoricalPredictionsPage:
     """Class for analyzing historical predictions in Streamlit."""
@@ -393,8 +396,54 @@ def format_column_name(col_name: str) -> str:
 
 def historical_predictions_page():
     """Main function for the historical predictions analysis page."""
+    # Add CSS for sidebars and model details
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #0e1117;
+            color: #ffffff;
+        }
+        .stExpander {
+            background-color: #1a1c23;
+            border: 1px solid #2d2d2d;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .stTabs {
+            background-color: transparent;
+        }
+        .info-container {
+            background-color: #252830;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #2d2d2d;
+            margin-bottom: 10px;
+        }
+        .info-label {
+            color: #00ADB5;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .info-value {
+            color: #e0e0e0;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .feature-text {
+            color: #e0e0e0;
+            font-family: 'Arial', sans-serif;
+            font-size: 14px;
+            padding: 2px 0;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.title("Historical Predictions Analysis")
     
+    # Initialize session state for sidebar toggle
+    if 'show_details_sidebar' not in st.session_state:
+        st.session_state.show_details_sidebar = False
+
     # Initialize analysis
     db_path = "logs/trading_data.db"
     analyzer = HistoricalPredictionsPage(db_path)
@@ -406,130 +455,161 @@ def historical_predictions_page():
         Please run predictions using run_predictions.py first.
         """)
         return
-    
+
     # Get available runs
     runs = analyzer.get_available_runs()
     if not runs:
         st.info("No historical prediction data available.")
         return
-    
-    # Run selection with metadata
-    st.sidebar.header("Analysis Controls")
-    
-    # Create a formatted selection list
-    run_options = [
-        f"{run['run_id']} - {run['model_name']} ({run['source_table']})" 
-        for run in runs
-    ]
-    
-    selected_option = st.sidebar.selectbox(
-        "Select Prediction Run",
-        options=run_options
-    )
-    
-    # Extract run_id from selection
-    selected_run_id = selected_option.split(' - ')[0]
-    
-    # Get selected run metadata
-    selected_run = next(run for run in runs if run['run_id'] == selected_run_id)
-    
-    # Display run information
-    with st.expander("Run Information", expanded=False):
-        st.markdown("""
-            <style>
-                .small-font {
-                    font-size: 14px;
-                }
-                .metric-label {
-                    font-size: 12px;
-                    color: #808495;
-                }
-                .metric-value {
-                    font-size: 16px;
-                }
-                .info-separator {
-                    margin: 0 15px;
-                    color: #808495;
-                }
-                .info-label {
-                    color: #808495;
-                }
-                .info-value {
-                    color: #FFFFFF;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown('<p class="metric-label">Model</p>', unsafe_allow_html=True)
-            st.markdown(f'<p class="metric-value">{selected_run["model_name"]}</p>', unsafe_allow_html=True)
-        with col2:
-            st.markdown('<p class="metric-label">Data Source</p>', unsafe_allow_html=True)
-            st.markdown(f'<p class="metric-value">{selected_run["source_table"]}</p>', unsafe_allow_html=True)
-        with col3:
-            st.markdown('<p class="metric-label">Predictions</p>', unsafe_allow_html=True)
-            st.markdown(f'<p class="metric-value">{selected_run["prediction_count"]}</p>', unsafe_allow_html=True)
-        
-        run_time = pd.to_datetime(selected_run["run_timestamp"]).strftime("%Y-%m-%d %H:%M")
-        st.markdown(
-            f'<p class="small-font"><span class="info-label">Period:</span> <span class="info-value">{selected_run["start_date"]} to {selected_run["end_date"]}</span> <span class="info-separator">|</span> <span class="info-label">Run Time:</span> <span class="info-value">{run_time}</span></p>', 
-            unsafe_allow_html=True
+
+    # Left sidebar toggle button
+    with st.sidebar:
+        st.header("Analysis Controls")
+        st.button(
+            "Show Model Details",
+            key="toggle_details",
+            on_click=lambda: setattr(st.session_state, 'show_details_sidebar', 
+                                   not st.session_state.show_details_sidebar)
         )
-    
-    try:
-        # Load data
-        predictions_df = analyzer.load_predictions(selected_run_id)
-        metrics_df = analyzer.load_metrics(selected_run_id)
+
+    # Main content and details sidebar layout
+    if st.session_state.show_details_sidebar:
+        main_col, details_col = st.columns([3, 1])
+    else:
+        main_col = st.container()
+        details_col = None
+
+    with main_col:
+        # Run selection with metadata
+        run_options = [
+            f"{run['run_id']} - {run['model_name']} ({run['source_table']})" 
+            for run in runs
+        ]
         
-        if not predictions_df.empty:
-            # Display metrics first if available
-            if not metrics_df.empty:
-                st.subheader("Performance Metrics")
-                
-                # Get the latest metrics
-                display_metrics = metrics_df.iloc[-1].copy()
-                
-                # Exclude non-metric columns if they exist
-                exclude_columns = ['run_id', 'timestamp', 'id']
-                metric_columns = [col for col in display_metrics.index if col not in exclude_columns]
-                
-                # Create metrics table with all available metrics
-                metrics_dict = {
-                    format_column_name(col): [format_metric_value(col, display_metrics[col])]
-                    for col in metric_columns
-                }
-                
-                metrics_table = pd.DataFrame(metrics_dict)
-                st.table(metrics_table)
+        selected_option = st.selectbox(
+            "Select Prediction Run",
+            options=run_options
+        )
+        
+        # Extract run_id from selection
+        selected_run_id = selected_option.split(' - ')[0]
+        
+        # Get selected run metadata
+        selected_run = next(run for run in runs if run['run_id'] == selected_run_id)
+
+        # Display run information
+        with st.expander("Run Information", expanded=False):
+            st.markdown("""
+                <style>
+                    .small-font {
+                        font-size: 14px;
+                    }
+                    .metric-label {
+                        font-size: 12px;
+                        color: #808495;
+                    }
+                    .metric-value {
+                        font-size: 16px;
+                    }
+                    .info-separator {
+                        margin: 0 15px;
+                        color: #808495;
+                    }
+                    .info-label {
+                        color: #808495;
+                    }
+                    .info-value {
+                        color: #FFFFFF;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
             
-            # Display predictions plots
-            st.subheader("Prediction Analysis")
-            prediction_figs = analyzer.plot_predictions(predictions_df)
-            for fig in prediction_figs:
-                st.plotly_chart(fig, use_container_width=True)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown('<p class="metric-label">Model</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="metric-value">{selected_run["model_name"]}</p>', unsafe_allow_html=True)
+            with col2:
+                st.markdown('<p class="metric-label">Data Source</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="metric-value">{selected_run["source_table"]}</p>', unsafe_allow_html=True)
+            with col3:
+                st.markdown('<p class="metric-label">Predictions</p>', unsafe_allow_html=True)
+                st.markdown(f'<p class="metric-value">{selected_run["prediction_count"]}</p>', unsafe_allow_html=True)
             
-            # Add download options
-            st.sidebar.subheader("Download Data")
-            
-            csv_predictions = predictions_df.to_csv(index=False)
-            st.sidebar.download_button(
-                label="Download Predictions",
-                data=csv_predictions,
-                file_name=f"predictions_{selected_run_id}.csv",
-                mime="text/csv"
+            run_time = pd.to_datetime(selected_run["run_timestamp"]).strftime("%Y-%m-%d %H:%M")
+            st.markdown(
+                f'<p class="small-font"><span class="info-label">Period:</span> <span class="info-value">{selected_run["start_date"]} to {selected_run["end_date"]}</span> <span class="info-separator">|</span> <span class="info-label">Run Time:</span> <span class="info-value">{run_time}</span></p>', 
+                unsafe_allow_html=True
             )
+        
+        try:
+            # Load data
+            predictions_df = analyzer.load_predictions(selected_run_id)
+            metrics_df = analyzer.load_metrics(selected_run_id)
             
-            if not metrics_df.empty:
-                csv_metrics = metrics_df.to_csv(index=False)
+            if not predictions_df.empty:
+                # Display metrics first if available
+                if not metrics_df.empty:
+                    st.subheader("Performance Metrics")
+                    
+                    # Get the latest metrics
+                    display_metrics = metrics_df.iloc[-1].copy()
+                    
+                    # Exclude non-metric columns if they exist
+                    exclude_columns = ['run_id', 'timestamp', 'id']
+                    metric_columns = [col for col in display_metrics.index if col not in exclude_columns]
+                    
+                    # Create metrics table with all available metrics
+                    metrics_dict = {
+                        format_column_name(col): [format_metric_value(col, display_metrics[col])]
+                        for col in metric_columns
+                    }
+                    
+                    metrics_table = pd.DataFrame(metrics_dict)
+                    st.table(metrics_table)
+                
+                # Display predictions plots
+                st.subheader("Prediction Analysis")
+                prediction_figs = analyzer.plot_predictions(predictions_df)
+                for fig in prediction_figs:
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # Add download options
+                st.sidebar.subheader("Download Data")
+                
+                csv_predictions = predictions_df.to_csv(index=False)
                 st.sidebar.download_button(
-                    label="Download Metrics",
-                    data=csv_metrics,
-                    file_name=f"metrics_{selected_run_id}.csv",
+                    label="Download Predictions",
+                    data=csv_predictions,
+                    file_name=f"predictions_{selected_run_id}.csv",
                     mime="text/csv"
                 )
+                
+                if not metrics_df.empty:
+                    csv_metrics = metrics_df.to_csv(index=False)
+                    st.sidebar.download_button(
+                        label="Download Metrics",
+                        data=csv_metrics,
+                        file_name=f"metrics_{selected_run_id}.csv",
+                        mime="text/csv"
+                    )
+                
+        except Exception as e:
+            st.error(f"Error loading data: {str(e)}")
+            logging.error(f"Error in historical predictions page: {str(e)}")
+
+    # Model details sidebar
+    if st.session_state.show_details_sidebar and details_col:
+        with details_col:
+            st.markdown("## Model Details")
+            model_name = selected_run["model_name"]
             
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        logging.error(f"Error in historical predictions page: {str(e)}")
+            # Initialize ModelComparison to get model details
+            comparison = ModelComparison(db_path)
+            model_details = comparison.get_model_repository_details(model_name)
+            
+            if model_details:
+                display_model_details_section(model_details)
+            else:
+                st.warning(f"No repository details found for {model_name}")
+
 

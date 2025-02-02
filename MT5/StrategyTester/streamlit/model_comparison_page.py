@@ -699,7 +699,7 @@ def model_comparison_page():
     with main_col:
         # Existing page content
         st.markdown("""
-            <h2 style='text-align: center; color: #00ADB5; padding: 1rem 0;'>
+            <h2 style='text-align: left; color: #00ADB5; padding: 1rem 0;'>
                 Model Performance Comparison
             </h2>
         """, unsafe_allow_html=True)

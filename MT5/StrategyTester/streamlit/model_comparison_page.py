@@ -616,12 +616,53 @@ def display_model_details_section(model_details: Dict):
         logging.error(f"Error in display_model_details_section: {str(e)}")
 
 def model_comparison_page():
-    # Add additional CSS for sidebars
+    # Add additional CSS for sidebars and tooltip
     st.markdown("""
         <style>
         .stApp {
             background-color: #0e1117;
             color: #ffffff;
+        }
+        .header-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+        .info-icon {
+            color: #00ADB5;
+            font-size: 1.2rem;
+            cursor: help;
+            text-decoration: none;
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 500px;
+            background-color: #252830;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 15px;
+            position: absolute;
+            z-index: 9999;
+            top: -10px;
+            left: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid #333;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
         .streamlit-expanderHeader {
             background-color: #262730;
@@ -676,6 +717,29 @@ def model_comparison_page():
         </style>
     """, unsafe_allow_html=True)
 
+    # Header with info icon
+    st.markdown("""
+        <div class='header-container'>
+            <h2 style='color: #00ADB5; padding: 1rem 0; margin: 0;'>
+                Model Performance Comparison
+            </h2>
+            <div class='tooltip'>
+                <span class='info-icon'>ℹ️</span>
+                <div class='tooltiptext'>
+                    <div style='margin-bottom: 10px;'>
+                        We are comparing the models performance(metrics) from all previous runs.
+                    </div>
+                    <div style='margin-bottom: 10px;'>
+                        This is sourced from "historical_prediction_metrics".
+                    </div>
+                    <div>
+                        Other tables that are used - "model_repository" to get model details.
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     # Initialize session state for sidebar toggle
     if 'show_details_sidebar' not in st.session_state:
         st.session_state.show_details_sidebar = False
@@ -698,11 +762,11 @@ def model_comparison_page():
 
     with main_col:
         # Existing page content
-        st.markdown("""
-            <h2 style='text-align: left; color: #00ADB5; padding: 1rem 0;'>
-                Model Performance Comparison
-            </h2>
-        """, unsafe_allow_html=True)
+        # st.markdown("""
+        #     <h2 style='text-align: left; color: #00ADB5; padding: 1rem 0;'>
+        #         Model Performance Comparison
+        #     </h2>
+        # """, unsafe_allow_html=True)
 
         # Initialize comparison
         db_path = "logs/trading_data.db"

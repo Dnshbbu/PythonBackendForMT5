@@ -396,50 +396,77 @@ def format_column_name(col_name: str) -> str:
 
 def historical_predictions_page():
     """Main function for the historical predictions analysis page."""
-    # Add CSS for sidebars and model details
+    # Add CSS for tooltip and styling
     st.markdown("""
         <style>
         .stApp {
             background-color: #0e1117;
             color: #ffffff;
         }
-        .stExpander {
-            background-color: #1a1c23;
-            border: 1px solid #2d2d2d;
-            border-radius: 8px;
-            margin-bottom: 10px;
+        .header-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
         }
-        .stTabs {
-            background-color: transparent;
-        }
-        .info-container {
-            background-color: #252830;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid #2d2d2d;
-            margin-bottom: 10px;
-        }
-        .info-label {
+        .info-icon {
             color: #00ADB5;
-            font-size: 12px;
-            font-weight: 500;
+            font-size: 1.2rem;
+            cursor: help;
+            text-decoration: none;
+            position: relative;
+            display: inline-block;
         }
-        .info-value {
-            color: #e0e0e0;
-            font-size: 14px;
-            margin-top: 4px;
+        .tooltip {
+            position: relative;
+            display: inline-block;
         }
-        .feature-text {
-            color: #e0e0e0;
-            font-family: 'Arial', sans-serif;
-            font-size: 14px;
-            padding: 2px 0;
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 500px;
+            background-color: #252830;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 15px;
+            position: absolute;
+            z-index: 9999;
+            top: -10px;
+            left: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid #333;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("Historical Predictions Analysis")
-    
+    # Header with info icon
+    st.markdown("""
+        <div class='header-container'>
+            <h2 style='color: #00ADB5; padding: 1rem 0; margin: 0;'>
+                Historical Predictions Analysis
+            </h2>
+            <div class='tooltip'>
+                <span class='info-icon'>ℹ️</span>
+                <div class='tooltiptext'>
+                    <div style='margin-bottom: 10px;'>
+                        We are comparing the predictions run on historical data stored in the tables.
+                    </div>
+                    <div>
+                        Other tables that are used - "model_repository" to get model details.
+                    </div>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     # Initialize session state for sidebar toggle
     if 'show_details_sidebar' not in st.session_state:
         st.session_state.show_details_sidebar = False

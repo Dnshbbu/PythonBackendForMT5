@@ -672,7 +672,7 @@ def prediction_monitoring_page():
             <div class='tooltip'>
                 <span class='info-icon'>ℹ️</span>
                 <div class='tooltiptext'>
-                    We are using the prediction_history table for real time prediction
+                    We are using the "prediction_history" and "prediction_metrics" tables for storing the real time prediction data.
                 </div>
             </div>
         </div>

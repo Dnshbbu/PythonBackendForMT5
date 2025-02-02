@@ -405,8 +405,6 @@ class PredictionMonitoringPage:
         
         return fig
 
-
-
     def get_aggregate_statistics(self, run_id: str) -> pd.DataFrame:
         """
         Calculate enhanced aggregate statistics including multiple accuracy metrics.
@@ -617,81 +615,69 @@ class PredictionMonitoringPage:
             - **Confident Pred. Rate**: Higher values show more decisive model behavior
             """)
 
-# def prediction_monitoring_page():
-#     st.title("Real-Time Prediction Monitoring")
-    
-#     # Initialize monitoring
-#     db_path = "logs/trading_data.db"
-#     monitor = PredictionMonitoringPage(db_path)
-    
-#     # Check if database is initialized
-#     if not monitor.check_database_exists():
-#         st.warning("""
-#         Prediction monitoring database not initialized. 
-#         Please start the ZMQ server and make some predictions first.
-#         """)
-#         return
-    
-#     # Get available runs
-#     runs = monitor.get_available_runs()
-#     if not runs:
-#         st.info("No prediction data available yet.")
-#         return
-    
-#     # Sidebar controls
-#     st.sidebar.header("Controls")
-#     selected_run = st.sidebar.selectbox("Select Run ID", runs)
-#     window_size = st.sidebar.selectbox(
-#         "Metrics Window Size",
-#         [10, 50, 100],
-#         index=1  # Default to 50
-#     )
-    
-#     update_interval = st.sidebar.number_input(
-#         "Update Interval (seconds)",
-#         min_value=1,
-#         max_value=60,
-#         value=5
-#     )
-    
-#     auto_refresh = st.sidebar.checkbox("Auto Refresh", value=True)
-    
-#     try:
-#         # Display summary metrics for selected window size
-#         st.subheader(f"Summary Metrics (Window Size: {window_size})")
-#         monitor.render_summary_metrics(selected_run, window_size)
-        
-#         # Load data for charts
-#         predictions_df = monitor.load_recent_predictions(selected_run)
-        
-#         if not predictions_df.empty:
-#             # Display plots
-#             st.subheader("Price Comparison")
-#             price_fig = monitor.plot_price_comparison(predictions_df)
-#             st.plotly_chart(price_fig, use_container_width=True)
-            
-#             st.subheader("Metrics History")
-#             metrics_df = monitor.load_metrics_history(selected_run)
-#             if not metrics_df.empty:
-#                 metrics_fig = monitor.plot_metrics_history(metrics_df)
-#                 st.plotly_chart(metrics_fig, use_container_width=True)
-#         else:
-#             st.warning("No predictions found for selected run.")
-        
-#         # Auto-refresh the page
-#         if auto_refresh:
-#             time.sleep(update_interval)
-#             st.rerun()
-            
-#     except Exception as e:
-#         st.error(f"Error loading data: {str(e)}")
-#         logging.error(f"Error in prediction monitoring page: {str(e)}")
-
-
-
 def prediction_monitoring_page():
-    st.title("Real-Time Prediction Monitoring")
-    
+    # Add CSS for tooltip
+    st.markdown("""
+        <style>
+        .header-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+        .info-icon {
+            color: #00ADB5;
+            font-size: 1.2rem;
+            cursor: help;
+            text-decoration: none;
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 500px;
+            background-color: #252830;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 15px;
+            position: absolute;
+            z-index: 9999;
+            top: -10px;
+            left: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border: 1px solid #333;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Header with info icon
+    st.markdown("""
+        <div class='header-container'>
+            <h2 style='color: #00ADB5; padding: 1rem 0; margin: 0;'>
+                Real-Time Prediction Monitoring
+            </h2>
+            <div class='tooltip'>
+                <span class='info-icon'>ℹ️</span>
+                <div class='tooltiptext'>
+                    We are using the prediction_history table for real time prediction
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     # Initialize monitoring
     db_path = "logs/trading_data.db"
     monitor = PredictionMonitoringPage(db_path)

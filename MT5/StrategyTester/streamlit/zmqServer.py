@@ -99,10 +99,13 @@ class MT5ZMQClient:
 
             # Initialize price predictor with configuration
             try:
+                model_name = MODEL_CONFIG.get('model_name', None)  # Get from config if specified
                 self.price_predictor = RealTimePricePredictor(
                     db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name']),
                     models_dir=self.models_dir,
-                    training_manager=self.training_manager  # Only pass the required parameters
+                    training_manager=self.training_manager,
+                    # model_name=model_name  # Pass optional model name
+                    model_name="decision_tree_multi_20250202_225508"
                 )
                 logging.info("Price predictor initialized successfully")
             except Exception as e:

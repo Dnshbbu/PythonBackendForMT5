@@ -7,32 +7,22 @@ from collections import deque
 from datetime import datetime
 from model_predictor import ModelPredictor
 import json
-from feature_config import TECHNICAL_FEATURES, ENTRY_FEATURES
+import sqlite3
 
 class RealTimePricePredictor:
     """
     Real-time price prediction system with consistent feature usage.
     """
     
-    # def __init__(self, db_path: str, models_dir: str, batch_size: int = 10):
-    #     """Initialize the predictor"""
-    #     self.model_predictor = ModelPredictor(db_path, models_dir)
-    #     self.batch_size = batch_size
-    #     self.data_buffer = deque(maxlen=batch_size)
-    #     self.last_prediction = None
-    #     self.models_dir = models_dir
-    #     self.setup_logging()
+    def __init__(self, db_path: str, models_dir: str, training_manager=None, model_name: Optional[str] = None):
+        """Initialize the predictor
         
-    #     # Load feature configuration
-    #     self.selected_features = self.load_feature_config()
-        
-    #     if self.model_predictor.model:
-    #         logging.info("Model loaded successfully")
-    #         logging.info(f"Number of features: {len(self.selected_features)}")
-    #         logging.info(f"Features: {self.selected_features}")
-
-    def __init__(self, db_path: str, models_dir: str, training_manager=None):
-        """Initialize the predictor"""
+        Args:
+            db_path: Path to the SQLite database
+            models_dir: Directory containing models
+            training_manager: Optional training manager instance
+            model_name: Optional specific model name to load
+        """
         self.model_predictor = ModelPredictor(db_path, models_dir)
         self.models_dir = models_dir
         self.setup_logging()
@@ -41,7 +31,17 @@ class RealTimePricePredictor:
         self.data_buffer = deque(maxlen=2)  # Keep current and previous data points
         
         self.training_manager = training_manager
-        self.selected_features = self.load_feature_config()
+        
+        # Load specific model if provided, otherwise load latest
+        if model_name:
+            self.model_predictor.load_model_by_name(model_name)
+            logging.info(f"Loaded specified model: {model_name}")
+        else:
+            self.model_predictor.load_latest_model()
+            logging.info("Loaded latest model")
+            
+        # Get features from model repository
+        self.selected_features = self.load_features_from_repository()
         
         if self.model_predictor.model:
             logging.info("Model loaded successfully")
@@ -55,59 +55,46 @@ class RealTimePricePredictor:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
 
-    # def load_feature_config(self) -> List[str]:
-    #     """Load feature configuration saved during training"""
-    #     config_path = os.path.join(self.models_dir, 'feature_config.json')
-    #     try:
-    #         with open(config_path, 'r') as f:
-    #             config = json.load(f)
-    #         return config['features']
-    #     except Exception as e:
-    #         logging.error(f"Error loading feature config: {e}")
-    #         # Return default features if config not found
-    #         return [
-    #             'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
-    #             'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
-    #             'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
-    #             'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore',
-    #             'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'
-    #         ]
-
-    def load_feature_config(self) -> List[str]:
-        """Load feature configuration with priority order"""
+    def load_features_from_repository(self) -> List[str]:
+        """Load features from model repository for current model"""
         try:
-            # 1. Try loading from config.json
-            config_path = os.path.join(os.path.dirname(self.models_dir), '_config.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config_data = json.load(f)
-                    if 'feature_columns' in config_data:
-                        logging.info(f"Loaded features from config.json: {len(config_data['feature_columns'])} features")
-                        return config_data['feature_columns']
-
-            # 2. Try loading from feature_config.py if config.json failed
-            try:
-                from feature_config import SELECTED_FEATURES
-                logging.info(f"Loaded features from feature_config.py: {len(SELECTED_FEATURES)} features")
-                return SELECTED_FEATURES
-            except ImportError as e:
-                logging.warning(f"Error importing feature_config.py: {str(e)}")
-            except Exception as e:
-                logging.warning(f"Error loading features from feature_config.py: {str(e)}")
-
-            # 3. Try to get from model attributes if both above failed
-            if hasattr(self.model_predictor.model, 'feature_names_'):
-                logging.info("Using feature names from model attributes")
-                return self.model_predictor.model.feature_names_
-
-            # Final fallback to default features
+            if self.model_predictor.current_model_name:
+                # Get features from repository for current model
+                cursor = sqlite3.connect(self.model_predictor.db_path).cursor()
+                cursor.execute("""
+                    SELECT features 
+                    FROM model_repository 
+                    WHERE model_name = ?
+                """, (self.model_predictor.current_model_name,))
+                result = cursor.fetchone()
+                
+                if result and result[0]:
+                    features = json.loads(result[0])
+                    logging.info(f"Loaded {len(features)} features from repository for model {self.model_predictor.current_model_name}")
+                    return features
+            
+            # Fallback to default features if repository lookup fails
             logging.warning("Using default feature list")
             return ['Price', 'Score', 'ExitScore']
-
+            
         except Exception as e:
-            logging.error(f"Error in load_feature_config: {str(e)}")
-            # Return minimal default features if everything fails
+            logging.error(f"Error loading features from repository: {e}")
             return ['Price', 'Score', 'ExitScore']
+
+    def load_model_by_name(self, model_name: str) -> None:
+        """Load a specific model and its features
+        
+        Args:
+            model_name: Name of the model to load
+        """
+        try:
+            self.model_predictor.load_model_by_name(model_name)
+            # Update features from repository for new model
+            self.selected_features = self.load_features_from_repository()
+            logging.info(f"Loaded model {model_name} with {len(self.selected_features)} features")
+        except Exception as e:
+            logging.error(f"Error loading model {model_name}: {e}")
+            raise
 
     def split_factor_string(self, column_name: str, factor_string: str) -> Dict[str, any]:
         """Split a factor string into individual components"""
@@ -212,8 +199,20 @@ class RealTimePricePredictor:
             # Make prediction for next price
             prediction = self.model_predictor.model.predict(features)
             
-            # Get feature importance
-            feature_importance = self.model_predictor.model.get_feature_importance()
+            # Get feature importance based on model type
+            try:
+                # First try get_feature_importance() method (e.g., for XGBoost)
+                feature_importance = self.model_predictor.model.get_feature_importance()
+            except (AttributeError, Exception):
+                try:
+                    # Try feature_importances_ attribute (e.g., for RandomForest, DecisionTree)
+                    importances = self.model_predictor.model.feature_importances_
+                    feature_importance = dict(zip(self.selected_features, importances))
+                except (AttributeError, Exception) as e:
+                    logging.warning(f"Could not get feature importance: {e}")
+                    # Fallback to equal importance if no method available
+                    feature_importance = {feature: 1.0/len(self.selected_features) 
+                                       for feature in self.selected_features}
             
             # Get top features
             top_features = dict(sorted(
@@ -236,7 +235,8 @@ class RealTimePricePredictor:
                 'confidence': float(confidence),
                 'is_confident': bool(confidence >= 0.8),
                 'top_features': top_features,
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'model_type': type(self.model_predictor.model).__name__
             }
             
             return result
@@ -248,38 +248,34 @@ class RealTimePricePredictor:
     def add_data_point(self, data_point: Dict) -> Optional[Dict]:
         """Process single data point and return prediction for next price"""
         try:
-            # Check and reload model if needed
-            if self.training_manager is not None:
-                try:
-                    training_status = self.training_manager.get_latest_training_status()
-                    if training_status.get('status') == 'completed':
-                        latest_model = training_status.get('model_path')
-                        if latest_model and latest_model != getattr(self.model_predictor, 'current_model_name', None):
-                            logging.info(f"New model available, reloading: {latest_model}")
-                            self.model_predictor.load_latest_model()
-                except Exception as e:
-                    logging.warning(f"Error checking training status: {e}")
+            # # Check and reload model if needed
+            # if self.training_manager is not None:
+            #     try:
+            #         training_status = self.training_manager.get_latest_training_status()
+            #         if training_status.get('status') == 'completed':
+            #             latest_model = training_status.get('model_path')
+            #             if latest_model and latest_model != self.model_predictor.current_model_name:
+            #                 logging.info(f"New model available, reloading: {latest_model}")
+            #                 self.model_predictor.load_model_by_name(latest_model)
+            #                 # Update features for new model
+            #                 self.selected_features = self.load_features_from_repository()
+            #     except Exception as e:
+            #         logging.warning(f"Error checking training status: {e}")
 
-            # Process raw data
+            # Rest of the method remains the same
             processed_data = self.process_raw_data(data_point)
             current_price = float(data_point.get('Price', 0))
             
-            # Add to data buffer
             self.data_buffer.append({
                 'processed_data': processed_data,
                 'price': current_price,
                 'timestamp': data_point.get('Time')
             })
             
-            # Only make prediction if we have previous data point
             if len(self.data_buffer) >= 1:
-                # Prepare features from current data point
                 features = self.prepare_features(processed_data)
-                
-                # Make prediction for next price
                 prediction_result = self.make_prediction(features)
                 
-                # Add previous price info if available for comparison
                 if len(self.data_buffer) == 2:
                     previous_price = self.data_buffer[0]['price']
                     price_change = current_price - previous_price
@@ -289,16 +285,9 @@ class RealTimePricePredictor:
                         'price_change': price_change,
                     })
                 
-                # Log prediction details
-                logging.info(f"Time: {data_point.get('Time')}")
-                logging.info(f"Current Price: {current_price}")
-                logging.info(f"Predicted Next Price: {prediction_result['prediction']}")
-                
                 return prediction_result
-            
-            return None
-            
+                
         except Exception as e:
-            logging.error(f"Error processing data point: {e}")
+            logging.error(f"Error in add_data_point: {e}")
             raise
 

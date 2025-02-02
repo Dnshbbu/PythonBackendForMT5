@@ -403,7 +403,7 @@ def main():
         models_dir = os.path.join(current_dir, 'models')
         
         # Optional: Specify model name
-        model_name = "random_forest_multi_20250202_105717"  # Replace with your model name or None for latest
+        model_name = "decision_tree_multi_20250202_225524"  # Replace with your model name or None for latest
         
         # Initialize predictor with optional model name
         predictor = HistoricalPredictor(db_path, models_dir, model_name)

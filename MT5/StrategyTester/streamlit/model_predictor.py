@@ -185,7 +185,7 @@ class ModelPredictor:
             
             # 1. Try loading from config.json
             try:
-                config_path = os.path.join(os.path.dirname(self.models_dir), 'model_config.json')
+                config_path = os.path.join(os.path.dirname(self.models_dir), '_config.json')
                 if os.path.exists(config_path):
                     with open(config_path, 'r') as f:
                         config_data = json.load(f)

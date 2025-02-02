@@ -157,10 +157,10 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
         
         # Get configurations
         configurations = [
-            {'model_type': 'xgboost', 'prediction_horizon': 5}
+            # {'model_type': 'xgboost', 'prediction_horizon': 5}
             # {'model_type': 'decision_tree', 'prediction_horizon': 1},
             # {'model_type': 'random_forest', 'prediction_horizon': 1},
-            # {'model_type': 'random_forest', 'prediction_horizon': 5}
+            {'model_type': 'random_forest', 'prediction_horizon': 5}
         ]
         
         results = {}

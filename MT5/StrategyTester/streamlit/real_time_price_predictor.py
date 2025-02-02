@@ -74,48 +74,40 @@ class RealTimePricePredictor:
     #         ]
 
     def load_feature_config(self) -> List[str]:
-        """Load feature configuration saved during training"""
+        """Load feature configuration with priority order"""
         try:
-            # First try to load from feature_config.json
-            config_path = os.path.join(self.models_dir, 'feature_config.json')
+            # 1. Try loading from config.json
+            config_path = os.path.join(os.path.dirname(self.models_dir), '_config.json')
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
-                    config = json.load(f)
-                return config['features']
-                
-            # If not found, try to get features from the latest model's feature importance file
-            model_files = [f for f in os.listdir(self.models_dir) if f.endswith('_feature_importance.json')]
-            if model_files:
-                latest_file = max(model_files, key=lambda x: os.path.getctime(os.path.join(self.models_dir, x)))
-                with open(os.path.join(self.models_dir, latest_file), 'r') as f:
-                    features = list(json.load(f).keys())
-                
-                # Save these features as feature_config.json for future use
-                with open(config_path, 'w') as f:
-                    json.dump({'features': features}, f, indent=4)
-                
-                return features
-                
-            # If no feature files found, use default features from xgboost_train_model.py
-            # from xgboost_train_model import TECHNICAL_FEATURES, ENTRY_FEATURES
-            default_features = TECHNICAL_FEATURES + ENTRY_FEATURES
-            
-            # Save default features as feature_config.json
-            with open(config_path, 'w') as f:
-                json.dump({'features': default_features}, f, indent=4)
-                
-            return default_features
-            
+                    config_data = json.load(f)
+                    if 'feature_columns' in config_data:
+                        logging.info(f"Loaded features from config.json: {len(config_data['feature_columns'])} features")
+                        return config_data['feature_columns']
+
+            # 2. Try loading from feature_config.py if config.json failed
+            try:
+                from feature_config import SELECTED_FEATURES
+                logging.info(f"Loaded features from feature_config.py: {len(SELECTED_FEATURES)} features")
+                return SELECTED_FEATURES
+            except ImportError as e:
+                logging.warning(f"Error importing feature_config.py: {str(e)}")
+            except Exception as e:
+                logging.warning(f"Error loading features from feature_config.py: {str(e)}")
+
+            # 3. Try to get from model attributes if both above failed
+            if hasattr(self.model_predictor.model, 'feature_names_'):
+                logging.info("Using feature names from model attributes")
+                return self.model_predictor.model.feature_names_
+
+            # Final fallback to default features
+            logging.warning("Using default feature list")
+            return ['Price', 'Score', 'ExitScore']
+
         except Exception as e:
-            logging.warning(f"Error loading feature config: {e}")
-            # Return default feature list if everything else fails
-            return [
-                'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
-                'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
-                'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
-                'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore',
-                'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'
-            ]
+            logging.error(f"Error in load_feature_config: {str(e)}")
+            # Return minimal default features if everything fails
+            return ['Price', 'Score', 'ExitScore']
 
     def split_factor_string(self, column_name: str, factor_string: str) -> Dict[str, any]:
         """Split a factor string into individual components"""

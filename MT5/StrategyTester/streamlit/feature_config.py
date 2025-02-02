@@ -5,16 +5,16 @@ from typing import List
 
 # Technical Analysis Features
 TECHNICAL_FEATURES = [
-    'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore',
-    'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
-    'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
-    'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore'
+    'Factors_maScore', 'Factors_rsiScore', 'Factors_macdScore', 'Factors_stochScore'
+    # 'Factors_bbScore', 'Factors_atrScore', 'Factors_sarScore', 'Factors_ichimokuScore',
+    # 'Factors_adxScore', 'Factors_volumeScore', 'Factors_mfiScore', 'Factors_priceMAScore',
+    # 'Factors_emaScore', 'Factors_emaCrossScore', 'Factors_cciScore'
 ]
 
 # Entry Strategy Features
 ENTRY_FEATURES = [
-    'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR'
-    # 'EntryScore_FVG', 'EntryScore_Candle', 'EntryScore_Pullback'
+    'EntryScore_AVWAP', 'EntryScore_EMA', 'EntryScore_SR',
+    'EntryScore_FVG', 'EntryScore_Candle', 'EntryScore_Pullback'
 ]
 
 

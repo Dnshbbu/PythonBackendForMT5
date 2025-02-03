@@ -588,21 +588,63 @@ class MT5ZMQClient:
             msg_type = data.get("type", "").strip().lower()
             msg_content = data.get("msg")
 
-            if run_id and msg_type and msg_content:
-                if msg_type == 'draw_plot':
-                    self.draw_plot(run_id)
-                elif msg_type == 'sequenceofevents':
-                    await self.handle_sequence_of_events(run_id, msg_content)
-                elif msg_type == 'alldetails':
-                    await self.handle_all_details(run_id, msg_content)
+            if run_id and msg_type:
+                if msg_type == "test_period":
+                    # Store test period information
+                    self.test_start_date = datetime.strptime(data.get("start"), "%Y.%m.%d %H:%M:%S")
+                    self.test_end_date = datetime.strptime(data.get("end"), "%Y.%m.%d %H:%M:%S")
+                    logging.info(f"Test period: {self.test_start_date} to {self.test_end_date}")
+                elif msg_type == "ea_complete":
+                    # Process any remaining data
+                    await self.process_remaining_data(run_id)
+                    
+                    # Send completion signal back to MT5
+                    completion_msg = {
+                        "type": "complete",
+                        "timestamp": datetime.now().isoformat(),
+                        "run_id": run_id
+                    }
+                    await self.send_to_mt5(json.dumps(completion_msg))
+                    logging.info(f"Sent completion signal to MT5 for run_id: {run_id}")
                 else:
-                    await self.handle_csv_data(run_id, msg_type, msg_content)
+                    # Handle other existing message types
+                    if msg_type == 'draw_plot':
+                        self.draw_plot(run_id)
+                    elif msg_type == 'sequenceofevents':
+                        await self.handle_sequence_of_events(run_id, msg_content)
+                    elif msg_type == 'alldetails':
+                        await self.handle_all_details(run_id, msg_content)
+                    else:
+                        await self.handle_csv_data(run_id, msg_type, msg_content)
             
             return True
 
         except Exception as e:
             logging.error(f"Error processing message: {str(e)}\nMessage: {message}")
             return False
+
+    async def process_remaining_data(self, run_id):
+        """Process any remaining data before shutdown"""
+        try:
+            # Process any remaining batched messages
+            if hasattr(self, 'message_batch') and self.message_batch:
+                await self.handle_csv_data(run_id, "PriceAndEquity", self.message_batch)
+                self.message_batch = []
+            
+            # Final data processing tasks
+            if hasattr(self, 'training_manager'):
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    self.training_manager.cleanup_invalid_metrics
+                )
+            
+            # Draw final plot if enabled
+            if hasattr(self, 'draw_plot'):
+                self.draw_plot(run_id)
+            
+            logging.info(f"Completed processing remaining data for run_id: {run_id}")
+        except Exception as e:
+            logging.error(f"Error processing remaining data: {e}")
 
     async def send_to_mt5(self, message):
         try:

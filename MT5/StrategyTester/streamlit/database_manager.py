@@ -319,6 +319,12 @@ class DatabaseManager:
                 logging.warning("Empty data received for preprocessing")
                 return processed_data
                 
+            # Ensure we have at least the basic required fields
+            required_fields = ['Date', 'Time', 'Symbol', 'Price']
+            if not all(field in data for field in required_fields):
+                logging.warning(f"Missing required fields in data: {required_fields}")
+                return processed_data
+            
             # Copy and convert basic fields
             for key, value in data.items():
                 if value is None:
@@ -328,9 +334,15 @@ class DatabaseManager:
                 try:
                     if isinstance(value, str) and value.strip():
                         if '.' in value:
-                            processed_data[key] = float(value)
+                            try:
+                                processed_data[key] = float(value)
+                            except ValueError:
+                                processed_data[key] = value
                         else:
-                            processed_data[key] = int(value)
+                            try:
+                                processed_data[key] = int(value)
+                            except ValueError:
+                                processed_data[key] = value
                     else:
                         processed_data[key] = value
                 except ValueError:
@@ -384,6 +396,9 @@ class DatabaseManager:
                             processed_val = val
                         
                         processed_data[new_column] = processed_val
+            
+            if not processed_data:
+                logging.warning("No valid data after preprocessing")
             
             return processed_data
             
@@ -510,11 +525,17 @@ class DatabaseManager:
         """Create table for a specific strategy with dynamic column handling"""
         conn = None
         try:
+            # Validate input data
+            if not sample_data:
+                raise ValueError("Empty sample data provided for table creation")
+            
             conn = self.create_connection()
             cursor = conn.cursor()
             
             # Process sample data to get all possible columns
             processed_data = self.preprocess_data(sample_data)
+            if not processed_data:
+                raise ValueError("No valid columns found after preprocessing data")
             
             # Sanitize table name
             table_name = self.sanitize_table_name(f"strategy_{run_id}")
@@ -534,6 +555,9 @@ class DatabaseManager:
                     col_type = self.get_sql_type(value)
                     columns.append(f'"{col_name}" {col_type}')
                 
+                if not columns:
+                    raise ValueError("No valid columns found for table creation")
+                    
                 create_table_query = f"""
                 CREATE TABLE IF NOT EXISTS "{table_name}" (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -557,39 +581,60 @@ class DatabaseManager:
             if conn:
                 conn.close()
 
-    def insert_data(self, table_name: str, data: Dict[str, Any]):
+    def insert_data(self, table_name: str, data: Dict[str, Any] | List[Dict[str, Any]]):
         """
-        Insert preprocessed data into the specified table
+        Insert preprocessed data into the specified table, supporting both single and batch inserts
         
         Args:
             table_name: Name of the target table
-            data: Data to insert
+            data: Single data dictionary or list of data dictionaries to insert
         """
         conn = None
         try:
-            processed_data = self.preprocess_data(data)
-            
+            # Convert single dict to list for uniform processing
+            data_list = [data] if isinstance(data, dict) else data
+            if not data_list:
+                logging.warning("No data to insert")
+                return
+
+            # Process all data first to ensure we have all columns
+            processed_data_list = []
+            all_columns = set()
+            for data_item in data_list:
+                processed_data = self.preprocess_data(data_item)
+                processed_data_list.append(processed_data)
+                all_columns.update(processed_data.keys())
+
+            # Check for new columns
             if table_name in self.table_columns:
-                new_columns = set(processed_data.keys()) - self.table_columns[table_name]
+                new_columns = all_columns - self.table_columns[table_name]
                 if new_columns:
                     self.alter_table_add_columns(table_name, list(new_columns))
-            
+
             conn = self.create_connection()
             cursor = conn.cursor()
-            
-            columns = list(processed_data.keys())
+
+            # Prepare the insert query
+            columns = list(all_columns)
             placeholders = ','.join(['?' for _ in columns])
-            
             insert_query = f"""
             INSERT INTO "{table_name}" 
             ({','.join(f'"{col}"' for col in columns)}) 
             VALUES ({placeholders})
             """
-            
-            cursor.execute(insert_query, list(processed_data.values()))
+
+            # Prepare batch values
+            batch_values = []
+            for processed_data in processed_data_list:
+                # Ensure all columns are present in each row
+                row_values = [processed_data.get(col, None) for col in columns]
+                batch_values.append(row_values)
+
+            # Execute batch insert
+            cursor.executemany(insert_query, batch_values)
             conn.commit()
-            logging.info(f"Inserted new row into {table_name}")
-            
+            logging.info(f"Batch inserted {len(batch_values)} rows into {table_name}")
+
         except Exception as e:
             logging.error(f"Error inserting data: {e}")
             raise

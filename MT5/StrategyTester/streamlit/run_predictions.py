@@ -403,13 +403,16 @@ def main():
         models_dir = os.path.join(current_dir, 'models')
         
         # Optional: Specify model name
-        model_name = "decision_tree_multi_20250202_225524"  # Replace with your model name or None for latest
+        model_name = "xgboost_single_20250204_004327"  # Replace with your model name or None for latest
         
         # Initialize predictor with optional model name
         predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions
-        table_name = "strategy_TRIP_NAS_10032544"  # Replace with your table name
+        # table_name = "strategy_TRIP_NAS_10032544"  # Replace with your table name
+        table_name = "strategy_TRIP_NAS_10018211"  # Replace with your table name
+
+
         run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         results_df = predictor.run_predictions(table_name)

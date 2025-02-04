@@ -145,28 +145,45 @@ class MT5ZMQClient:
             
             # Initialize components if not exists
             if not hasattr(self, 'price_predictor'):
-                db_path = os.path.join(self.logs_dir, 'trading_data.db')
+                db_path = os.path.join(self.logs_dir, DATABASE_CONFIG['db_name'])
                 self.price_predictor = RealTimePricePredictor(
                     db_path=db_path, 
-                    models_dir=self.models_dir, 
-                    batch_size=10,
+                    models_dir=self.models_dir,
                     training_manager=self.training_manager
                 )
                     
             if not hasattr(self, 'db_manager'):
-                db_path = os.path.join(self.logs_dir, 'trading_data.db')
-                self.db_manager = DatabaseManager(db_path)
+                self.db_manager = DatabaseManager()
                 
             if not hasattr(self, 'prediction_tracker'):
-                db_path = os.path.join(self.logs_dir, 'trading_data.db')
+                db_path = os.path.join(self.logs_dir, DATABASE_CONFIG['db_name'])
                 self.prediction_tracker = PredictionTracker(db_path)
                 
-            # Process the message content into a dictionary
-            data = {}
-            for item in msg_content.split(','):
-                if ':' in item:
-                    key, value = item.split(':', 1)
-                    data[key.strip()] = value.strip()
+            # Handle both single messages and batched messages
+            messages_to_process = []
+            if isinstance(msg_content, list):
+                messages_to_process.extend(msg_content)
+            else:
+                messages_to_process.append(msg_content)
+            
+            if not messages_to_process:
+                logging.warning("No messages to process")
+                return
+            
+            # Process messages into data dictionaries
+            data_list = []
+            for msg in messages_to_process:
+                data = {}
+                for item in msg.split(','):
+                    if ':' in item:
+                        key, value = item.split(':', 1)
+                        data[key.strip()] = value.strip()
+                if data:  # Only add non-empty dictionaries
+                    data_list.append(data)
+
+            if not data_list:
+                logging.warning("No valid data extracted from messages")
+                return
             
             # Handle CSV operations
             with open(csv_filename, 'a', newline='') as csvfile:
@@ -185,104 +202,108 @@ class MT5ZMQClient:
                     else:
                         with open(csv_filename, 'r') as f:
                             self.headers[csv_filename] = next(csv.reader(f))
-                    return
                 
-                # Write row data
-                row_data = []
-                for header in self.headers[csv_filename]:
-                    if header in data:
-                        row_data.append(data[header])
-                    else:
-                        row_data.append('')
-                csv_writer.writerow(row_data)
+                # Write rows data
+                for data in data_list:
+                    row_data = []
+                    for header in self.headers[csv_filename]:
+                        if header in data:
+                            row_data.append(data[header])
+                        else:
+                            row_data.append('')
+                    csv_writer.writerow(row_data)
             
-            # Handle DB operations
+            # Handle DB operations in batch
             try:
-                table_name = self.db_manager.create_table_for_strategy(run_id, data)
-                self.db_manager.insert_data(table_name, data)
-                
-                # # Check if retraining is needed and trigger if necessary
-                # await asyncio.get_event_loop().run_in_executor(
-                #     None,
-                #     self.training_manager.check_and_trigger_training,
-                #     table_name
-                # )
-                
+                if data_list:  # Only proceed if we have valid data
+                    table_name = self.db_manager.create_table_for_strategy(run_id, data_list[0])
+                    self.db_manager.insert_data(table_name, data_list)
             except Exception as db_error:
                 logging.error(f"Database operation failed: {db_error}")
                 logging.exception(db_error)
             
-            # Make real-time prediction
-            try:
-                prediction_result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    self.price_predictor.add_data_point,
-                    data
-                )
-                
-                if prediction_result is not None:
-                    # Get latest training status
-                    training_status = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        self.training_manager.get_latest_training_status
-                    )
-
-                    # Get current model name
-                    current_model = getattr(self.price_predictor.model_predictor, 'current_model_name', 'unknown')
-                    
-                    # Create prediction message with training status
-                    prediction_message = {
-                        "type": "price_prediction",
-                        "run_id": run_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "prediction": float(prediction_result['prediction']),
-                        "confidence": float(prediction_result['confidence']),
-                        "is_confident": bool(prediction_result['is_confident']),
-                        "current_price": float(data.get('Price', 0)),
-                        "top_features": prediction_result['top_features'],
-                        "model_info": {
-                            "current_model": current_model,
-                            "is_training": self.training_manager.is_training,
-                            "last_training": training_status
-                        }
-                    }
-                    
-                    # Record prediction vs actual
-                    actual_price = float(data.get('Price', 0))
+            # Process all data points first
+            for data in data_list[:-1]:  # Process all but the last data point without sending predictions
+                try:
                     await asyncio.get_event_loop().run_in_executor(
                         None,
-                        self.prediction_tracker.record_prediction,
-                        run_id,
-                        actual_price,
-                        prediction_message
+                        self.price_predictor.add_data_point,
+                        data
                     )
-                    
-                    # Get latest metrics
-                    metrics = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        self.prediction_tracker.get_latest_metrics,
-                        run_id
-                    )
-                    
-                    # Add metrics to prediction message
-                    prediction_message["performance_metrics"] = metrics
-                    
-                    # Send prediction to MT5
-                    await self.send_to_mt5(json.dumps(prediction_message))
-                    logging.info(f"Sent prediction to MT5 using model {current_model}: "
-                            f"{prediction_result['prediction']:.4f} "
-                            f"(confidence: {prediction_result['confidence']:.4f})")
+                except Exception as pred_error:
+                    logging.error(f"Processing data point failed: {pred_error}")
+                    logging.exception(pred_error)
             
-            except Exception as pred_error:
-                logging.error(f"Prediction failed: {pred_error}")
-                logging.exception(pred_error)
+            # Make prediction only for the last data point
+            if data_list:
+                try:
+                    last_data = data_list[-1]
+                    prediction_result = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        self.price_predictor.add_data_point,
+                        last_data
+                    )
+                    
+                    if prediction_result is not None:
+                        # Get latest training status
+                        training_status = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            self.training_manager.get_latest_training_status
+                        )
+
+                        # Get current model name
+                        current_model = getattr(self.price_predictor.model_predictor, 'current_model_name', 'unknown')
+                        
+                        # Create prediction message with training status
+                        prediction_message = {
+                            "type": "price_prediction",
+                            "run_id": run_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "prediction": float(prediction_result['prediction']),
+                            "confidence": float(prediction_result['confidence']),
+                            "is_confident": bool(prediction_result['is_confident']),
+                            "current_price": float(last_data.get('Price', 0)),
+                            "top_features": prediction_result['top_features'],
+                            "model_info": {
+                                "current_model": current_model,
+                                "is_training": self.training_manager.is_training,
+                                "last_training": training_status
+                            }
+                        }
+                        
+                        # Record prediction vs actual
+                        actual_price = float(last_data.get('Price', 0))
+                        await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            self.prediction_tracker.record_prediction,
+                            run_id,
+                            actual_price,
+                            prediction_message
+                        )
+                        
+                        # Get latest metrics
+                        metrics = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            self.prediction_tracker.get_latest_metrics,
+                            run_id
+                        )
+                        
+                        # Add metrics to prediction message
+                        prediction_message["performance_metrics"] = metrics
+                        
+                        # Send prediction to MT5
+                        await self.send_to_mt5(json.dumps(prediction_message))
+                        logging.info(f"Sent prediction to MT5 using model {current_model}: "
+                                f"{prediction_result['prediction']:.4f} "
+                                f"(confidence: {prediction_result['confidence']:.4f})")
+                
+                except Exception as pred_error:
+                    logging.error(f"Final prediction failed: {pred_error}")
+                    logging.exception(pred_error)
             
         except Exception as e:
             logging.error(f"Error handling all details data: {e}")
             logging.exception(e)
-
-
-
 
     async def cleanup(self):
         logging.info("Cleaning up resources...")

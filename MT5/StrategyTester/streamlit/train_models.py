@@ -341,8 +341,12 @@ if __name__ == "__main__":
 
         #strategy_TRIP_NAS_10007456 -> Jan 1 to Jan 31, 2022
         
+        #strategy_TRIP_NAS_10010462 -> Jan 1 to Mar 31, 2022
+        #strategy_TRIP_NAS_10016827 -> April 1 to June 30, 2022
+        #strategy_TRIP_NAS_10011351 -> July 1 to September 30, 2022
+        
         # 1. Single table training
-        single_table = "strategy_TRIP_NAS_10007456"
+        single_table = "strategy_TRIP_NAS_10010462"
         single_results = train_single_table(single_table)
         logging.info("\nSingle Table Training Results:================================================================")
         for model_key, result in single_results.items():

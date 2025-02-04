@@ -161,7 +161,8 @@ class MT5ZMQClient:
                 
             # Handle both single messages and batched messages
             messages_to_process = []
-            if isinstance(msg_content, list):
+            is_batch = isinstance(msg_content, list)
+            if is_batch:
                 messages_to_process.extend(msg_content)
             else:
                 messages_to_process.append(msg_content)
@@ -222,29 +223,17 @@ class MT5ZMQClient:
                 logging.error(f"Database operation failed: {db_error}")
                 logging.exception(db_error)
             
-            # Process all data points first
-            for data in data_list[:-1]:  # Process all but the last data point without sending predictions
+            # Process all data points
+            for data in data_list:
                 try:
-                    await asyncio.get_event_loop().run_in_executor(
+                    prediction_result = await asyncio.get_event_loop().run_in_executor(
                         None,
                         self.price_predictor.add_data_point,
                         data
                     )
-                except Exception as pred_error:
-                    logging.error(f"Processing data point failed: {pred_error}")
-                    logging.exception(pred_error)
-            
-            # Make prediction only for the last data point
-            if data_list:
-                try:
-                    last_data = data_list[-1]
-                    prediction_result = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        self.price_predictor.add_data_point,
-                        last_data
-                    )
                     
-                    if prediction_result is not None:
+                    # Only send prediction if it's not a batch
+                    if prediction_result is not None and not is_batch:
                         # Get latest training status
                         training_status = await asyncio.get_event_loop().run_in_executor(
                             None,
@@ -262,7 +251,7 @@ class MT5ZMQClient:
                             "prediction": float(prediction_result['prediction']),
                             "confidence": float(prediction_result['confidence']),
                             "is_confident": bool(prediction_result['is_confident']),
-                            "current_price": float(last_data.get('Price', 0)),
+                            "current_price": float(data.get('Price', 0)),
                             "top_features": prediction_result['top_features'],
                             "model_info": {
                                 "current_model": current_model,
@@ -272,7 +261,7 @@ class MT5ZMQClient:
                         }
                         
                         # Record prediction vs actual
-                        actual_price = float(last_data.get('Price', 0))
+                        actual_price = float(data.get('Price', 0))
                         await asyncio.get_event_loop().run_in_executor(
                             None,
                             self.prediction_tracker.record_prediction,
@@ -298,7 +287,7 @@ class MT5ZMQClient:
                                 f"(confidence: {prediction_result['confidence']:.4f})")
                 
                 except Exception as pred_error:
-                    logging.error(f"Final prediction failed: {pred_error}")
+                    logging.error(f"Processing data point failed: {pred_error}")
                     logging.exception(pred_error)
             
         except Exception as e:

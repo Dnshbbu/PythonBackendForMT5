@@ -164,237 +164,18 @@ class TimeSeriesModelTrainer:
         tscv = TimeSeriesSplit(n_splits=n_splits)
         return list(tscv.split(X))
 
-
-    # def train_model(self, X: pd.DataFrame, y: pd.Series, 
-    #            model_params: Optional[Dict] = None,
-    #            existing_model: Optional[Any] = None) -> Tuple[Any, Dict]:
-    #     """
-    #     Train model with support for incremental learning
-        
-    #     Args:
-    #         X: Feature DataFrame
-    #         y: Target Series
-    #         model_params: Model parameters dictionary
-    #         existing_model: Optional existing model for incremental training
-            
-    #     Returns:
-    #         Tuple of (model, metrics)
-    #     """
-    #     try:
-    #         from xgboost import XGBRegressor, DMatrix
-            
-    #         if model_params is None:
-    #             model_params = {
-    #                 'objective': 'reg:squarederror',
-    #                 'n_estimators': 100,  # Base number of trees
-    #                 'learning_rate': 0.05,
-    #                 'max_depth': 6,
-    #                 'early_stopping_rounds': 10
-    #             }
-            
-    #         if existing_model is not None and isinstance(existing_model, XGBRegressor):
-    #             logging.info("Performing incremental training with existing model")
-                
-    #             # Get current number of trees
-    #             current_n_trees = existing_model.n_estimators
-                
-    #             # Set number of new trees to add
-    #             n_additional_trees = 50  # You can adjust this number
-    #             model_params['n_estimators'] = n_additional_trees
-                
-    #             # Create DMatrix for training
-    #             dtrain = DMatrix(X, label=y)
-                
-    #             # Get existing model's booster
-    #             existing_booster = existing_model.get_booster()
-                
-    #             # Continue training from the existing model
-    #             model = XGBRegressor(**model_params)
-    #             model.fit(X, y,
-    #                     xgb_model=existing_booster,  # Use existing model as starting point
-    #                     verbose=False)
-                
-    #             training_type = 'incremental'
-    #             total_trees = current_n_trees + n_additional_trees
-                
-    #         else:
-    #             logging.info("Performing full training (no valid existing model)")
-    #             model = XGBRegressor(**model_params)
-    #             model.fit(X, y, verbose=False)
-    #             training_type = 'full'
-    #             total_trees = model_params['n_estimators']
-            
-    #         # Calculate metrics
-    #         predictions = model.predict(X)
-    #         mse = np.mean((y - predictions) ** 2)
-    #         r2 = 1 - (np.sum((y - predictions) ** 2) / np.sum((y - np.mean(y)) ** 2))
-            
-    #         metrics = {
-    #             'rmse': float(np.sqrt(mse)),
-    #             'r2': float(r2),
-    #             'training_samples': len(X),
-    #             'training_type': training_type,
-    #             'n_trees': total_trees,
-    #             'training_period': {
-    #                 'start': X.index.min().isoformat(),
-    #                 'end': X.index.max().isoformat()
-    #             }
-    #         }
-            
-    #         return model, metrics
-        
-    #     except Exception as e:
-    #         logging.error(f"Error in train_model: {str(e)}")
-    #         logging.exception("Detailed traceback:")
-    #         raise
-
-
-    # def train_model(self, X: pd.DataFrame, y: pd.Series, 
-    #         model_params: Optional[Dict] = None,
-    #         existing_model: Optional[Any] = None) -> Tuple[Any, Dict]:
-    #     """
-    #     Train model with support for incremental learning
-        
-    #     Args:
-    #         X: Feature DataFrame
-    #         y: Target Series
-    #         model_params: Model parameters dictionary
-    #         existing_model: Optional existing model for incremental training
-            
-    #     Returns:
-    #         Tuple of (model, metrics)
-    #     """
-    #     try:
-    #         if not model_params:
-    #             model_params = {}
-
-    #         # Determine model type from parameters
-    #         is_xgboost = model_params.get('objective') == 'reg:squarederror'
-            
-    #         if is_xgboost:
-    #             from xgboost import XGBRegressor
-    #             from sklearn.model_selection import train_test_split
-                
-    #             default_params = {
-    #                 'objective': 'reg:squarederror',
-    #                 'n_estimators': 1000,
-    #                 'learning_rate': 0.05,
-    #                 'max_depth': 6,
-    #                 'subsample': 0.8,
-    #                 'colsample_bytree': 0.8,
-    #                 'min_child_weight': 1
-    #             }
-    #             # Update default params with provided params
-    #             model_params = {**default_params, **model_params}
-                
-    #             if existing_model is not None and isinstance(existing_model, XGBRegressor):
-    #                 logging.info("Performing incremental training with existing model")
-    #                 current_n_trees = existing_model.n_estimators
-    #                 n_additional_trees = 50
-    #                 model_params['n_estimators'] = n_additional_trees
-                    
-    #                 # Split data for validation
-    #                 X_train, X_val, y_train, y_val = train_test_split(
-    #                     X, y, test_size=0.2, random_state=42, shuffle=False
-    #                 )
-                    
-    #                 # Get existing model's booster
-    #                 try:
-    #                     existing_booster = existing_model.get_booster()
-    #                 except Exception as e:
-    #                     logging.warning(f"Could not get booster from existing model: {e}")
-    #                     existing_booster = None
-                    
-    #                 model = XGBRegressor(**model_params)
-    #                 fit_params = {
-    #                     'eval_set': [(X_val, y_val)],
-    #                     'verbose': False
-    #                 }
-                    
-    #                 if existing_booster is not None:
-    #                     fit_params['xgb_model'] = existing_booster
-                    
-    #                 model.fit(X_train, y_train, **fit_params)
-                    
-    #                 training_type = 'incremental'
-    #                 total_trees = current_n_trees + n_additional_trees
-                    
-    #             else:
-    #                 logging.info("Performing full training (no valid existing model)")
-    #                 # Split data for validation
-    #                 X_train, X_val, y_train, y_val = train_test_split(
-    #                     X, y, test_size=0.2, random_state=42, shuffle=False
-    #                 )
-                    
-    #                 model = XGBRegressor(**model_params)
-    #                 model.fit(X_train, y_train,
-    #                         eval_set=[(X_val, y_val)],
-    #                         verbose=False)
-                            
-    #                 training_type = 'full'
-    #                 total_trees = model_params['n_estimators']
-                    
-    #         else:
-    #             # Decision Tree specific implementation
-    #             from sklearn.tree import DecisionTreeRegressor
-                
-    #             default_params = {
-    #                 'max_depth': 6,
-    #                 'min_samples_split': 2,
-    #                 'min_samples_leaf': 1
-    #             }
-    #             # Update default params with provided params
-    #             model_params = {**default_params, **model_params}
-                
-    #             logging.info("Training Decision Tree model")
-    #             model = DecisionTreeRegressor(**model_params)
-    #             model.fit(X, y)
-    #             training_type = 'full'
-                
-    #         # Calculate metrics
-    #         predictions = model.predict(X)
-    #         mse = np.mean((y - predictions) ** 2)
-    #         r2 = 1 - (np.sum((y - predictions) ** 2) / np.sum((y - np.mean(y)) ** 2))
-            
-    #         metrics = {
-    #             'rmse': float(np.sqrt(mse)),
-    #             'r2': float(r2),
-    #             'training_samples': len(X),
-    #             'training_type': training_type,
-    #             'training_period': {
-    #                 'start': X.index.min().isoformat(),
-    #                 'end': X.index.max().isoformat()
-    #             }
-    #         }
-            
-    #         # Add model-specific metrics
-    #         if is_xgboost:
-    #             metrics['n_trees'] = total_trees
-    #             # Add validation metrics if available
-    #             if hasattr(model, 'evals_result') and model.evals_result():
-    #                 validation_results = model.evals_result()
-    #                 if validation_results:
-    #                     metrics['validation_rmse'] = min(validation_results['validation_0']['rmse'])
-                
-    #         return model, metrics
-        
-    #     except Exception as e:
-    #         logging.error(f"Error in train_model: {str(e)}")
-    #         logging.exception("Detailed traceback:")
-    #         raise
-
     def train_model(self, X: pd.DataFrame, y: pd.Series, 
-            model_params: Optional[Dict] = None,
-            existing_model: Optional[Any] = None) -> Tuple[Any, Dict]:
+                    model_params: Optional[Dict] = None,
+                    existing_model: Optional[Any] = None) -> Tuple[Any, Dict]:
         """
-        Train model with support for incremental learning
+        Train model with support for incremental learning using a consistent train–test split.
         
         Args:
             X: Feature DataFrame
             y: Target Series
-            model_params: Model parameters dictionary
+            model_params: Model parameters dictionary (should include 'model_type')
             existing_model: Optional existing model for incremental training
-            
+        
         Returns:
             Tuple of (model, metrics)
         """
@@ -402,16 +183,23 @@ class TimeSeriesModelTrainer:
             if not model_params:
                 model_params = {}
 
-            # Get model type from parameters
+            # Get model type from parameters; default to 'xgboost'
             model_type = model_params.get('model_type', 'xgboost')
-            
-            # Remove model_type from params as it's not a real parameter
+            # Remove model_type from parameters as it's not a valid model parameter
             model_params = {k: v for k, v in model_params.items() if k != 'model_type'}
+
+            # Perform a consistent train–test split for all models
+            from sklearn.model_selection import train_test_split
+            X_train, X_val, y_train, y_val = train_test_split(
+                X, y, test_size=0.2, random_state=42, shuffle=False
+            )
+
+            # Log the time range for training and validation sets
+            logging.info(f"Training data range: {X_train.index.min()} to {X_train.index.max()}")
+            logging.info(f"Validation data range: {X_val.index.min()} to {X_val.index.max()}")
 
             if model_type == 'xgboost':
                 from xgboost import XGBRegressor
-                from sklearn.model_selection import train_test_split
-                
                 default_params = {
                     'objective': 'reg:squarederror',
                     'n_estimators': 1000,
@@ -421,58 +209,41 @@ class TimeSeriesModelTrainer:
                     'colsample_bytree': 0.8,
                     'min_child_weight': 1
                 }
-                # Update default params with provided params
+                # Update default parameters with provided ones
                 model_params = {**default_params, **model_params}
-                
+
                 if existing_model is not None and isinstance(existing_model, XGBRegressor):
-                    # XGBoost incremental training logic
                     logging.info("Performing incremental training with existing model")
                     current_n_trees = existing_model.n_estimators
                     n_additional_trees = 50
                     model_params['n_estimators'] = n_additional_trees
-                    
-                    X_train, X_val, y_train, y_val = train_test_split(
-                        X, y, test_size=0.2, random_state=42, shuffle=False
-                    )
-                    
+
                     try:
                         existing_booster = existing_model.get_booster()
                     except Exception as e:
                         logging.warning(f"Could not get booster from existing model: {e}")
                         existing_booster = None
-                    
+
                     model = XGBRegressor(**model_params)
                     fit_params = {
                         'eval_set': [(X_val, y_val)],
                         'verbose': False
                     }
-                    
                     if existing_booster is not None:
                         fit_params['xgb_model'] = existing_booster
-                    
                     model.fit(X_train, y_train, **fit_params)
                     training_type = 'incremental'
                     total_trees = current_n_trees + n_additional_trees
-                    
                 else:
-                    # Regular XGBoost training
                     logging.info("Performing full XGBoost training")
-                    X_train, X_val, y_train, y_val = train_test_split(
-                        X, y, test_size=0.2, random_state=42, shuffle=False
-                    )
-                    
                     model = XGBRegressor(**model_params)
-                    model.fit(X_train, y_train,
-                            eval_set=[(X_val, y_val)],
-                            verbose=False)
-                            
+                    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
                     training_type = 'full'
                     total_trees = model_params['n_estimators']
-                    
+
             elif model_type == 'random_forest':
                 from sklearn.ensemble import RandomForestRegressor
                 logging.info("Training Random Forest model")
-                
                 default_params = {
                     'n_estimators': 100,
                     'max_depth': 10,
@@ -482,19 +253,16 @@ class TimeSeriesModelTrainer:
                 }
                 model_params = {**default_params, **model_params}
                 model = RandomForestRegressor(**model_params)
-                model.fit(X, y)
+                model.fit(X_train, y_train)
                 training_type = 'full'
                 total_trees = model_params['n_estimators']
-                
+
             else:  # Decision Tree
                 from sklearn.tree import DecisionTreeRegressor
                 logging.info("Training Decision Tree model")
-                
-                # Remove any RF/XGB specific parameters
+                # Filter only Decision Tree related parameters
                 model_params = {k: v for k, v in model_params.items() 
-                            if k in ['max_depth', 'min_samples_split', 
-                                    'min_samples_leaf', 'random_state']}
-                
+                                if k in ['max_depth', 'min_samples_split', 'min_samples_leaf', 'random_state']}
                 default_params = {
                     'max_depth': 6,
                     'min_samples_split': 2,
@@ -503,19 +271,20 @@ class TimeSeriesModelTrainer:
                 }
                 model_params = {**default_params, **model_params}
                 model = DecisionTreeRegressor(**model_params)
-                model.fit(X, y)
+                model.fit(X_train, y_train)
                 training_type = 'full'
-                total_trees = 1  # Decision tree is a single tree
-            
-            # Calculate metrics
-            predictions = model.predict(X)
-            mse = np.mean((y - predictions) ** 2)
-            r2 = 1 - (np.sum((y - predictions) ** 2) / np.sum((y - np.mean(y)) ** 2))
-            
+                total_trees = 1  # Decision tree represents a single tree
+
+            # Calculate metrics on the validation set
+            predictions = model.predict(X_val)
+            mse = np.mean((y_val - predictions) ** 2)
+            r2 = 1 - (np.sum((y_val - predictions) ** 2) / np.sum((y_val - np.mean(y_val)) ** 2))
+
             metrics = {
                 'rmse': float(np.sqrt(mse)),
                 'r2': float(r2),
-                'training_samples': len(X),
+                'training_samples': len(X_train),
+                'validation_samples': len(X_val),
                 'training_type': training_type,
                 'training_period': {
                     'start': X.index.min().isoformat(),
@@ -523,23 +292,21 @@ class TimeSeriesModelTrainer:
                 },
                 'model_type': model_type
             }
-            
+
             # Add model-specific metrics
             if model_type in ['xgboost', 'random_forest']:
                 metrics['n_trees'] = total_trees
-                # Add validation metrics for XGBoost
                 if model_type == 'xgboost' and hasattr(model, 'evals_result'):
                     validation_results = model.evals_result()
                     if validation_results:
                         metrics['validation_rmse'] = min(validation_results['validation_0']['rmse'])
-            
+
             return model, metrics
-        
+
         except Exception as e:
             logging.error(f"Error in train_model: {str(e)}")
             logging.exception("Detailed traceback:")
             raise
-
 
     def save_model_and_metadata(self, model: Any, 
                               feature_cols: List[str],
@@ -585,99 +352,6 @@ class TimeSeriesModelTrainer:
             json.dump(metrics, f, indent=4)
             
         return model_path
-
-
-
-    # def train_and_save_multi_table(self, 
-    #                             table_names: List[str],
-    #                             target_col: str,
-    #                             prediction_horizon: int = 1,
-    #                             feature_cols: Optional[List[str]] = None,
-    #                             model_params: Optional[Dict] = None,
-    #                             model_name: Optional[str] = None) -> Tuple[str, Dict]:
-    #     """Train model using data from multiple tables with support for incremental learning"""
-    #     try:
-    #         # Load and combine data from all tables
-    #         df = self.load_data_from_multiple_tables(table_names)
-    #         logging.info(f"Combined data shape: {df.shape}")
-            
-    #         # Prepare features and target
-    #         X, y = self.prepare_features_target(
-    #             df, 
-    #             target_col,
-    #             feature_cols=feature_cols,
-    #             prediction_horizon=prediction_horizon
-    #         )
-    #         logging.info(f"Prepared features shape: {X.shape}, target shape: {y.shape}")
-            
-    #         # Try to load existing model
-    #         existing_model = None
-    #         if model_name:
-    #             model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
-    #             if os.path.exists(model_path):
-    #                 try:
-    #                     existing_model = joblib.load(model_path)
-    #                     logging.info(f"Successfully loaded existing model: {model_path}")
-    #                 except Exception as e:
-    #                     logging.warning(f"Could not load existing model: {e}")
-    #                     existing_model = None
-
-    #         # Train or update model
-    #         model, metrics = self.train_model(
-    #             X=X,
-    #             y=y,
-    #             model_params=model_params,
-    #             existing_model=existing_model
-    #         )
-            
-    #         # Add additional metrics
-    #         metrics.update({
-    #             'training_tables': table_names,
-    #             'training_time': datetime.now().isoformat(),
-    #             'data_points': len(X),
-    #             'features_used': list(X.columns),
-    #             'model_name': model_name,
-    #             'training_period': {
-    #                 'start': str(X.index.min()),
-    #                 'end': str(X.index.max())
-    #             }
-    #         })
-            
-    #         # Save model with same name if updating, or generate new name if new model
-    #         if not model_name:
-    #             # Determine model type
-    #             if isinstance(model, xgb.XGBRegressor):
-    #                 model_type = 'xgboost'
-    #             elif isinstance(model, DecisionTreeRegressor):
-    #                 model_type = 'decision_tree'
-    #             else:
-    #                 model_type = 'unknown'
-                    
-    #             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    #             training_type = 'multi' if len(table_names) > 1 else 'single'
-    #             model_name = f"{model_type}_{training_type}_{timestamp}"
-                
-    #         model_path = self.save_model_and_metadata(
-    #             model=model,
-    #             feature_cols=X.columns.tolist(),
-    #             metrics=metrics,
-    #             model_name=model_name
-    #         )
-    #         logging.info(f"Model saved to: {model_path}")
-            
-    #         # Save training history
-    #         try:
-    #             self._update_training_history(model_path, table_names, metrics)
-    #         except Exception as history_error:
-    #             logging.warning(f"Error updating training history: {history_error}")
-            
-    #         return model_path, metrics
-            
-    #     except Exception as e:
-    #         logging.error(f"Error in multi-table training pipeline: {str(e)}")
-    #         logging.exception("Detailed traceback:")
-    #         raise
-
 
     def train_and_save_multi_table(self, 
                                 table_names: List[str],
@@ -799,7 +473,6 @@ class TimeSeriesModelTrainer:
             logging.error(f"Error in multi-table training pipeline: {str(e)}")
             logging.exception("Detailed traceback:")
             raise
-
 
     def _update_training_history(self, model_path: str, table_names: List[str], metrics: Dict):
         """Helper method to update training history"""

@@ -36,6 +36,7 @@ MT5/StrategyTester/streamlit/st_venv/
 MT5/StrategyTester/streamlit/logs/
 
 MT5/StrategyTester/streamlit/backup/
+MT5/StrategyTester/streamlit/backup/removing_unnecessaryfiles/
 MT5/StrategyTester/streamlit/additional_files/
 MT5/StrategyTester/streamlit/apis/
 MT5/StrategyTester/streamlit/components/

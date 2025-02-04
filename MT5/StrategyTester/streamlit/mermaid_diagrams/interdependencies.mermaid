@@ -1,0 +1,32 @@
+graph TD
+    A[mt5LogExplorer.py] --> B[log_explorer_page.py]
+    A --> C[server_control_page.py]
+    A --> D[scripts_page.py]
+    A --> E[ml_analysis_page.py]
+    A --> F[prediction_page.py]
+    
+    C --> G[zmqServer.py]
+    G --> H[database_manager.py]
+    
+    F --> I[model_pipeline.py]
+    I --> J[model_predictor.py]
+    J --> K[xgboost_train_model.py]
+    K --> L[xgboost_trainer.py]
+    
+    E --> M[model_manager.py]
+    E --> I
+    
+    N[model_implementations.py] --> O[incremental_learning.py]
+    N --> P[model_base.py]
+    
+    Q[run_predictions.py] --> R[historical_predictions_page.py]
+    Q --> S[model_comparison_page.py]
+    
+    T[feature_config.py] --> K
+    T --> I
+    
+    U[analyzer_settings.json] --> B
+    
+    V[config.py] --> G
+    V --> K
+    V --> J

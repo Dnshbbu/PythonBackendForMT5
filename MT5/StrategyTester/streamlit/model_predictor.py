@@ -8,8 +8,9 @@ import joblib
 from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime
 import json
-from model_implementations import ModelFactory
+from model_implementations import ModelFactory, LSTMModel, TimeSeriesDataset
 from model_repository import ModelRepository
+import torch
 
 class ModelPredictor:
     def __init__(self, db_path: str, models_dir: str):
@@ -68,12 +69,33 @@ class ModelPredictor:
             self.feature_columns = json.loads(features_json)
             logging.info(f"Loaded {len(self.feature_columns)} features from repository")
             
-            # Load model
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model file not found: {model_path}")
+            # Load model based on type
+            if model_type == 'lstm':
+                if not os.path.exists(model_path):
+                    raise FileNotFoundError(f"Model file not found: {model_path}")
                 
-            self.model = joblib.load(model_path)
+                # Load LSTM model
+                checkpoint = torch.load(model_path)
+                model_params = checkpoint['model_params']
+                
+                self.model = LSTMModel(
+                    input_size=len(self.feature_columns),
+                    hidden_size=model_params['hidden_size'],
+                    num_layers=model_params['num_layers']
+                ).to(model_params['device'])
+                self.model.load_state_dict(checkpoint['model_state_dict'])
+                self.model.eval()  # Set to evaluation mode
+                
+                # Store model parameters for prediction
+                self.model_params = model_params
+            else:
+                # Load traditional models (XGBoost, Random Forest, etc.)
+                if not os.path.exists(model_path):
+                    raise FileNotFoundError(f"Model file not found: {model_path}")
+                self.model = joblib.load(model_path)
+            
             self.current_model_name = model_name
+            self.model_type = model_type
             logging.info(f"Successfully loaded model: {model_name}")
             
             # Load scaler if available
@@ -204,7 +226,7 @@ class ModelPredictor:
 
 
     def make_predictions(self, table_name: str, n_rows: int = 100, 
-                            confidence_threshold: float = 0.8) -> Dict[str, Union[float, str, dict]]:
+                        confidence_threshold: float = 0.8) -> Dict[str, Union[float, str, dict]]:
         """
         Make predictions using the latest data
         
@@ -229,17 +251,50 @@ class ModelPredictor:
             # Prepare features
             X = self.prepare_features(df)
             
-            # Make prediction
-            prediction = self.model.predict(X.iloc[-1:])
+            # Make prediction based on model type
+            if self.model_type == 'lstm':
+                # Create sequence dataset
+                sequence_length = self.model_params['sequence_length']
+                dataset = TimeSeriesDataset(
+                    X,
+                    pd.Series(np.zeros(len(X))),  # Dummy target
+                    sequence_length
+                )
+                dataloader = torch.utils.data.DataLoader(
+                    dataset,
+                    batch_size=1,  # Predict one at a time
+                    shuffle=False
+                )
+                
+                # Get last sequence
+                last_sequence = next(iter(dataloader))[0]
+                
+                # Make prediction
+                with torch.no_grad():
+                    prediction = self.model(last_sequence.to(self.model_params['device']))
+                    prediction = prediction.cpu().numpy()
+            else:
+                # Traditional models
+                prediction = self.model.predict(X.iloc[-1:])
             
-            # Get feature importance for this prediction
-            feature_importance = dict(zip(X.columns, self.model.feature_importances_))
+            # Get feature importance
+            if self.model_type == 'lstm':
+                # LSTM uses equal feature importance
+                importance = 1.0 / len(X.columns)
+                feature_importance = dict(zip(X.columns, [importance] * len(X.columns)))
+            else:
+                feature_importance = dict(zip(X.columns, self.model.feature_importances_))
+            
             top_features = dict(sorted(feature_importance.items(), 
                                     key=lambda x: abs(x[1]), 
                                     reverse=True)[:5])
             
             # Calculate prediction confidence
-            confidence = 1.0 - np.std(self.model.predict(X)) / np.mean(np.abs(prediction))
+            if self.model_type == 'lstm':
+                # For LSTM, use rolling standard deviation of predictions
+                confidence = 1.0 - np.std(prediction) / np.mean(np.abs(prediction))
+            else:
+                confidence = 1.0 - np.std(self.model.predict(X)) / np.mean(np.abs(prediction))
             
             # Prepare result
             result = {
@@ -249,16 +304,15 @@ class ModelPredictor:
                 'is_confident': confidence >= confidence_threshold,
                 'top_features': top_features,
                 'model_name': self.current_model_name,
+                'model_type': self.model_type,
                 'metadata': {
                     'features_used': len(self.feature_columns),
                     'data_points': len(df)
                 }
             }
             
-            # logging.info(f"Made prediction: {result['prediction']:.4f} "
-            #             f"(confidence: {result['confidence']:.4f})")
-            logging.info(f"Made prediction using model {self.current_model_name}: {result['prediction']:.4f} "
-                        f"(confidence: {result['confidence']:.4f})")
+            logging.info(f"Made prediction using {self.model_type} model {self.current_model_name}: "
+                        f"{result['prediction']:.4f} (confidence: {result['confidence']:.4f})")
             
             return result
             

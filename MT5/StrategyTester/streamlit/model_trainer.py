@@ -444,6 +444,9 @@ class TimeSeriesModelTrainer:
                 training_type = 'multi' if len(table_names) > 1 else 'single'
                 model_name = f"{training_type}_{timestamp}"
             
+            # Create full model name with model type
+            full_model_name = f"{model_type}_{model_name}"
+            
             # Save model based on type
             if model_type == 'lstm':
                 model_path = model.save(self.models_dir, model_name)
@@ -452,7 +455,7 @@ class TimeSeriesModelTrainer:
                     model=model,
                     feature_cols=X.columns.tolist(),
                     metrics=metrics,
-                    model_name=f"{model_type}_{model_name}"
+                    model_name=full_model_name
                 )
             
             logging.info(f"Model saved to: {model_path}")
@@ -463,7 +466,7 @@ class TimeSeriesModelTrainer:
             except Exception as history_error:
                 logging.warning(f"Error updating training history: {history_error}")
             
-            # Store model information in repository
+            # Store model information in repository using the full model name
             try:
                 model_repo = ModelRepository(self.db_path)
                 feature_importance = {}
@@ -480,7 +483,7 @@ class TimeSeriesModelTrainer:
                     feature_importance = {k: v for k, v in importance_scores.items()}
                 
                 model_repo.store_model_info(
-                    model_name=model_name,
+                    model_name=full_model_name,  # Use full model name here
                     model_type=model_type,
                     training_type='multi' if len(table_names) > 1 else 'single',
                     prediction_horizon=prediction_horizon,
@@ -495,7 +498,7 @@ class TimeSeriesModelTrainer:
                     },
                     data_points=len(X),
                     model_path=model_path,
-                    scaler_path=os.path.join(self.models_dir, f"{model_name}_scaler.joblib")
+                    scaler_path=os.path.join(self.models_dir, f"{full_model_name}_scaler.joblib")
                 )
             except Exception as repo_error:
                 logging.warning(f"Error storing model in repository: {repo_error}")

@@ -7,6 +7,8 @@ from datetime import datetime
 from model_predictor import ModelPredictor
 from typing import Dict, List, Optional
 import json
+import torch
+from model_implementations import LSTMModel, TimeSeriesDataset
 
 class HistoricalPredictor:
     def __init__(self, db_path: str, models_dir: str, model_name: Optional[str] = None):
@@ -243,43 +245,80 @@ class HistoricalPredictor:
     def run_predictions(self, table_name: str) -> pd.DataFrame:
         """Run predictions on historical data"""
         try:
-            # Load data
-            df = self.load_data(table_name)
+            # Get data from database
+            conn = sqlite3.connect(self.db_path)
+            df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+            conn.close()
             
-            # Initialize results storage
-            predictions = []
+            # Convert date and time to datetime
+            if 'Date' in df.columns and 'Time' in df.columns:
+                df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+                df = df.set_index('DateTime')
             
-            # Get required features from model
-            required_features = self.model_predictor.feature_columns
-            
-            # Prepare features for prediction
+            # Prepare features
             X = self.model_predictor.prepare_features(df)
             
-            # Run predictions for each row except the last one
-            for i in range(len(df)-1):  # Note the -1 here
-                try:
-                    current_row = df.iloc[i]
-                    next_row = df.iloc[i+1]  # Get the next row for actual price
-                    current_features = X.iloc[i:i+1]
-                    
-                    # Make prediction for next price
-                    prediction = self.model_predictor.model.predict(current_features)
-                    
-                    # Store results - compare prediction with next row's price
-                    predictions.append({
-                        'DateTime': next_row.name,  # Use next row's datetime
-                        'Actual_Price': float(next_row['Price']),
-                        'Predicted_Price': float(prediction[0]),
-                        'Error': float(next_row['Price']) - float(prediction[0])
-                    })
-                    
-                    if i % 100 == 0:
-                        logging.info(f"Processed {i}/{len(df)} rows")
-                        
-                except Exception as e:
-                    logging.warning(f"Error processing row {i}: {e}")
-                    continue
+            predictions = []
             
+            # Handle predictions based on model type
+            if hasattr(self.model_predictor, 'model_type') and self.model_predictor.model_type == 'lstm':
+                sequence_length = self.model_predictor.model_params['sequence_length']
+                
+                # Create sequences for prediction
+                for i in range(sequence_length - 1, len(df) - 1):
+                    try:
+                        next_row = df.iloc[i+1]
+                        sequence = X.iloc[i-sequence_length+1:i+1]
+                        
+                        # Create dataset and dataloader for single sequence
+                        dataset = TimeSeriesDataset(
+                            sequence,
+                            pd.Series(np.zeros(len(sequence))),  # Dummy target
+                            sequence_length
+                        )
+                        dataloader = torch.utils.data.DataLoader(
+                            dataset,
+                            batch_size=1,
+                            shuffle=False
+                        )
+                        
+                        # Make prediction
+                        with torch.no_grad():
+                            sequence_tensor = next(iter(dataloader))[0]
+                            prediction = self.model_predictor.model(
+                                sequence_tensor.to(self.model_predictor.model_params['device'])
+                            )
+                            prediction = prediction.cpu().numpy()
+                        
+                        predictions.append({
+                            'DateTime': next_row.name,
+                            'Actual_Price': float(next_row['Price']),
+                            'Predicted_Price': float(prediction[0]),
+                            'Error': float(next_row['Price']) - float(prediction[0])
+                        })
+                        
+                    except Exception as e:
+                        logging.warning(f"Error processing row {i}: {e}")
+                        continue
+            else:
+                # Original prediction logic for traditional models
+                for i in range(len(df) - 1):
+                    try:
+                        next_row = df.iloc[i+1]
+                        current_features = X.iloc[i:i+1]
+                        prediction = self.model_predictor.model.predict(current_features)
+                        
+                        predictions.append({
+                            'DateTime': next_row.name,
+                            'Actual_Price': float(next_row['Price']),
+                            'Predicted_Price': float(prediction[0]),
+                            'Error': float(next_row['Price']) - float(prediction[0])
+                        })
+                        
+                    except Exception as e:
+                        logging.warning(f"Error processing row {i}: {e}")
+                        continue
+
             # Convert results to DataFrame
             results_df = pd.DataFrame(predictions)
             results_df.set_index('DateTime', inplace=True)
@@ -403,7 +442,7 @@ def main():
         models_dir = os.path.join(current_dir, 'models')
         
         # Optional: Specify model name
-        model_name = "random_forest_multi_20250204_162853"  # Replace with your model name or None for latest
+        model_name = "lstm_single_20250205_141834"  # Replace with your model name or None for latest
         
         # Initialize predictor with optional model name
         predictor = HistoricalPredictor(db_path, models_dir, model_name)

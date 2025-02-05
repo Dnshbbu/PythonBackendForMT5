@@ -27,6 +27,8 @@ class HistoricalPredictor:
         # Load specific model if provided
         if model_name:
             self.model_predictor.load_model_by_name(model_name)
+        else:
+            self.model_predictor.load_latest_model()
             
         self.setup_logging()
         self.setup_prediction_database()
@@ -491,15 +493,17 @@ def main():
         # Initialize predictor
         current_dir = os.path.dirname(os.path.abspath(__file__))
         db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
-        models_dir = os.path.join(current_dir, 'models')  # Add models directory path
+        models_dir = os.path.join(current_dir, 'models')
         
         # Ensure models directory exists
         os.makedirs(models_dir, exist_ok=True)
         
-        predictor = HistoricalPredictor(db_path, models_dir)  # Add models_dir parameter
+        # Example of using a specific model
+        model_name = "lstm_single_20250205_151124"  # Replace with None to use latest model
+        predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions for a specific table
-        table_name = "strategy_SYM_10021279"  # Replace with your table name
+        table_name = "strategy_TRIP_NAS_10016827"  # Replace with your table name
         results_df = predictor.run_predictions(table_name)
         
         # Generate and store summary
@@ -509,6 +513,7 @@ def main():
         # Print summary
         print("\nPrediction Summary:")
         print(f"Total predictions: {summary['total_predictions']}")
+        print(f"Using model: {predictor.model_predictor.current_model_name}")
         print()
         print("Error Metrics:")
         print(f"Mean absolute error: {summary['mean_absolute_error']:.4f}")

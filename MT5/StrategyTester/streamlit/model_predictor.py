@@ -36,8 +36,8 @@ class ModelPredictor:
         self.scaler = None
         self.feature_columns = None
         
-        # Load the latest model by default
-        self.load_latest_model()
+        # Note: Removed automatic loading of latest model
+        # It will now be explicitly called by the HistoricalPredictor
 
     def setup_logging(self):
         """Setup logging configuration"""
@@ -143,6 +143,7 @@ class ModelPredictor:
                 raise ValueError("No active models found in repository")
                 
             latest_model_name = result[0]
+            logging.info(f"Loading latest model: {latest_model_name}")
             self.load_model_by_name(latest_model_name)
             
         except Exception as e:

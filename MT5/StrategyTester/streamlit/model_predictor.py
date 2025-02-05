@@ -54,7 +54,7 @@ class ModelPredictor:
             # Get model info from repository
             cursor = sqlite3.connect(self.db_path).cursor()
             cursor.execute("""
-                SELECT features, model_path, model_type, scaler_path 
+                SELECT features, model_path, model_type, scaler_path, model_params
                 FROM model_repository 
                 WHERE model_name = ?
             """, (model_name,))
@@ -63,39 +63,50 @@ class ModelPredictor:
             if not result:
                 raise ValueError(f"Model {model_name} not found in repository")
                 
-            features_json, model_path, model_type, scaler_path = result
-            
-            # Load features
+            features_json, model_path, model_type, scaler_path, model_params = result
             self.feature_columns = json.loads(features_json)
-            logging.info(f"Loaded {len(self.feature_columns)} features from repository")
+            self.model_type = model_type
             
             # Load model based on type
             if model_type == 'lstm':
-                if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Model file not found: {model_path}")
+                # Load LSTM model with proper initialization
+                model_params = json.loads(model_params) if model_params else {}
                 
-                # Load LSTM model
-                checkpoint = torch.load(model_path)
-                model_params = checkpoint['model_params']
+                # Extract LSTM-specific parameters
+                input_size = len(self.feature_columns)
+                hidden_size = model_params.get('hidden_size', 64)
+                num_layers = model_params.get('num_layers', 2)
                 
+                # Store sequence length for prediction
+                self.sequence_length = model_params.get('sequence_length', 10)
+                
+                # Initialize LSTM model with correct parameters
                 self.model = LSTMModel(
-                    input_size=len(self.feature_columns),
-                    hidden_size=model_params['hidden_size'],
-                    num_layers=model_params['num_layers']
-                ).to(model_params['device'])
-                self.model.load_state_dict(checkpoint['model_state_dict'])
+                    input_size=input_size,
+                    hidden_size=hidden_size,
+                    num_layers=num_layers
+                )
+                
+                # Load the state dict
+                state_dict = torch.load(model_path, map_location='cpu')
+                if isinstance(state_dict, dict) and 'model_state_dict' in state_dict:
+                    self.model.load_state_dict(state_dict['model_state_dict'])
+                else:
+                    self.model.load_state_dict(state_dict)
+                    
                 self.model.eval()  # Set to evaluation mode
                 
-                # Store model parameters for prediction
-                self.model_params = model_params
+                # Store model parameters for later use
+                self.model_params = {
+                    'hidden_size': hidden_size,
+                    'num_layers': num_layers,
+                    'sequence_length': self.sequence_length,
+                    'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+                }
             else:
-                # Load traditional models (XGBoost, Random Forest, etc.)
-                if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Model file not found: {model_path}")
                 self.model = joblib.load(model_path)
             
             self.current_model_name = model_name
-            self.model_type = model_type
             logging.info(f"Successfully loaded model: {model_name}")
             
             # Load scaler if available
@@ -107,7 +118,7 @@ class ModelPredictor:
                 logging.warning("No scaler found for this model")
                 
         except Exception as e:
-            logging.error(f"Error loading model {model_name}: {e}")
+            logging.error(f"Error loading model {model_name}: {str(e)}")
             self.model = None
             self.current_model_name = None
             self.feature_columns = None

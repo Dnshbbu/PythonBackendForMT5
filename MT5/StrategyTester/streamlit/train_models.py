@@ -8,6 +8,7 @@ from model_trainer import TimeSeriesModelTrainer
 from feature_config import SELECTED_FEATURES
 from unified_trainer import UnifiedModelTrainer
 from model_factory import ModelFactory
+import torch
 
 def setup_logging():
     """Setup logging configuration"""
@@ -66,6 +67,15 @@ def get_model_params(model_type: str) -> Dict:
             'min_samples_split': 2,
             'min_samples_leaf': 1,
             'random_state': 42
+        },
+        'lstm': {
+            'hidden_size': 64,
+            'num_layers': 2,
+            'sequence_length': 10,
+            'batch_size': 32,
+            'learning_rate': 0.001,
+            'num_epochs': 10,
+            'device': 'cuda' if torch.cuda.is_available() else 'cpu'
         }
     }
     return params.get(model_type, {})
@@ -95,9 +105,10 @@ def train_single_table(table_name: str, force_retrain: bool = False):
         
         # Get configurations
         configurations = [
-            {'model_type': 'xgboost', 'prediction_horizon': 1},
-            {'model_type': 'decision_tree', 'prediction_horizon': 1},
-            {'model_type': 'random_forest', 'prediction_horizon': 1}
+            # {'model_type': 'xgboost', 'prediction_horizon': 1},
+            # {'model_type': 'decision_tree', 'prediction_horizon': 1},
+            # {'model_type': 'random_forest', 'prediction_horizon': 1},
+            {'model_type': 'lstm', 'prediction_horizon': 1}
         ]
         
         results = {}
@@ -159,8 +170,8 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
         configurations = [
             {'model_type': 'xgboost', 'prediction_horizon': 1},
             {'model_type': 'decision_tree', 'prediction_horizon': 1},
-            {'model_type': 'random_forest', 'prediction_horizon': 1}
-            # {'model_type': 'random_forest', 'prediction_horizon': 5}
+            {'model_type': 'random_forest', 'prediction_horizon': 1},
+            {'model_type': 'lstm', 'prediction_horizon': 1}
         ]
         
         results = {}
@@ -347,21 +358,21 @@ if __name__ == "__main__":
         #strategy_TRIP_NAS_10022724 -> July 1 to September 30, 2022
         
         # 1. Single table training
-        # single_table = "strategy_TRIP_NAS_10010462"
-        # single_results = train_single_table(single_table)
+        single_table = "strategy_TRIP_NAS_10010462"
+        single_results = train_single_table(single_table)
         # logging.info("\nSingle Table Training Results:================================================================")
         # for model_key, result in single_results.items():
         #     logging.info(f"\nModel: {model_key}")
         #     logging.info(f"Model Path: {result['model_path']}")
         #     logging.info(f"Metrics: {result['metrics']}")
         
-        # 2. Multi-table training
-        multiple_tables = [
-            "strategy_TRIP_NAS_10010462",
-            "strategy_TRIP_NAS_10016827",
-            "strategy_TRIP_NAS_10011351"
-        ]
-        multi_results = train_multi_table(multiple_tables)
+        # # 2. Multi-table training
+        # multiple_tables = [
+        #     "strategy_TRIP_NAS_10010462",
+        #     "strategy_TRIP_NAS_10016827",
+        #     "strategy_TRIP_NAS_10011351"
+        # ]
+        # multi_results = train_multi_table(multiple_tables)
         # logging.info("\nMulti-Table Training Results:================================================================")
         # for model_key, result in multi_results.items():
         #     logging.info(f"\nModel: {model_key}")

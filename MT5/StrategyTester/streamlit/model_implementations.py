@@ -18,6 +18,9 @@ from incremental_learning import (
 from model_base import BaseModel
 from datetime import datetime
 from sklearn.ensemble import RandomForestRegressor
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
 
 class BaseTimeSeriesModel(ABC):
     def __init__(self, model_name: str):
@@ -336,9 +339,226 @@ class RandomForestTimeSeriesModel(BaseTimeSeriesModel, BatchedRetrainingMixin):
             
         return importance_dict
 
+class TimeSeriesDataset(Dataset):
+    def __init__(self, X, y, sequence_length=10):
+        self.X = torch.FloatTensor(X.values)
+        self.y = torch.FloatTensor(y.values)
+        self.sequence_length = sequence_length
 
+    def __len__(self):
+        return len(self.X) - self.sequence_length
 
+    def __getitem__(self, idx):
+        return (self.X[idx:idx+self.sequence_length], 
+                self.y[idx+self.sequence_length-1])
 
+class LSTMModel(nn.Module):
+    def __init__(self, input_size, hidden_size=64, num_layers=2):
+        super(LSTMModel, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return out
+
+class LSTMTimeSeriesModel(BaseTimeSeriesModel):
+    def __init__(self):
+        super().__init__("lstm")
+        self.default_params = {
+            'hidden_size': 64,
+            'num_layers': 2,
+            'sequence_length': 10,
+            'batch_size': 32,
+            'learning_rate': 0.001,
+            'num_epochs': 10,
+            'device': 'cuda' if torch.cuda.is_available() else 'cpu'
+        }
+        self.scaler = StandardScaler()
+
+    def supports_incremental_learning(self) -> bool:
+        return False
+
+    def train(self, X: pd.DataFrame, y: pd.Series, **kwargs) -> Tuple[Any, Dict]:
+        try:
+            params = {**self.default_params, **kwargs}
+            self.feature_columns = list(X.columns)
+            
+            # Scale features
+            X_scaled = self.scaler.fit_transform(X)
+            X_scaled = pd.DataFrame(X_scaled, columns=X.columns, index=X.index)
+            
+            # Create dataset and dataloader
+            dataset = TimeSeriesDataset(X_scaled, y, params['sequence_length'])
+            dataloader = DataLoader(
+                dataset, 
+                batch_size=params['batch_size'],
+                shuffle=False
+            )
+            
+            # Initialize model
+            self.model = LSTMModel(
+                input_size=len(self.feature_columns),
+                hidden_size=params['hidden_size'],
+                num_layers=params['num_layers']
+            ).to(params['device'])
+            
+            # Training setup
+            criterion = nn.MSELoss()
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=params['learning_rate'])
+            
+            # Training loop
+            self.model.train()
+            training_loss = []
+            
+            for epoch in range(params['num_epochs']):
+                epoch_loss = 0
+                for batch_X, batch_y in dataloader:
+                    batch_X = batch_X.to(params['device'])
+                    batch_y = batch_y.to(params['device'])
+                    
+                    optimizer.zero_grad()
+                    outputs = self.model(batch_X)
+                    loss = criterion(outputs, batch_y.unsqueeze(1))
+                    loss.backward()
+                    optimizer.step()
+                    
+                    epoch_loss += loss.item()
+                
+                avg_loss = epoch_loss / len(dataloader)
+                training_loss.append(avg_loss)
+                
+                if (epoch + 1) % 10 == 0:
+                    logging.info(f'Epoch [{epoch+1}/{params["num_epochs"]}], Loss: {avg_loss:.4f}')
+            
+            # Calculate final metrics using sequence-aware prediction
+            self.model.eval()
+            predictions = self.predict(X)
+            
+            # Adjust predictions and target lengths to match
+            seq_length = params['sequence_length']
+            valid_indices = slice(seq_length - 1, len(y))
+            y_valid = y.iloc[valid_indices]
+            predictions_valid = predictions[valid_indices]
+            
+            mse = np.mean((y_valid.values - predictions_valid) ** 2)
+            rmse = np.sqrt(mse)
+            
+            metrics = {
+                'training_loss': training_loss[-1],
+                'rmse': float(rmse),
+                'n_features': len(self.feature_columns),
+                'n_samples': len(X),
+                'sequence_length': params['sequence_length'],
+                'hidden_size': params['hidden_size'],
+                'num_layers': params['num_layers']
+            }
+            
+            # Return self instead of self.model to maintain proper object for saving
+            return self, metrics
+            
+        except Exception as e:
+            logging.error(f"Error in LSTM training: {e}")
+            raise
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        if self.model is None:
+            raise ValueError("Model not trained yet")
+            
+        self.model.eval()
+        X_scaled = self.scaler.transform(X)
+        
+        # Create sequences for prediction
+        sequence_length = self.default_params['sequence_length']
+        predictions = np.zeros(len(X))
+        
+        # Handle the initial sequence - use first feature column instead of 'Price'
+        first_feature = X.columns[0]
+        for i in range(sequence_length - 1):
+            predictions[i] = X[first_feature].iloc[i]  # Use first feature for initial sequence
+        
+        # Create dataset and dataloader for remaining predictions
+        dataset = TimeSeriesDataset(
+            pd.DataFrame(X_scaled, columns=X.columns), 
+            pd.Series(np.zeros(len(X))),  # Dummy target
+            sequence_length
+        )
+        dataloader = DataLoader(
+            dataset, 
+            batch_size=self.default_params['batch_size'],
+            shuffle=False
+        )
+        
+        current_idx = sequence_length - 1
+        with torch.no_grad():
+            for batch_X, _ in dataloader:
+                batch_X = batch_X.to(self.default_params['device'])
+                outputs = self.model(batch_X)
+                batch_predictions = outputs.cpu().numpy().flatten()
+                
+                # Store predictions
+                end_idx = min(current_idx + len(batch_predictions), len(predictions))
+                predictions[current_idx:end_idx] = batch_predictions[:end_idx-current_idx]
+                current_idx = end_idx
+                
+                if current_idx >= len(predictions):
+                    break
+        
+        return predictions
+
+    def get_feature_importance(self) -> Dict[str, float]:
+        # LSTM doesn't provide direct feature importance
+        # We'll return equal importance for all features
+        if not self.feature_columns:
+            return {}
+        importance = 1.0 / len(self.feature_columns)
+        return {feat: importance for feat in self.feature_columns}
+
+    def save(self, save_dir: str, timestamp: Optional[str] = None) -> str:
+        if timestamp is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        model_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}.pt")
+        scaler_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}_scaler.joblib")
+        
+        # Save model state dict
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'feature_columns': self.feature_columns,
+            'model_params': self.default_params
+        }, model_path)
+        
+        # Save scaler
+        joblib.dump(self.scaler, scaler_path)
+        
+        return model_path
+
+    def load(self, model_path: str) -> None:
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+            
+        # Load model state and metadata
+        checkpoint = torch.load(model_path)
+        self.feature_columns = checkpoint['feature_columns']
+        self.default_params = checkpoint['model_params']
+        
+        # Initialize and load model
+        self.model = LSTMModel(
+            input_size=len(self.feature_columns),
+            hidden_size=self.default_params['hidden_size'],
+            num_layers=self.default_params['num_layers']
+        ).to(self.default_params['device'])
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        
+        # Load scaler
+        scaler_path = model_path.replace('.pt', '_scaler.joblib')
+        if os.path.exists(scaler_path):
+            self.scaler = joblib.load(scaler_path)
 
 class ModelFactory:
     _models = {}
@@ -368,3 +588,4 @@ ModelFactory.register('xgboost', XGBoostTimeSeriesModel)
 ModelFactory.register('decision_tree', DecisionTreeTimeSeriesModel)
 # Register models with factory
 ModelFactory.register('random_forest', RandomForestTimeSeriesModel)
+ModelFactory.register('lstm', LSTMTimeSeriesModel)

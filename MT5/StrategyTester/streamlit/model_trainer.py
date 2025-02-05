@@ -12,6 +12,9 @@ from sklearn.model_selection import TimeSeriesSplit
 import xgboost as xgb
 from sklearn.tree import DecisionTreeRegressor
 from model_repository import ModelRepository
+import torch
+from torch.utils.data import Dataset, DataLoader
+from model_implementations import TimeSeriesDataset, LSTMTimeSeriesModel
 
 class TimeSeriesModelTrainer:
     def __init__(self, db_path: str, models_dir: str):
@@ -26,6 +29,7 @@ class TimeSeriesModelTrainer:
         self.models_dir = models_dir
         self.setup_logging()
         self.setup_directories()
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     def setup_logging(self):
         """Configure logging settings"""
@@ -134,8 +138,9 @@ class TimeSeriesModelTrainer:
     def prepare_features_target(self, df: pd.DataFrame, 
                               target_col: str,
                               feature_cols: List[str],
-                              prediction_horizon: int = 1) -> Tuple[pd.DataFrame, pd.Series]:
-        """Prepare features and target with strict temporal considerations"""
+                              prediction_horizon: int = 1,
+                              model_type: str = None) -> Tuple[pd.DataFrame, pd.Series]:
+        """Prepare features and target with support for LSTM sequences"""
         # Create target variable with future values
         y = df[target_col].shift(-prediction_horizon)
         
@@ -361,7 +366,7 @@ class TimeSeriesModelTrainer:
                                 model_params: Optional[Dict] = None,
                                 model_name: Optional[str] = None,
                                 model_type: str = 'xgboost') -> Tuple[str, Dict]:
-        """Train model using data from multiple tables with support for incremental learning"""
+        """Train model using data from multiple tables with support for LSTM"""
         try:
             # Load and combine data from all tables
             df = self.load_data_from_multiple_tables(table_names)
@@ -372,17 +377,26 @@ class TimeSeriesModelTrainer:
                 df, 
                 target_col,
                 feature_cols=feature_cols,
-                prediction_horizon=prediction_horizon
+                prediction_horizon=prediction_horizon,
+                model_type=model_type
             )
             logging.info(f"Prepared features shape: {X.shape}, target shape: {y.shape}")
             
             # Try to load existing model
             existing_model = None
             if model_name:
-                model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
+                if model_type == 'lstm':
+                    model_path = os.path.join(self.models_dir, f"{model_name}.pt")
+                else:
+                    model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
+                    
                 if os.path.exists(model_path):
                     try:
-                        existing_model = joblib.load(model_path)
+                        if model_type == 'lstm':
+                            existing_model = LSTMTimeSeriesModel()
+                            existing_model.load(model_path)
+                        else:
+                            existing_model = joblib.load(model_path)
                         logging.info(f"Successfully loaded existing model: {model_path}")
                     except Exception as e:
                         logging.warning(f"Could not load existing model: {e}")
@@ -394,12 +408,22 @@ class TimeSeriesModelTrainer:
             model_params['model_type'] = model_type
 
             # Train or update model
-            model, metrics = self.train_model(
-                X=X,
-                y=y,
-                model_params=model_params,
-                existing_model=existing_model
-            )
+            if model_type == 'lstm':
+                # Create LSTM model instance
+                model = LSTMTimeSeriesModel()
+                model, metrics = model.train(
+                    X=X,
+                    y=y,
+                    **model_params
+                )
+            else:
+                # Train other models using existing logic
+                model, metrics = self.train_model(
+                    X=X,
+                    y=y,
+                    model_params=model_params,
+                    existing_model=existing_model
+                )
             
             # Add additional metrics
             metrics.update({
@@ -419,13 +443,18 @@ class TimeSeriesModelTrainer:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 training_type = 'multi' if len(table_names) > 1 else 'single'
                 model_name = f"{model_type}_{training_type}_{timestamp}"
-                
-            model_path = self.save_model_and_metadata(
-                model=model,
-                feature_cols=X.columns.tolist(),
-                metrics=metrics,
-                model_name=model_name
-            )
+            
+            # Save model based on type
+            if model_type == 'lstm':
+                model_path = model.save(self.models_dir, model_name)
+            else:
+                model_path = self.save_model_and_metadata(
+                    model=model,
+                    feature_cols=X.columns.tolist(),
+                    metrics=metrics,
+                    model_name=model_name
+                )
+            
             logging.info(f"Model saved to: {model_path}")
             
             # Save training history
@@ -440,7 +469,11 @@ class TimeSeriesModelTrainer:
                 feature_importance = {}
                 
                 # Get feature importance if available
-                if hasattr(model, 'feature_importances_'):
+                if model_type == 'lstm':
+                    # LSTM uses equal feature importance
+                    importance = 1.0 / len(X.columns)
+                    feature_importance = {feat: importance for feat in X.columns}
+                elif hasattr(model, 'feature_importances_'):
                     feature_importance = dict(zip(X.columns, model.feature_importances_))
                 elif model_type == 'xgboost':
                     importance_scores = model.get_booster().get_score(importance_type='gain')

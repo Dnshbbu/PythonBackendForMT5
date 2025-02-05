@@ -519,12 +519,16 @@ class LSTMTimeSeriesModel(BaseTimeSeriesModel):
         importance = 1.0 / len(self.feature_columns)
         return {feat: importance for feat in self.feature_columns}
 
-    def save(self, save_dir: str, timestamp: Optional[str] = None) -> str:
-        if timestamp is None:
+    def save(self, save_dir: str, model_name: Optional[str] = None) -> str:
+        """Save model and metadata"""
+        if model_name is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_name = f"single_{timestamp}"
         
-        model_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}.pt")
-        scaler_path = os.path.join(save_dir, f"{self.model_name}_{timestamp}_scaler.joblib")
+        # Add model type prefix here
+        full_model_name = f"{self.model_name}_{model_name}"
+        model_path = os.path.join(save_dir, f"{full_model_name}.pt")
+        scaler_path = os.path.join(save_dir, f"{full_model_name}_scaler.joblib")
         
         # Save model state dict
         torch.save({

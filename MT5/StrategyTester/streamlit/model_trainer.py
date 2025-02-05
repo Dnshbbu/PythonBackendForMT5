@@ -442,7 +442,7 @@ class TimeSeriesModelTrainer:
             if not model_name:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 training_type = 'multi' if len(table_names) > 1 else 'single'
-                model_name = f"{model_type}_{training_type}_{timestamp}"
+                model_name = f"{training_type}_{timestamp}"
             
             # Save model based on type
             if model_type == 'lstm':
@@ -452,7 +452,7 @@ class TimeSeriesModelTrainer:
                     model=model,
                     feature_cols=X.columns.tolist(),
                     metrics=metrics,
-                    model_name=model_name
+                    model_name=f"{model_type}_{model_name}"
                 )
             
             logging.info(f"Model saved to: {model_path}")

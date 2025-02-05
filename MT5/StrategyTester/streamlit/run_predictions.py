@@ -499,7 +499,7 @@ def main():
         os.makedirs(models_dir, exist_ok=True)
         
         # Example of using a specific model
-        model_name = "lstm_single_20250205_151124"  # Replace with None to use latest model
+        model_name = "xgboost_single_20250205_151017"  # Replace with None to use latest model
         predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions for a specific table

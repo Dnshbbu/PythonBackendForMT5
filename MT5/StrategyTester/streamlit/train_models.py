@@ -357,22 +357,22 @@ if __name__ == "__main__":
         #strategy_TRIP_NAS_10011351 -> July 1 to September 30, 2022
         #strategy_TRIP_NAS_10022724 -> July 1 to September 30, 2022
         
-        # 1. Single table training
-        single_table = "strategy_TRIP_NAS_10010462"
-        single_results = train_single_table(single_table)
+        # # 1. Single table training
+        # single_table = "strategy_TRIP_NAS_10010462"
+        # single_results = train_single_table(single_table)
         # logging.info("\nSingle Table Training Results:================================================================")
         # for model_key, result in single_results.items():
         #     logging.info(f"\nModel: {model_key}")
         #     logging.info(f"Model Path: {result['model_path']}")
         #     logging.info(f"Metrics: {result['metrics']}")
         
-        # # 2. Multi-table training
-        # multiple_tables = [
-        #     "strategy_TRIP_NAS_10010462",
-        #     "strategy_TRIP_NAS_10016827",
-        #     "strategy_TRIP_NAS_10011351"
-        # ]
-        # multi_results = train_multi_table(multiple_tables)
+        # 2. Multi-table training
+        multiple_tables = [
+            "strategy_TRIP_NAS_10010462",
+            "strategy_TRIP_NAS_10016827"
+            # "strategy_TRIP_NAS_10011351"
+        ]
+        multi_results = train_multi_table(multiple_tables)
         # logging.info("\nMulti-Table Training Results:================================================================")
         # for model_key, result in multi_results.items():
         #     logging.info(f"\nModel: {model_key}")

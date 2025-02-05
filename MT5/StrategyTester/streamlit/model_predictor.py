@@ -376,26 +376,30 @@ def main():
 
         # Check if we need to train a model first
         model_files = [f for f in os.listdir(models_dir) if f.endswith('.model')]
-        
-        if not model_files:
-            logging.info("No existing model found. Training a new model...")
-            from xgboost_train_model import train_time_series_model
-            
-            try:
-                # Train the model
-                model_path, metrics = train_time_series_model(
-                    table_name="strategy_SYM_10021279",  # Replace with your table name
-                    target_col="Price",
-                    prediction_horizon=1
-                )
-                logging.info(f"Successfully trained new model: {model_path}")
-                logging.info(f"Training metrics: {metrics}")
-            except Exception as e:
-                logging.error(f"Error training model: {str(e)}")
-                raise
 
+        '''commenting out this for now
+        
+        # if not model_files:
+        #     logging.info("No existing model found. Training a new model...")
+        #     from xgboost_train_model import train_time_series_model
+            
+        #     try:
+        #         # Train the model
+        #         model_path, metrics = train_time_series_model(
+        #             table_name="strategy_SYM_10021279",  # Replace with your table name
+        #             target_col="Price",
+        #             prediction_horizon=1
+        #         )
+        #         logging.info(f"Successfully trained new model: {model_path}")
+        #         logging.info(f"Training metrics: {metrics}")
+        #     except Exception as e:
+        #         logging.error(f"Error training model: {str(e)}")
+        #         raise
+
+        '''
         # Initialize predictor
         predictor = ModelPredictor(db_path, models_dir)
+        
         
         if predictor.model is None:
             logging.error("No model available for predictions")

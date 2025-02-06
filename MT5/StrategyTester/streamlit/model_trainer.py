@@ -15,6 +15,7 @@ from model_repository import ModelRepository
 import torch
 from torch.utils.data import Dataset, DataLoader
 from model_implementations import TimeSeriesDataset, LSTMTimeSeriesModel
+from mlflow_utils import MLflowManager
 
 class TimeSeriesModelTrainer:
     def __init__(self, db_path: str, models_dir: str):
@@ -30,6 +31,7 @@ class TimeSeriesModelTrainer:
         self.setup_logging()
         self.setup_directories()
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.mlflow_manager = MLflowManager()
 
     def setup_logging(self):
         """Configure logging settings"""
@@ -366,148 +368,170 @@ class TimeSeriesModelTrainer:
                                 model_params: Optional[Dict] = None,
                                 model_name: Optional[str] = None,
                                 model_type: str = 'xgboost') -> Tuple[str, Dict]:
-        """Train model using data from multiple tables with support for LSTM"""
         try:
-            # Load and combine data from all tables
-            df = self.load_data_from_multiple_tables(table_names)
-            logging.info(f"Combined data shape: {df.shape}")
-            
-            # Prepare features and target
-            X, y = self.prepare_features_target(
-                df, 
-                target_col,
-                feature_cols=feature_cols,
-                prediction_horizon=prediction_horizon,
-                model_type=model_type
-            )
-            logging.info(f"Prepared features shape: {X.shape}, target shape: {y.shape}")
-            
-            # Try to load existing model
-            existing_model = None
-            if model_name:
-                if model_type == 'lstm':
-                    model_path = os.path.join(self.models_dir, f"{model_name}.pt")
-                else:
-                    model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
-                    
-                if os.path.exists(model_path):
-                    try:
-                        if model_type == 'lstm':
-                            existing_model = LSTMTimeSeriesModel()
-                            existing_model.load(model_path)
-                        else:
-                            existing_model = joblib.load(model_path)
-                        logging.info(f"Successfully loaded existing model: {model_path}")
-                    except Exception as e:
-                        logging.warning(f"Could not load existing model: {e}")
-                        existing_model = None
-
-            # Add model_type to model_params
-            if model_params is None:
-                model_params = {}
-            model_params['model_type'] = model_type
-
-            # Train or update model
-            if model_type == 'lstm':
-                # Create LSTM model instance
-                model = LSTMTimeSeriesModel()
-                model, metrics = model.train(
-                    X=X,
-                    y=y,
+            # Start MLflow run
+            run_name = f"{model_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            with self.mlflow_manager.start_run(run_name=run_name):
+                # Log parameters
+                self.mlflow_manager.log_params({
+                    'model_type': model_type,
+                    'target_col': target_col,
+                    'prediction_horizon': prediction_horizon,
+                    'table_names': table_names,
+                    'feature_cols': feature_cols,
                     **model_params
-                )
-            else:
-                # Train other models using existing logic
-                model, metrics = self.train_model(
-                    X=X,
-                    y=y,
-                    model_params=model_params,
-                    existing_model=existing_model
-                )
-            
-            # Add additional metrics
-            metrics.update({
-                'training_tables': table_names,
-                'training_time': datetime.now().isoformat(),
-                'data_points': len(X),
-                'features_used': list(X.columns),
-                'model_name': model_name,
-                'training_period': {
-                    'start': str(X.index.min()),
-                    'end': str(X.index.max())
-                }
-            })
-            
-            # Generate model name if not provided
-            if not model_name:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                training_type = 'multi' if len(table_names) > 1 else 'single'
-                model_name = f"{training_type}_{timestamp}"
-            
-            # Create full model name with model type
-            full_model_name = f"{model_type}_{model_name}"
-            
-            # Save model based on type
-            if model_type == 'lstm':
-                model_path = model.save(self.models_dir, model_name)
-            else:
-                model_path = self.save_model_and_metadata(
-                    model=model,
-                    feature_cols=X.columns.tolist(),
-                    metrics=metrics,
-                    model_name=full_model_name
-                )
-            
-            logging.info(f"Model saved to: {model_path}")
-            
-            # Save training history
-            try:
-                self._update_training_history(model_path, table_names, metrics)
-            except Exception as history_error:
-                logging.warning(f"Error updating training history: {history_error}")
-            
-            # Store model information in repository using the full model name
-            try:
-                model_repo = ModelRepository(self.db_path)
-                feature_importance = {}
+                })
+
+                # Load and combine data from all tables
+                df = self.load_data_from_multiple_tables(table_names)
+                logging.info(f"Combined data shape: {df.shape}")
                 
-                # Get feature importance if available
-                if model_type == 'lstm':
-                    # LSTM uses equal feature importance
-                    importance = 1.0 / len(X.columns)
-                    feature_importance = {feat: importance for feat in X.columns}
-                elif hasattr(model, 'feature_importances_'):
-                    feature_importance = dict(zip(X.columns, model.feature_importances_))
-                elif model_type == 'xgboost':
-                    importance_scores = model.get_booster().get_score(importance_type='gain')
-                    feature_importance = {k: v for k, v in importance_scores.items()}
-                
-                model_repo.store_model_info(
-                    model_name=full_model_name,  # Use full model name here
-                    model_type=model_type,
-                    training_type='multi' if len(table_names) > 1 else 'single',
+                # Prepare features and target
+                X, y = self.prepare_features_target(
+                    df, 
+                    target_col,
+                    feature_cols=feature_cols,
                     prediction_horizon=prediction_horizon,
-                    features=X.columns.tolist(),
-                    feature_importance=feature_importance,
-                    model_params=model_params,
-                    metrics=metrics,
-                    training_tables=table_names,
-                    training_period={
+                    model_type=model_type
+                )
+                logging.info(f"Prepared features shape: {X.shape}, target shape: {y.shape}")
+                
+                # Try to load existing model
+                existing_model = None
+                if model_name:
+                    if model_type == 'lstm':
+                        model_path = os.path.join(self.models_dir, f"{model_name}.pt")
+                    else:
+                        model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
+                        
+                    if os.path.exists(model_path):
+                        try:
+                            if model_type == 'lstm':
+                                existing_model = LSTMTimeSeriesModel()
+                                existing_model.load(model_path)
+                            else:
+                                existing_model = joblib.load(model_path)
+                            logging.info(f"Successfully loaded existing model: {model_path}")
+                        except Exception as e:
+                            logging.warning(f"Could not load existing model: {e}")
+                            existing_model = None
+
+                # Add model_type to model_params
+                if model_params is None:
+                    model_params = {}
+                model_params['model_type'] = model_type
+
+                # Train or update model
+                if model_type == 'lstm':
+                    # Create LSTM model instance
+                    model = LSTMTimeSeriesModel()
+                    model, metrics = model.train(
+                        X=X,
+                        y=y,
+                        **model_params
+                    )
+                else:
+                    # Train other models using existing logic
+                    model, metrics = self.train_model(
+                        X=X,
+                        y=y,
+                        model_params=model_params,
+                        existing_model=existing_model
+                    )
+                
+                # Add additional metrics
+                metrics.update({
+                    'training_tables': table_names,
+                    'training_time': datetime.now().isoformat(),
+                    'data_points': len(X),
+                    'features_used': list(X.columns),
+                    'model_name': model_name,
+                    'training_period': {
                         'start': str(X.index.min()),
                         'end': str(X.index.max())
-                    },
-                    data_points=len(X),
-                    model_path=model_path,
-                    scaler_path=os.path.join(self.models_dir, f"{full_model_name}_scaler.joblib")
-                )
-            except Exception as repo_error:
-                logging.warning(f"Error storing model in repository: {repo_error}")
-            
-            return model_path, metrics
-            
+                    }
+                })
+                
+                # Generate model name if not provided
+                if not model_name:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    training_type = 'multi' if len(table_names) > 1 else 'single'
+                    model_name = f"{training_type}_{timestamp}"
+                
+                # Create full model name with model type
+                full_model_name = f"{model_type}_{model_name}"
+                
+                # Save model based on type
+                if model_type == 'lstm':
+                    model_path = model.save(self.models_dir, model_name)
+                else:
+                    model_path = self.save_model_and_metadata(
+                        model=model,
+                        feature_cols=X.columns.tolist(),
+                        metrics=metrics,
+                        model_name=full_model_name
+                    )
+                
+                logging.info(f"Model saved to: {model_path}")
+                
+                # Save training history
+                try:
+                    self._update_training_history(model_path, table_names, metrics)
+                except Exception as history_error:
+                    logging.warning(f"Error updating training history: {history_error}")
+                
+                # Store model information in repository using the full model name
+                try:
+                    model_repo = ModelRepository(self.db_path)
+                    feature_importance = {}
+                    
+                    # Get feature importance if available
+                    if model_type == 'lstm':
+                        # LSTM uses equal feature importance
+                        importance = 1.0 / len(X.columns)
+                        feature_importance = {feat: importance for feat in X.columns}
+                    elif hasattr(model, 'feature_importances_'):
+                        feature_importance = dict(zip(X.columns, model.feature_importances_))
+                    elif model_type == 'xgboost':
+                        importance_scores = model.get_booster().get_score(importance_type='gain')
+                        feature_importance = {k: v for k, v in importance_scores.items()}
+                    
+                    model_repo.store_model_info(
+                        model_name=full_model_name,  # Use full model name here
+                        model_type=model_type,
+                        training_type='multi' if len(table_names) > 1 else 'single',
+                        prediction_horizon=prediction_horizon,
+                        features=X.columns.tolist(),
+                        feature_importance=feature_importance,
+                        model_params=model_params,
+                        metrics=metrics,
+                        training_tables=table_names,
+                        training_period={
+                            'start': str(X.index.min()),
+                            'end': str(X.index.max())
+                        },
+                        data_points=len(X),
+                        model_path=model_path,
+                        scaler_path=os.path.join(self.models_dir, f"{full_model_name}_scaler.joblib")
+                    )
+                except Exception as repo_error:
+                    logging.warning(f"Error storing model in repository: {repo_error}")
+                
+                # Log metrics to MLflow
+                self.mlflow_manager.log_metrics(metrics)
+
+                # Log model and artifacts
+                self.mlflow_manager.log_model(model, model_name or 'model')
+                self.mlflow_manager.log_artifact(model_path)
+
+                # If feature importance exists, log it
+                if 'feature_importance' in metrics:
+                    self.mlflow_manager.log_feature_importance(metrics['feature_importance'])
+
+                return model_path, metrics
+
         except Exception as e:
-            logging.error(f"Error in multi-table training pipeline: {str(e)}")
-            logging.exception("Detailed traceback:")
+            logging.error(f"Error in train_and_save_multi_table with MLflow: {e}")
             raise
 
     def _update_training_history(self, model_path: str, table_names: List[str], metrics: Dict):

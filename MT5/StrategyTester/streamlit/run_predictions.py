@@ -138,49 +138,48 @@ class HistoricalPredictor:
             logging.error(f"Error loading data: {e}")
             raise
 
-    def store_predictions(self, results_df: pd.DataFrame, summary: Dict, table_name: str) -> None:
-        """Store predictions and summary in database"""
+    def store_predictions(self, results_df: pd.DataFrame, summary: Dict, table_name: str, run_id: str) -> None:
+        """
+        Store predictions and summary in database
+        
+        Args:
+            results_df: DataFrame containing predictions
+            summary: Dictionary of summary metrics
+            table_name: Name of the source table
+            run_id: MLflow run ID
+        """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Create predictions table if it doesn't exist
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS model_predictions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    table_name TEXT,
-                    datetime TEXT,
-                    actual_price REAL,
-                    predicted_price REAL,
-                    error REAL,
-                    timestamp TEXT,
-                    summary_data TEXT,
-                    model_name TEXT
-                )
-            """)
-            
-            # Convert summary to JSON string
-            summary_json = json.dumps(summary)
-            
             # Prepare data for insertion
             prediction_data = []
             for idx, row in results_df.iterrows():
+                # Calculate price volatility if not already present
+                price_volatility = row.get('Price_Volatility', 
+                    results_df['Actual_Price'].rolling(window=20).std().loc[idx]
+                    if len(results_df) >= 20 else 0.0)
+                
                 prediction_data.append((
-                    table_name,
                     str(idx),  # datetime
                     float(row['Actual_Price']),
                     float(row['Predicted_Price']),
                     float(row['Error']),
-                    datetime.now().isoformat(),
-                    summary_json,
+                    float(row.get('Price_Change', 0.0)),
+                    float(row.get('Predicted_Change', 0.0)),
+                    float(price_volatility),
+                    run_id,  # MLflow run_id
+                    table_name,  # source_table
                     self.model_predictor.current_model_name if self.model_predictor else None
                 ))
             
             # Insert predictions
             cursor.executemany("""
-                INSERT INTO model_predictions 
-                (table_name, datetime, actual_price, predicted_price, error, timestamp, summary_data, model_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO historical_predictions 
+                (datetime, actual_price, predicted_price, error, 
+                price_change, predicted_change, price_volatility,
+                run_id, source_table, model_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, prediction_data)
             
             conn.commit()
@@ -274,10 +273,14 @@ class HistoricalPredictor:
             
             mlflow.set_experiment("model_predictions")
             
-            # Start MLflow run with detailed run name
-            run_name = f"prediction_{table_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Create a run_name in the format we want
+            current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+            run_name = f"run_{current_time}"
+            
+            # Start MLflow run with our custom run_name
             with mlflow.start_run(run_name=run_name) as run:
-                logging.info(f"Started MLflow run: {run.info.run_id}")
+                run_id = run_name  # Use the same format for run_id
+                logging.info(f"Started MLflow run: {run_id}")
                 
                 # Log model info
                 mlflow.log_param("model_name", self.model_predictor.current_model_name)
@@ -330,9 +333,8 @@ class HistoricalPredictor:
                 mlflow.log_artifact(temp_csv)
                 os.remove(temp_csv)
                 
-                # Store predictions and metrics in SQLite
-                run_id = run.info.run_id
-                self.store_predictions(results_df, summary, table_name)
+                # Store predictions and metrics in SQLite with the same run_id
+                self.store_predictions(results_df, summary, table_name, run_id)
                 self.store_metrics(summary, run_id, table_name)
                 
                 logging.info(f"Successfully ran predictions on {table_name}")
@@ -505,16 +507,15 @@ def main():
         os.makedirs(models_dir, exist_ok=True)
         
         # Example of using a specific model
-        model_name = "xgboost_multi_20250207_145640"  # Replace with None to use latest model
+        model_name = "xgboost_multi_20250207_192432"  # Replace with None to use latest model
         predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions for a specific table
         table_name = "strategy_TRIP_NAS_10016827"  # Replace with your table name
         results_df = predictor.run_predictions(table_name)
         
-        # Generate and store summary
+        # Generate summary for display
         summary = predictor.generate_summary(results_df)
-        predictor.store_predictions(results_df, summary, table_name)
         
         # Print summary
         print("\nPrediction Summary:")

@@ -34,14 +34,18 @@ MT5/StrategyTester/oldcode/
 MT5/StrategyTester/streamlit/models/
 MT5/StrategyTester/streamlit/st_venv/
 MT5/StrategyTester/streamlit/logs/
+MT5/StrategyTester/streamlit/
 
-MT5/StrategyTester/streamlit/backup/
+MT5/StrategyTester/streamlit/mlruns/
+MT5/StrategyTester/streamlit/mlflow_artifacts/
+
 MT5/StrategyTester/streamlit/backup/removing_unnecessaryfiles/
 MT5/StrategyTester/streamlit/additional_files/
 MT5/StrategyTester/streamlit/apis/
 MT5/StrategyTester/streamlit/components/
 MT5/StrategyTester/streamlit/__pycache__/
 MT5/StrategyTester/streamlit/.ipynb_checkpoints/
+
 MT5/StrategyTester/streamlit/jy_notebook/
 MT5/StrategyTester/streamlit/ML_Individual_Analysis/
 

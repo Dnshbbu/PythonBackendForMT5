@@ -1,6 +1,0 @@
-this is test1 file
-yes, test1 file it is
-
-now using psutil
-
-https://d2i6vq7u88ao2l.cloudfront.net/test2.txt

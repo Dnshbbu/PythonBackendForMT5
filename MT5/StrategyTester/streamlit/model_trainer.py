@@ -369,9 +369,18 @@ class TimeSeriesModelTrainer:
                                 model_name: Optional[str] = None,
                                 model_type: str = 'xgboost') -> Tuple[str, Dict]:
         try:
-            # Start MLflow run
-            run_name = f"{model_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            with self.mlflow_manager.start_run(run_name=run_name):
+            # Generate or validate model name first
+            if not model_name:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                training_type = 'multi' if len(table_names) > 1 else 'single'
+                model_name = f"{model_type}_{training_type}_{timestamp}"
+            else:
+                # Ensure model_name includes model_type prefix if not already present
+                if not model_name.startswith(f"{model_type}_"):
+                    model_name = f"{model_type}_{model_name}"
+
+            # Start MLflow run with the same model name
+            with self.mlflow_manager.start_run(run_name=model_name):
                 # Log parameters
                 self.mlflow_manager.log_params({
                     'model_type': model_type,
@@ -452,15 +461,6 @@ class TimeSeriesModelTrainer:
                     }
                 })
                 
-                # Generate model name if not provided
-                if not model_name:
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    training_type = 'multi' if len(table_names) > 1 else 'single'
-                    model_name = f"{training_type}_{timestamp}"
-                
-                # Create full model name with model type
-                full_model_name = f"{model_type}_{model_name}"
-                
                 # Save model based on type
                 if model_type == 'lstm':
                     model_path = model.save(self.models_dir, model_name)
@@ -469,7 +469,7 @@ class TimeSeriesModelTrainer:
                         model=model,
                         feature_cols=X.columns.tolist(),
                         metrics=metrics,
-                        model_name=full_model_name
+                        model_name=model_name
                     )
                 
                 logging.info(f"Model saved to: {model_path}")
@@ -480,7 +480,7 @@ class TimeSeriesModelTrainer:
                 except Exception as history_error:
                     logging.warning(f"Error updating training history: {history_error}")
                 
-                # Store model information in repository using the full model name
+                # Store model information in repository using the same model name
                 try:
                     model_repo = ModelRepository(self.db_path)
                     feature_importance = {}
@@ -497,7 +497,7 @@ class TimeSeriesModelTrainer:
                         feature_importance = {k: v for k, v in importance_scores.items()}
                     
                     model_repo.store_model_info(
-                        model_name=full_model_name,  # Use full model name here
+                        model_name=model_name,  # Use the same model name consistently
                         model_type=model_type,
                         training_type='multi' if len(table_names) > 1 else 'single',
                         prediction_horizon=prediction_horizon,
@@ -512,7 +512,7 @@ class TimeSeriesModelTrainer:
                         },
                         data_points=len(X),
                         model_path=model_path,
-                        scaler_path=os.path.join(self.models_dir, f"{full_model_name}_scaler.joblib")
+                        scaler_path=os.path.join(self.models_dir, f"{model_name}_scaler.joblib")
                     )
                 except Exception as repo_error:
                     logging.warning(f"Error storing model in repository: {repo_error}")
@@ -520,8 +520,8 @@ class TimeSeriesModelTrainer:
                 # Log metrics to MLflow
                 self.mlflow_manager.log_metrics(metrics)
 
-                # Log model and artifacts
-                self.mlflow_manager.log_model(model, model_name or 'model')
+                # Log model and artifacts using the same model name
+                self.mlflow_manager.log_model(model, model_name)
                 self.mlflow_manager.log_artifact(model_path)
 
                 # If feature importance exists, log it

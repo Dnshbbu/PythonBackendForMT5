@@ -2,9 +2,11 @@
 logs/
 venv/
 ml_venv/
+ml_venv2/
 MT5/reports/
 MT5/StrategyTester/streamlit/models/
 MT5/StrategyTester/streamlit/mlflow_artifacts/
+
 
 
 *.db

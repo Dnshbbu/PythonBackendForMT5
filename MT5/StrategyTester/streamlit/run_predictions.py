@@ -257,6 +257,7 @@ class HistoricalPredictor:
         """Run predictions on historical data"""
         try:
             # Get data from database
+            logging.info(f"Starting predictions for table: {table_name}")
             conn = sqlite3.connect(self.db_path)
             df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
             conn.close()
@@ -266,30 +267,35 @@ class HistoricalPredictor:
                 df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
                 df = df.set_index('DateTime')
             
+            logging.info("Starting feature preparation...")
             # Prepare features
             X = self.model_predictor.prepare_features(df)
+            logging.info("Feature preparation completed")
             
+            logging.info("Starting prediction process...")
             predictions = []
+            total_rows = len(df) - 1
             
             # Handle predictions based on model type
             if hasattr(self.model_predictor, 'model_type') and self.model_predictor.model_type == 'lstm':
-                sequence_length = self.model_predictor.sequence_length  # Get sequence length from model_predictor
+                sequence_length = self.model_predictor.sequence_length
                 device = self.model_predictor.model_params['device']
                 
                 # Create sequences for prediction
                 for i in range(sequence_length - 1, len(df) - 1):
+                    if i % 1000 == 0:  # Log every 1000 rows
+                        progress = (i / total_rows) * 100
+                        logging.info(f"LSTM Processing: {progress:.1f}% completed")
                     try:
                         next_row = df.iloc[i+1]
-                        sequence = X.iloc[i-sequence_length+1:i+1].values  # Get the sequence
+                        sequence = X.iloc[i-sequence_length+1:i+1].values
                         
-                        # Convert to tensor and add batch dimension
                         sequence_tensor = torch.FloatTensor(sequence).unsqueeze(0).to(device)
                         
-                        # Make prediction
-                        self.model_predictor.model.eval()  # Set model to evaluation mode
+                        self.model_predictor.model.eval()
                         with torch.no_grad():
                             prediction = self.model_predictor.model(sequence_tensor)
-                            prediction = prediction.cpu().numpy()  # Convert prediction back to numpy
+                            prediction = prediction.cpu().numpy()
                         
                         predictions.append({
                             'DateTime': next_row.name,
@@ -299,32 +305,50 @@ class HistoricalPredictor:
                         })
                         
                     except Exception as e:
-                        logging.warning(f"Error processing row {i}: {str(e)}")
-                        logging.warning(f"Sequence shape: {sequence.shape if 'sequence' in locals() else 'N/A'}")
+                        logging.error(f"Error in LSTM prediction at row {i}: {str(e)}")
                         continue
             else:
-                # Original prediction logic for traditional models
-                for i in range(len(df) - 1):
+                # Process in smaller batches for better performance and monitoring
+                batch_size = 1000  # Increased batch size for better performance
+                total_batches = (total_rows // batch_size) + 1
+                last_progress = 0
+                
+                for i in range(0, len(df) - 1, batch_size):
+                    current_batch = i // batch_size + 1
+                    progress = (current_batch / total_batches) * 100
+                    
+                    # Only log if progress has increased by at least 10%
+                    if progress - last_progress >= 10:
+                        logging.info(f"Processing: {progress:.1f}% completed ({current_batch}/{total_batches} batches)")
+                        last_progress = progress
+                        
                     try:
-                        next_row = df.iloc[i+1]
-                        current_features = X.iloc[i:i+1]
-                        prediction = self.model_predictor.model.predict(current_features)
+                        batch_end = min(i + batch_size, len(df) - 1)
+                        current_features = X.iloc[i:batch_end]
+                        batch_predictions = self.model_predictor.model.predict(current_features)
                         
-                        predictions.append({
-                            'DateTime': next_row.name,
-                            'Actual_Price': float(next_row['Price']),
-                            'Predicted_Price': float(prediction[0]),
-                            'Error': float(next_row['Price']) - float(prediction[0])
-                        })
-                        
+                        for j, prediction in enumerate(batch_predictions):
+                            if i + j + 1 >= len(df):
+                                continue
+                            next_row = df.iloc[i + j + 1]
+                            predictions.append({
+                                'DateTime': next_row.name,
+                                'Actual_Price': float(next_row['Price']),
+                                'Predicted_Price': float(prediction),
+                                'Error': float(next_row['Price']) - float(prediction)
+                            })
+                            
                     except Exception as e:
-                        logging.warning(f"Error processing row {i}: {str(e)}")
+                        logging.error(f"Error in batch prediction at index {i}: {str(e)}")
                         continue
 
+            logging.info("Prediction process completed")
+            
             # Convert results to DataFrame and set index
             results_df = pd.DataFrame(predictions)
             if not results_df.empty:
                 results_df.set_index('DateTime', inplace=True)
+                logging.info(f"Generated predictions DataFrame with shape: {results_df.shape}")
             else:
                 logging.warning("No predictions were generated")
                 results_df = pd.DataFrame(columns=['Actual_Price', 'Predicted_Price', 'Error'])
@@ -499,7 +523,7 @@ def main():
         os.makedirs(models_dir, exist_ok=True)
         
         # Example of using a specific model
-        model_name = "xgboost_single_20250205_151017"  # Replace with None to use latest model
+        model_name = "xgboost_multi_20250207_145640"  # Replace with None to use latest model
         predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions for a specific table

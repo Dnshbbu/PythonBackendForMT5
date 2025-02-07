@@ -248,88 +248,106 @@ class ModelPredictor:
             confidence_threshold: Threshold for confidence level
             
         Returns:
-            Dictionary containing prediction results and metadata
+            Dictionary containing prediction results and metrics
         """
         try:
-            # Check if model is loaded
-            if self.model is None:
-                raise ValueError("No model loaded")
-                
             # Get latest data
             df = self.get_latest_data(table_name, n_rows)
-            if df.empty:
-                raise ValueError("No data available for prediction")
-                
+            
             # Prepare features
             X = self.prepare_features(df)
             
-            # Make prediction based on model type
-            if self.model_type == 'lstm':
-                # Create sequence dataset
-                sequence_length = self.model_params['sequence_length']
-                dataset = TimeSeriesDataset(
-                    X,
-                    pd.Series(np.zeros(len(X))),  # Dummy target
-                    sequence_length
-                )
-                dataloader = torch.utils.data.DataLoader(
-                    dataset,
-                    batch_size=1,  # Predict one at a time
-                    shuffle=False
-                )
-                
-                # Get last sequence
-                last_sequence = next(iter(dataloader))[0]
-                
-                # Make prediction
-                with torch.no_grad():
-                    prediction = self.model(last_sequence.to(self.model_params['device']))
-                    prediction = prediction.cpu().numpy()
-            else:
-                # Traditional models
-                prediction = self.model.predict(X.iloc[-1:])
-            
-            # Get feature importance
-            if self.model_type == 'lstm':
-                # LSTM uses equal feature importance
-                importance = 1.0 / len(X.columns)
-                feature_importance = dict(zip(X.columns, [importance] * len(X.columns)))
-            else:
-                feature_importance = dict(zip(X.columns, self.model.feature_importances_))
-            
-            top_features = dict(sorted(feature_importance.items(), 
-                                    key=lambda x: abs(x[1]), 
-                                    reverse=True)[:5])
-            
-            # Calculate prediction confidence
-            if self.model_type == 'lstm':
-                # For LSTM, use rolling standard deviation of predictions
-                confidence = 1.0 - np.std(prediction) / np.mean(np.abs(prediction))
-            else:
-                confidence = 1.0 - np.std(self.model.predict(X)) / np.mean(np.abs(prediction))
-            
-            # Prepare result
+            # Initialize result dictionary
             result = {
                 'timestamp': datetime.now().isoformat(),
-                'prediction': float(prediction[0]),
-                'confidence': float(confidence),
-                'is_confident': confidence >= confidence_threshold,
-                'top_features': top_features,
                 'model_name': self.current_model_name,
-                'model_type': self.model_type,
-                'metadata': {
-                    'features_used': len(self.feature_columns),
-                    'data_points': len(df)
-                }
+                'table_name': table_name,
+                'metrics': {}
             }
             
-            logging.info(f"Made prediction using {self.model_type} model {self.current_model_name}: "
-                        f"{result['prediction']:.4f} (confidence: {result['confidence']:.4f})")
+            # Make predictions based on model type
+            if isinstance(self.model, LSTMModel):
+                sequence_length = self.sequence_length
+                dataset = TimeSeriesDataset(X.values, df['Price'].values, sequence_length)
+                predictions = []
+                
+                with torch.no_grad():
+                    for i in range(len(dataset)):
+                        x, _ = dataset[i]
+                        x = torch.FloatTensor(x).unsqueeze(0)
+                        pred = self.model(x)
+                        predictions.append(pred.item())
+                
+                # Pad the beginning with NaN values
+                pad = [np.nan] * (sequence_length - 1)
+                predictions = pad + predictions
+            else:
+                predictions = self.model.predict(X)
+            
+            # Calculate prediction metrics
+            actual_prices = df['Price'].values
+            valid_indices = ~np.isnan(predictions)
+            predictions = np.array(predictions)[valid_indices]
+            actual_prices = actual_prices[valid_indices]
+            
+            if len(predictions) > 0:
+                # Basic metrics
+                mae = np.mean(np.abs(actual_prices - predictions))
+                mse = np.mean((actual_prices - predictions) ** 2)
+                rmse = np.sqrt(mse)
+                mape = np.mean(np.abs((actual_prices - predictions) / actual_prices)) * 100
+                
+                # Direction accuracy
+                actual_changes = np.diff(actual_prices)
+                predicted_changes = np.diff(predictions)
+                correct_directions = np.sum((actual_changes * predicted_changes) > 0)
+                direction_accuracy = correct_directions / len(actual_changes) * 100
+                
+                # Volatility and trend metrics
+                price_volatility = np.std(actual_changes)
+                avg_price_change = np.mean(np.abs(actual_changes))
+                
+                # Store metrics
+                result['metrics'] = {
+                    'mean_absolute_error': mae,
+                    'root_mean_squared_error': rmse,
+                    'mean_absolute_percentage_error': mape,
+                    'direction_accuracy': direction_accuracy,
+                    'price_volatility': price_volatility,
+                    'avg_price_change': avg_price_change,
+                    'prediction_count': len(predictions)
+                }
+                
+                # Latest prediction
+                result['latest_prediction'] = {
+                    'timestamp': df.index[-1],
+                    'actual_price': float(actual_prices[-1]),
+                    'predicted_price': float(predictions[-1]),
+                    'error': float(actual_prices[-1] - predictions[-1])
+                }
+                
+                # Confidence score based on recent accuracy
+                recent_errors = np.abs(actual_prices[-10:] - predictions[-10:])
+                confidence_score = 1.0 - (np.mean(recent_errors) / np.mean(actual_prices[-10:]))
+                result['confidence_score'] = max(0.0, min(1.0, confidence_score))
+                
+                # Trading signals
+                result['trading_signals'] = {
+                    'trend': 'up' if predictions[-1] > actual_prices[-1] else 'down',
+                    'confidence': 'high' if confidence_score > confidence_threshold else 'low',
+                    'volatility': 'high' if price_volatility > np.mean(price_volatility) else 'low'
+                }
+                
+                logging.info(f"Successfully generated predictions with {len(predictions)} data points")
+                
+            else:
+                logging.warning("No valid predictions generated")
+                result['error'] = "No valid predictions could be generated"
             
             return result
             
         except Exception as e:
-            logging.error(f"Error making prediction: {e}")
+            logging.error(f"Error in make_predictions: {e}")
             raise
 
     def get_prediction_explanation(self, prediction_result: Dict) -> str:

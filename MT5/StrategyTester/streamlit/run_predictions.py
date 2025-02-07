@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 from datetime import datetime
+import mlflow
 from model_predictor import ModelPredictor
 from typing import Dict, List, Optional
 import json
@@ -254,110 +255,91 @@ class HistoricalPredictor:
                 conn.close()
 
     def run_predictions(self, table_name: str) -> pd.DataFrame:
-        """Run predictions on historical data"""
+        """Run predictions on historical data and store results"""
         try:
-            # Get data from database
-            logging.info(f"Starting predictions for table: {table_name}")
-            conn = sqlite3.connect(self.db_path)
-            df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
-            conn.close()
+            # Load data
+            df = self.load_data(table_name)
             
-            # Convert date and time to datetime
-            if 'Date' in df.columns and 'Time' in df.columns:
-                df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
-                df = df.set_index('DateTime')
+            # Set MLflow tracking URI to use the same database as your command
+            mlflow.set_tracking_uri("sqlite:///mlflow.db")
             
-            logging.info("Starting feature preparation...")
-            # Prepare features
-            X = self.model_predictor.prepare_features(df)
-            logging.info("Feature preparation completed")
-            
-            logging.info("Starting prediction process...")
-            predictions = []
-            total_rows = len(df) - 1
-            
-            # Handle predictions based on model type
-            if hasattr(self.model_predictor, 'model_type') and self.model_predictor.model_type == 'lstm':
-                sequence_length = self.model_predictor.sequence_length
-                device = self.model_predictor.model_params['device']
-                
-                # Create sequences for prediction
-                for i in range(sequence_length - 1, len(df) - 1):
-                    if i % 1000 == 0:  # Log every 1000 rows
-                        progress = (i / total_rows) * 100
-                        logging.info(f"LSTM Processing: {progress:.1f}% completed")
-                    try:
-                        next_row = df.iloc[i+1]
-                        sequence = X.iloc[i-sequence_length+1:i+1].values
-                        
-                        sequence_tensor = torch.FloatTensor(sequence).unsqueeze(0).to(device)
-                        
-                        self.model_predictor.model.eval()
-                        with torch.no_grad():
-                            prediction = self.model_predictor.model(sequence_tensor)
-                            prediction = prediction.cpu().numpy()
-                        
-                        predictions.append({
-                            'DateTime': next_row.name,
-                            'Actual_Price': float(next_row['Price']),
-                            'Predicted_Price': float(prediction[0][0]),
-                            'Error': float(next_row['Price']) - float(prediction[0][0])
-                        })
-                        
-                    except Exception as e:
-                        logging.error(f"Error in LSTM prediction at row {i}: {str(e)}")
-                        continue
+            # Set up MLflow experiment for predictions
+            experiment = mlflow.get_experiment_by_name("model_predictions")
+            if experiment is None:
+                # Create the experiment if it doesn't exist
+                experiment_id = mlflow.create_experiment("model_predictions")
+                logging.info(f"Created new MLflow experiment with ID: {experiment_id}")
             else:
-                # Process in smaller batches for better performance and monitoring
-                batch_size = 1000  # Increased batch size for better performance
-                total_batches = (total_rows // batch_size) + 1
-                last_progress = 0
+                logging.info(f"Using existing MLflow experiment with ID: {experiment.experiment_id}")
+            
+            mlflow.set_experiment("model_predictions")
+            
+            # Start MLflow run with detailed run name
+            run_name = f"prediction_{table_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            with mlflow.start_run(run_name=run_name) as run:
+                logging.info(f"Started MLflow run: {run.info.run_id}")
                 
-                for i in range(0, len(df) - 1, batch_size):
-                    current_batch = i // batch_size + 1
-                    progress = (current_batch / total_batches) * 100
+                # Log model info
+                mlflow.log_param("model_name", self.model_predictor.current_model_name)
+                mlflow.log_param("source_table", table_name)
+                mlflow.log_param("data_points", len(df))
+                
+                # Get predictions
+                results_df = pd.DataFrame()
+                results_df['Actual_Price'] = df['Price']
+                
+                # Prepare features and make predictions
+                X = self.model_predictor.prepare_features(df)
+                
+                if isinstance(self.model_predictor.model, LSTMModel):
+                    # Handle LSTM predictions
+                    sequence_length = self.model_predictor.sequence_length
+                    dataset = TimeSeriesDataset(X.values, df['Price'].values, sequence_length)
+                    predictions = []
                     
-                    # Only log if progress has increased by at least 10%
-                    if progress - last_progress >= 10:
-                        logging.info(f"Processing: {progress:.1f}% completed ({current_batch}/{total_batches} batches)")
-                        last_progress = progress
-                        
-                    try:
-                        batch_end = min(i + batch_size, len(df) - 1)
-                        current_features = X.iloc[i:batch_end]
-                        batch_predictions = self.model_predictor.model.predict(current_features)
-                        
-                        for j, prediction in enumerate(batch_predictions):
-                            if i + j + 1 >= len(df):
-                                continue
-                            next_row = df.iloc[i + j + 1]
-                            predictions.append({
-                                'DateTime': next_row.name,
-                                'Actual_Price': float(next_row['Price']),
-                                'Predicted_Price': float(prediction),
-                                'Error': float(next_row['Price']) - float(prediction)
-                            })
-                            
-                    except Exception as e:
-                        logging.error(f"Error in batch prediction at index {i}: {str(e)}")
-                        continue
-
-            logging.info("Prediction process completed")
-            
-            # Convert results to DataFrame and set index
-            results_df = pd.DataFrame(predictions)
-            if not results_df.empty:
-                results_df.set_index('DateTime', inplace=True)
-                logging.info(f"Generated predictions DataFrame with shape: {results_df.shape}")
-            else:
-                logging.warning("No predictions were generated")
-                results_df = pd.DataFrame(columns=['Actual_Price', 'Predicted_Price', 'Error'])
-                results_df.index.name = 'DateTime'
-            
-            return results_df
-            
+                    with torch.no_grad():
+                        for i in range(len(dataset)):
+                            x, _ = dataset[i]
+                            x = torch.FloatTensor(x).unsqueeze(0)
+                            pred = self.model_predictor.model(x)
+                            predictions.append(pred.item())
+                    
+                    # Pad the beginning with NaN values due to sequence length
+                    pad = [np.nan] * (sequence_length - 1)
+                    results_df['Predicted_Price'] = pad + predictions
+                else:
+                    # Handle other model types
+                    results_df['Predicted_Price'] = self.model_predictor.model.predict(X)
+                
+                # Calculate prediction errors and changes
+                results_df['Error'] = results_df['Actual_Price'] - results_df['Predicted_Price']
+                results_df['Price_Change'] = results_df['Actual_Price'].diff()
+                results_df['Predicted_Change'] = results_df['Predicted_Price'].diff()
+                
+                # Generate summary metrics
+                summary = self.generate_summary(results_df)
+                
+                # Log metrics to MLflow
+                for metric_name, metric_value in summary.items():
+                    if isinstance(metric_value, (int, float)):
+                        mlflow.log_metric(metric_name, metric_value)
+                
+                # Save predictions DataFrame as artifact
+                temp_csv = "temp_predictions.csv"
+                results_df.to_csv(temp_csv)
+                mlflow.log_artifact(temp_csv)
+                os.remove(temp_csv)
+                
+                # Store predictions and metrics in SQLite
+                run_id = run.info.run_id
+                self.store_predictions(results_df, summary, table_name)
+                self.store_metrics(summary, run_id, table_name)
+                
+                logging.info(f"Successfully ran predictions on {table_name}")
+                return results_df
+                
         except Exception as e:
-            logging.error(f"Error running predictions: {str(e)}")
+            logging.error(f"Error running predictions: {e}")
             raise
 
     def generate_summary(self, results_df: pd.DataFrame) -> Dict:

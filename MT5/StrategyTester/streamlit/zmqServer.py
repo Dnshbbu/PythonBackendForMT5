@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from database_manager import DatabaseManager
 from real_time_price_predictor import RealTimePricePredictor
-# from model_training_manager import ModelTrainingManager
+from model_training_manager import ModelTrainingManager
 from prediction_tracker import PredictionTracker
 from config import ZMQ_CONFIG, DATABASE_CONFIG, MODEL_CONFIG
 
@@ -85,17 +85,17 @@ class MT5ZMQClient:
                 logging.error(f"Failed to initialize database manager: {e}")
                 raise
 
-            # # Initialize training manager with configuration [TO BE IMPLEMENTED later]
-            # try:
-            #     self.training_manager = ModelTrainingManager(
-            #         db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name']),
-            #         models_dir=self.models_dir,
-            #         min_rows_for_training=MODEL_CONFIG['min_rows_for_training']
-            #     )
-            #     logging.info("Training manager initialized successfully")
-            # except Exception as e:
-            #     logging.error(f"Failed to initialize training manager: {e}")
-            #     raise
+            # Initialize training manager with configuration [TO BE IMPLEMENTED later]
+            try:
+                self.training_manager = ModelTrainingManager(
+                    db_path=os.path.join(self.logs_dir, DATABASE_CONFIG['db_name']),
+                    models_dir=self.models_dir,
+                    min_rows_for_training=MODEL_CONFIG['min_rows_for_training']
+                )
+                logging.info("Training manager initialized successfully")
+            except Exception as e:
+                logging.error(f"Failed to initialize training manager: {e}")
+                raise
 
             # Initialize price predictor with configuration
             try:

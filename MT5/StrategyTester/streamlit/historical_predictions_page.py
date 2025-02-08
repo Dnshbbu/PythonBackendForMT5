@@ -10,6 +10,143 @@ from typing import List, Dict, Optional, Tuple
 # Import the required functions from model_comparison_page
 from model_comparison_page import display_model_details_section, ModelComparison
 
+# Constants for optimization
+ROWS_PER_PAGE = 1000
+CACHE_TTL = 3600  # Cache time to live in seconds
+
+@st.cache_data(ttl=CACHE_TTL)
+def get_available_runs(db_path: str) -> List[Dict[str, str]]:
+    """Get list of available runs with metadata."""
+    try:
+        query = """
+            SELECT DISTINCT 
+                p.run_id,
+                p.source_table,
+                p.model_name,
+                MIN(p.datetime) as start_date,
+                MAX(p.datetime) as end_date,
+                COUNT(*) as prediction_count,
+                MAX(m.timestamp) as run_timestamp
+            FROM historical_predictions p
+            LEFT JOIN historical_prediction_metrics m 
+            ON p.run_id = m.run_id
+            GROUP BY p.run_id, p.source_table, p.model_name
+            ORDER BY p.datetime DESC
+        """
+        
+        conn = sqlite3.connect(db_path)
+        df = pd.read_sql_query(query, conn)
+        return df.to_dict('records')
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error getting available runs: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+@st.cache_data(ttl=CACHE_TTL)
+def load_predictions_page(db_path: str, run_id: str, page: int) -> pd.DataFrame:
+    """Load predictions for a specific run with pagination."""
+    offset = page * ROWS_PER_PAGE
+    query = """
+        SELECT 
+            datetime,
+            actual_price,
+            predicted_price,
+            error,
+            price_change,
+            predicted_change,
+            price_volatility
+        FROM historical_predictions
+        WHERE run_id = ?
+        ORDER BY datetime
+        LIMIT ? OFFSET ?
+    """
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        df = pd.read_sql_query(query, conn, params=(run_id, ROWS_PER_PAGE, offset))
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        return df
+        
+    except Exception as e:
+        logging.error(f"Error loading predictions: {e}")
+        return pd.DataFrame()
+    finally:
+        if conn:
+            conn.close()
+
+@st.cache_data(ttl=CACHE_TTL)
+def get_total_rows(db_path: str, run_id: str) -> int:
+    """Get total number of rows for a run."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM historical_predictions WHERE run_id = ?", 
+            (run_id,)
+        )
+        return cursor.fetchone()[0]
+    except sqlite3.Error as e:
+        logging.error(f"Error getting total rows: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
+@st.cache_data(ttl=CACHE_TTL)
+def load_metrics(db_path: str, run_id: str) -> pd.DataFrame:
+    """Load detailed metrics for a specific run."""
+    query = """
+        SELECT *
+        FROM historical_prediction_metrics
+        WHERE run_id = ?
+        ORDER BY timestamp
+    """
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        df = pd.read_sql_query(query, conn, params=(run_id,))
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        return df
+        
+    except Exception as e:
+        logging.error(f"Error loading metrics: {e}")
+        return pd.DataFrame()
+    finally:
+        if conn:
+            conn.close()
+
+@st.cache_data(ttl=CACHE_TTL)
+def load_all_predictions(db_path: str, run_id: str) -> pd.DataFrame:
+    """Load all predictions for a specific run."""
+    query = """
+        SELECT 
+            datetime,
+            actual_price,
+            predicted_price,
+            error,
+            price_change,
+            predicted_change,
+            price_volatility
+        FROM historical_predictions
+        WHERE run_id = ?
+        ORDER BY datetime
+    """
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        df = pd.read_sql_query(query, conn, params=(run_id,))
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        return df
+        
+    except Exception as e:
+        logging.error(f"Error loading all predictions: {e}")
+        return pd.DataFrame()
+    finally:
+        if conn:
+            conn.close()
 
 class HistoricalPredictionsPage:
     """Class for analyzing historical predictions in Streamlit."""
@@ -136,8 +273,12 @@ class HistoricalPredictionsPage:
             if conn:
                 conn.close()
 
-    def plot_predictions(self, df: pd.DataFrame) -> List[go.Figure]:
+    def plot_predictions(self, df: pd.DataFrame, max_points: int = None) -> List[go.Figure]:
         """Create comprehensive prediction analysis plots."""
+        # Downsample data for plotting if max_points is specified
+        if max_points and len(df) > max_points:
+            df = df.iloc[::len(df)//max_points]  # Take max_points evenly spaced samples
+        
         # Convert datetime index to pandas datetime if not already
         df['datetime'] = pd.to_datetime(df['datetime'])
         
@@ -476,15 +617,32 @@ def historical_predictions_page():
     analyzer = HistoricalPredictionsPage(db_path)
     
     # Check if database is initialized
-    if not analyzer.check_database_exists():
-        st.warning("""
-        Historical predictions database not found. 
-        Please run predictions using run_predictions.py first.
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' 
+            AND name IN ('historical_predictions', 'historical_prediction_metrics')
         """)
+        existing_tables = {row[0] for row in cursor.fetchall()}
+        required_tables = {'historical_predictions', 'historical_prediction_metrics'}
+        
+        if not required_tables.issubset(existing_tables):
+            st.warning("""
+            Historical predictions database not found. 
+            Please run predictions using run_predictions.py first.
+            """)
+            return
+    except sqlite3.Error as e:
+        st.error(f"Database error: {str(e)}")
         return
+    finally:
+        if conn:
+            conn.close()
 
     # Get available runs
-    runs = analyzer.get_available_runs()
+    runs = get_available_runs(db_path)
     if not runs:
         st.info("No historical prediction data available.")
         return
@@ -569,13 +727,78 @@ def historical_predictions_page():
             )
         
         try:
-            # Load data
-            predictions_df = analyzer.load_predictions(selected_run_id)
-            metrics_df = analyzer.load_metrics(selected_run_id)
+            # Get total rows and calculate total pages
+            total_rows = get_total_rows(db_path, selected_run_id)
+            total_pages = max(1, (total_rows + ROWS_PER_PAGE - 1) // ROWS_PER_PAGE)
             
-            if not predictions_df.empty:
-                # Display metrics first if available
-                if not metrics_df.empty:
+            # Initialize page from session state
+            if 'current_page' not in st.session_state:
+                st.session_state['current_page'] = 0
+            page = st.session_state['current_page']
+            
+            # Add view options
+            view_option = st.radio(
+                "Select View Mode",
+                ["Paginated View", "Full Data View"],
+                help="Paginated View loads data in chunks. Full Data View loads all data at once (may be slower for large datasets)."
+            )
+            
+            if view_option == "Paginated View":
+                # Ensure we have valid page numbers
+                max_page = max(0, total_pages - 1)  # Ensure at least 0
+                
+                # Handle case where there's only one page
+                if max_page == 0:
+                    page = 0
+                    st.info("Only one page of data available")
+                else:
+                    # Show navigation buttons for pagination
+                    st.write("### Page Navigation")
+                    col1, col2, col3 = st.columns([1, 3, 1])
+                    
+                    with col1:
+                        if st.button("← Previous", disabled=(page <= 0)):
+                            page = max(0, page - 1)
+                            st.session_state['current_page'] = page
+                            st.rerun()
+                    
+                    with col2:
+                        st.write(f"Page {page + 1} of {total_pages}")
+                    
+                    with col3:
+                        if st.button("Next →", disabled=(page >= max_page)):
+                            page = min(max_page, page + 1)
+                            st.session_state['current_page'] = page
+                            st.rerun()
+                
+                # Ensure page is within valid range
+                page = min(max(0, page), max_page)
+                st.session_state['current_page'] = page
+                
+                # Load data for current page
+                predictions_df = load_predictions_page(db_path, selected_run_id, page)
+                
+                if predictions_df.empty:
+                    st.warning("No predictions found for the selected page.")
+                    return
+                
+                page_info = f"(Page {page + 1} of {total_pages})"
+            
+            else:  # Full Data View
+                predictions_df = load_all_predictions(db_path, selected_run_id)
+                
+                if predictions_df.empty:
+                    st.warning("No predictions found.")
+                    return
+                
+                page_info = f"(Showing all {len(predictions_df):,} records)"
+            
+            # Load metrics (same for both views)
+            metrics_df = load_metrics(db_path, selected_run_id)
+            
+            # Display metrics first if available
+            if not metrics_df.empty:
+                with st.expander("Performance Metrics", expanded=False):
                     st.subheader("Performance Metrics")
                     
                     # Get the latest metrics
@@ -593,33 +816,92 @@ def historical_predictions_page():
                     
                     metrics_table = pd.DataFrame(metrics_dict)
                     st.table(metrics_table)
+            
+            # Add plot controls
+            with st.expander("Plot Settings", expanded=False):
+                # Date range selector
+                min_date = pd.to_datetime(predictions_df['datetime'].min()).date()
+                max_date = pd.to_datetime(predictions_df['datetime'].max()).date()
                 
-                # Display predictions plots
-                st.subheader("Prediction Analysis")
-                prediction_figs = analyzer.plot_predictions(predictions_df)
-                for fig in prediction_figs:
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                # Add download options
-                st.sidebar.subheader("Download Data")
-                
-                csv_predictions = predictions_df.to_csv(index=False)
-                st.sidebar.download_button(
-                    label="Download Predictions",
-                    data=csv_predictions,
-                    file_name=f"predictions_{selected_run_id}.csv",
-                    mime="text/csv"
-                )
-                
-                if not metrics_df.empty:
-                    csv_metrics = metrics_df.to_csv(index=False)
-                    st.sidebar.download_button(
-                        label="Download Metrics",
-                        data=csv_metrics,
-                        file_name=f"metrics_{selected_run_id}.csv",
-                        mime="text/csv"
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "Start Date",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "End Date",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date
                     )
                 
+                # Filter data by date range
+                mask = (predictions_df['datetime'].dt.date >= start_date) & (predictions_df['datetime'].dt.date <= end_date)
+                filtered_df = predictions_df[mask].copy()
+                
+                if filtered_df.empty:
+                    st.warning("No data available for the selected date range.")
+                    return
+                
+                st.info(f"Showing data from {start_date} to {end_date} ({len(filtered_df):,} records)")
+                
+                # Calculate min and max points for the slider
+                min_points = min(1000, len(filtered_df))
+                max_points = min(20000, len(filtered_df))
+                default_points = min(5000, len(filtered_df))
+                
+                if min_points == max_points:
+                    st.info(f"Using {min_points:,} data points for plotting")
+                    max_points = min_points
+                else:
+                    max_points = st.slider(
+                        "Maximum points to plot",
+                        min_value=min_points,
+                        max_value=max_points,
+                        value=default_points,
+                        step=1000,
+                        help="Higher values show more detail but may be slower to render"
+                    )
+            
+            # Display predictions plots
+            st.subheader(f"Prediction Analysis {page_info}")
+            prediction_figs = analyzer.plot_predictions(filtered_df, max_points)
+            for fig in prediction_figs:
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Add download options in sidebar
+            st.sidebar.subheader("Download Data")
+            
+            if view_option == "Paginated View":
+                csv_predictions = filtered_df.to_csv(index=False)
+                st.sidebar.download_button(
+                    label="Download Filtered Data",
+                    data=csv_predictions,
+                    file_name=f"predictions_{selected_run_id}_filtered.csv",
+                    mime="text/csv"
+                )
+            else:
+                csv_predictions = filtered_df.to_csv(index=False)
+                st.sidebar.download_button(
+                    label="Download All Filtered Data",
+                    data=csv_predictions,
+                    file_name=f"predictions_{selected_run_id}_all_filtered.csv",
+                    mime="text/csv"
+                )
+            
+            if not metrics_df.empty:
+                csv_metrics = metrics_df.to_csv(index=False)
+                st.sidebar.download_button(
+                    label="Download Metrics",
+                    data=csv_metrics,
+                    file_name=f"metrics_{selected_run_id}.csv",
+                    mime="text/csv"
+                )
+            
         except Exception as e:
             st.error(f"Error loading data: {str(e)}")
             logging.error(f"Error in historical predictions page: {str(e)}")

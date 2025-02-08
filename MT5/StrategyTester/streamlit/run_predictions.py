@@ -259,28 +259,38 @@ class HistoricalPredictor:
             # Load data
             df = self.load_data(table_name)
             
-            # Set MLflow tracking URI to use the same database as your command
-            mlflow.set_tracking_uri("sqlite:///mlflow.db")
-            
-            # Set up MLflow experiment for predictions
-            experiment = mlflow.get_experiment_by_name("model_predictions")
-            if experiment is None:
-                # Create the experiment if it doesn't exist
-                experiment_id = mlflow.create_experiment("model_predictions")
-                logging.info(f"Created new MLflow experiment with ID: {experiment_id}")
+            # Check if we're in a nested run
+            active_run = mlflow.active_run()
+            if not active_run:
+                # Set MLflow tracking URI to use the same database as your command
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                mlflow_db = os.path.join(current_dir, "mlflow.db")
+                mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
+                
+                # Set up MLflow experiment for predictions
+                experiment = mlflow.get_experiment_by_name("model_predictions")
+                if experiment is None:
+                    # Create the experiment if it doesn't exist
+                    experiment_id = mlflow.create_experiment("model_predictions")
+                    logging.info(f"Created new MLflow experiment with ID: {experiment_id}")
+                else:
+                    logging.info(f"Using existing MLflow experiment with ID: {experiment.experiment_id}")
+                
+                mlflow.set_experiment("model_predictions")
+                
+                # Create a run_name in the format we want
+                current_time = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:19]  # Include milliseconds but truncate to 3 digits
+                run_name = f"run_{current_time}"
+                
+                # Start MLflow run with our custom run_name
+                run_context = mlflow.start_run(run_name=run_name)
             else:
-                logging.info(f"Using existing MLflow experiment with ID: {experiment.experiment_id}")
+                run_context = active_run
+                run_name = active_run.info.run_name
             
-            mlflow.set_experiment("model_predictions")
-            
-            # Create a run_name in the format we want
-            current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-            run_name = f"run_{current_time}"
-            
-            # Start MLflow run with our custom run_name
-            with mlflow.start_run(run_name=run_name) as run:
+            with run_context:
                 run_id = run_name  # Use the same format for run_id
-                logging.info(f"Started MLflow run: {run_id}")
+                logging.info(f"Using MLflow run: {run_id}")
                 
                 # Log model info
                 mlflow.log_param("model_name", self.model_predictor.current_model_name)

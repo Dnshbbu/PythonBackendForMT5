@@ -18,7 +18,7 @@ def main():
     test_size = 0.2
     
     # Specific run IDs we want to use
-    run_ids = ['run_20250207_234606', 'run_20250207_204318']
+    run_ids = ['run_20250208_203729_009', 'run_20250208_203811_123']  # XGBoost and Decision Tree runs
     
     # Setup logging
     setup_logging()

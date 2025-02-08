@@ -14,22 +14,22 @@ from run_predictions import HistoricalPredictor
 from model_repository import ModelRepository
 
 class MetaModelPredictor:
-    def __init__(self, db_path: str, models_dir: str, meta_model_name: str):
+    def __init__(self, db_path: str, models_dir: str, model_name: str):
         """
         Initialize the meta model predictor
         
         Args:
             db_path: Path to the database
             models_dir: Directory containing models
-            meta_model_name: Name of the meta model to use
+            model_name: Name of the meta model to use
         """
         self.db_path = db_path
         self.models_dir = models_dir
-        self.meta_model_name = meta_model_name
+        self.model_name = model_name
         self.model_repository = ModelRepository(db_path)
         
         # Load meta model info
-        self.meta_model_info = self.model_repository.get_meta_model_info(meta_model_name)
+        self.meta_model_info = self.model_repository.get_meta_model_info(model_name)
         
         # Initialize base model predictors
         self.base_predictors = {}
@@ -150,7 +150,7 @@ class MetaModelPredictor:
                 logging.info(f"Started MLflow run: {run_id}")
                 
                 # Log meta model info
-                mlflow.log_param("meta_model_name", self.meta_model_name)
+                mlflow.log_param("model_name", self.model_name)
                 mlflow.log_param("source_table", table_name)
                 mlflow.log_param("base_models", list(self.base_predictors.keys()))
                 
@@ -195,7 +195,7 @@ class MetaModelPredictor:
                 
                 # Create a copy of the base predictor with meta model name
                 meta_predictor = base_predictor
-                meta_predictor.model_predictor.current_model_name = self.meta_model_name
+                meta_predictor.model_predictor.current_model_name = self.model_name
                 
                 # Store predictions and metrics with meta model name
                 meta_predictor.store_predictions(
@@ -227,15 +227,15 @@ def main():
         logging.info(f"Using models directory: {models_dir}")
         
         # Parameters
-        meta_model_name = "meta_xgboost_20250208_204016"  # Our newly trained meta model
+        model_name = "meta_xgboost_20250208_204016"  # Our newly trained meta model
         table_name = "strategy_TRIP_NAS_10031622"  # The table you specified
         
-        logging.info(f"Meta model name: {meta_model_name}")
+        logging.info(f"Meta model name: {model_name}")
         logging.info(f"Target table: {table_name}")
         
         # Initialize predictor
         logging.info("Initializing MetaModelPredictor...")
-        predictor = MetaModelPredictor(db_path, models_dir, meta_model_name)
+        predictor = MetaModelPredictor(db_path, models_dir, model_name)
         
         # Run predictions
         logging.info("Running predictions...")
@@ -244,7 +244,7 @@ def main():
         # Print summary
         print("\nMeta Model Prediction Summary:")
         print(f"Total predictions: {len(results_df)}")
-        print(f"Using meta model: {meta_model_name}")
+        print(f"Using meta model: {model_name}")
         print(f"Base models: {list(predictor.base_predictors.keys())}")
         print()
         print("Error Metrics:")

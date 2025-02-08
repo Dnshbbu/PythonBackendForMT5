@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 import logging
 from meta_model_trainer import MetaModelTrainer
+from mlflow_utils import MLflowManager
 
 def setup_logging():
     """Configure logging settings"""
@@ -27,7 +28,7 @@ def main():
     meta_models_dir = os.path.join(base_models_dir, 'meta_models')
     os.makedirs(meta_models_dir, exist_ok=True)
     
-    # Initialize trainer
+    # Initialize trainer and MLflow
     trainer = MetaModelTrainer(db_path, meta_models_dir)
     
     # Get the date range from the available predictions

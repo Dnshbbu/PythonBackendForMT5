@@ -9,6 +9,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import mlflow
 import os
+import json
+from model_repository import ModelRepository
+from mlflow_utils import MLflowManager
 
 class MetaModelTrainer:
     def __init__(self, db_path: str, models_dir: str):
@@ -23,8 +26,9 @@ class MetaModelTrainer:
         self.models_dir = models_dir
         self.meta_model = None
         self.feature_scaler = None
+        self.model_repository = ModelRepository(db_path)
+        self.mlflow_manager = MLflowManager()
         self.setup_logging()
-        self.setup_mlflow()
         
     def setup_logging(self):
         """Configure logging settings"""
@@ -32,21 +36,6 @@ class MetaModelTrainer:
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
-        
-    def setup_mlflow(self):
-        """Configure MLflow settings"""
-        # Set MLflow tracking URI to SQLite database
-        mlflow.set_tracking_uri("sqlite:///mlflow.db")
-        
-        # Create or get experiment
-        experiment_name = "meta_model_experiment"
-        experiment = mlflow.get_experiment_by_name(experiment_name)
-        
-        if experiment is None:
-            mlflow.create_experiment(experiment_name)
-            
-        mlflow.set_experiment(experiment_name)
-        logging.info(f"Using MLflow experiment: {experiment_name}")
         
     def load_historical_predictions(self, start_date: datetime, end_date: datetime, 
                                  run_ids: List[str]) -> pd.DataFrame:
@@ -138,7 +127,7 @@ class MetaModelTrainer:
         self.feature_scaler = StandardScaler()
         X = self.feature_scaler.fit_transform(X)
         
-        return X, y
+        return X, y, feature_cols
         
     def train_meta_model(self, start_date: datetime, end_date: datetime, 
                         run_ids: List[str], test_size: float = 0.2) -> Dict[str, float]:
@@ -157,7 +146,7 @@ class MetaModelTrainer:
         try:
             # Load and prepare data
             data = self.load_historical_predictions(start_date, end_date, run_ids)
-            X, y = self.prepare_features(data)
+            X, y, feature_cols = self.prepare_features(data)
             
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
@@ -165,23 +154,24 @@ class MetaModelTrainer:
             )
             
             # Initialize and train meta-model (XGBoost)
-            self.meta_model = xgb.XGBRegressor(
-                objective='reg:squarederror',
-                n_estimators=100,
-                learning_rate=0.1,
-                max_depth=3,
-                random_state=42
-            )
+            model_params = {
+                'objective': 'reg:squarederror',
+                'n_estimators': 100,
+                'learning_rate': 0.1,
+                'max_depth': 3,
+                'random_state': 42
+            }
+            
+            self.meta_model = xgb.XGBRegressor(**model_params)
+            
+            # Generate model name with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            model_name = f"meta_xgboost_{timestamp}"
             
             # Start MLflow run
-            with mlflow.start_run(run_name='meta_model'):
+            with self.mlflow_manager.start_run(run_name=model_name):
                 # Log parameters
-                mlflow.log_params({
-                    'test_size': test_size,
-                    'n_estimators': 100,
-                    'learning_rate': 0.1,
-                    'max_depth': 3
-                })
+                mlflow.log_params(model_params)
                 
                 # Train model
                 self.meta_model.fit(
@@ -196,19 +186,53 @@ class MetaModelTrainer:
                 
                 # Calculate metrics
                 metrics = {
-                    'train_rmse': np.sqrt(np.mean((y_train - train_pred) ** 2)),
-                    'test_rmse': np.sqrt(np.mean((y_test - test_pred) ** 2)),
-                    'train_mae': np.mean(np.abs(y_train - train_pred)),
-                    'test_mae': np.mean(np.abs(y_test - test_pred))
+                    'train_rmse': float(np.sqrt(np.mean((y_train - train_pred) ** 2))),
+                    'test_rmse': float(np.sqrt(np.mean((y_test - test_pred) ** 2))),
+                    'train_mae': float(np.mean(np.abs(y_train - train_pred))),
+                    'test_mae': float(np.mean(np.abs(y_test - test_pred)))
                 }
                 
                 # Log metrics
                 mlflow.log_metrics(metrics)
                 
+                # Calculate feature importance
+                feature_importance = dict(zip(feature_cols, 
+                                           self.meta_model.feature_importances_))
+                
                 # Save model
-                model_path = os.path.join(self.models_dir, 'meta_model.json')
+                model_path = os.path.join(self.models_dir, f'{model_name}.json')
+                scaler_path = os.path.join(self.models_dir, f'{model_name}_scaler.pkl')
+                
+                # Save model and scaler
                 self.meta_model.save_model(model_path)
+                pd.to_pickle(self.feature_scaler, scaler_path)
+                
+                # Log artifacts
                 mlflow.log_artifact(model_path)
+                mlflow.log_artifact(scaler_path)
+                
+                # Store in model repository
+                self.model_repository.store_model_info(
+                    model_name=model_name,
+                    model_type='meta_xgboost',
+                    training_type='ensemble',
+                    prediction_horizon=1,
+                    features=feature_cols,
+                    feature_importance=feature_importance,
+                    model_params=model_params,
+                    metrics=metrics,
+                    training_tables=['historical_predictions'],
+                    training_period={
+                        'start': start_date.isoformat(),
+                        'end': end_date.isoformat()
+                    },
+                    data_points=len(data),
+                    model_path=model_path,
+                    scaler_path=scaler_path,
+                    additional_metadata={
+                        'base_model_run_ids': run_ids
+                    }
+                )
                 
                 logging.info("Meta-model training completed successfully")
                 return metrics

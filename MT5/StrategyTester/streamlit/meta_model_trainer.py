@@ -28,6 +28,14 @@ class MetaModelTrainer:
         self.feature_scaler = None
         self.model_repository = ModelRepository(db_path)
         self.mlflow_manager = MLflowManager()
+        
+        # Define feature type mapping for better organization
+        self.feature_types = {
+            'predicted_price': 'price_pred',
+            'error': 'error',
+            'predicted_change': 'change_pred'
+        }
+        
         self.setup_logging()
         
     def setup_logging(self):
@@ -37,6 +45,21 @@ class MetaModelTrainer:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         
+    def validate_run_ids(self, run_ids: List[str]) -> None:
+        """
+        Validate the number of run_ids provided
+        
+        Args:
+            run_ids: List of run_ids to validate
+        
+        Raises:
+            ValueError: If validation fails
+        """
+        if len(run_ids) < 2:
+            raise ValueError("At least 2 base models are required for meta-model training")
+        if len(run_ids) > 5:  # You can adjust this limit based on your needs
+            raise ValueError("Too many base models. Maximum allowed is 5")
+            
     def load_historical_predictions(self, start_date: datetime, end_date: datetime, 
                                  run_ids: List[str]) -> pd.DataFrame:
         """
@@ -51,6 +74,9 @@ class MetaModelTrainer:
             DataFrame containing predictions from all models
         """
         try:
+            # Validate run_ids
+            self.validate_run_ids(run_ids)
+            
             query = """
                 SELECT 
                     datetime,
@@ -76,18 +102,26 @@ class MetaModelTrainer:
             if df.empty:
                 raise ValueError(f"No predictions found for the specified run_ids and date range")
             
-            # Create features for each model
+            # Create a mapping of run_ids to generic model numbers
+            run_id_to_model = {run_id: f'm{i+1}' for i, run_id in enumerate(sorted(run_ids))}
+            
+            # Replace run_ids with generic model numbers
+            df['model_number'] = df['run_id'].map(run_id_to_model)
+            
+            # Create features for each model using generic names
             pivot_df = pd.pivot_table(
                 df,
                 index='datetime',
-                columns='run_id',
+                columns='model_number',
                 values=['predicted_price', 'error', 'predicted_change'],
                 aggfunc='first'
             ).reset_index()
             
-            # Flatten column names
-            pivot_df.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
-                              for col in pivot_df.columns]
+            # Flatten column names with better organization
+            pivot_df.columns = [
+                f"{col[1]}_{self.feature_types[col[0]]}" if col[1] 
+                else col[0] for col in pivot_df.columns
+            ]
             
             # Add the actual values (same for all run_ids)
             base_features = df.groupby('datetime').agg({
@@ -99,7 +133,15 @@ class MetaModelTrainer:
             # Merge all features
             final_df = pd.merge(base_features, pivot_df, on='datetime')
             
+            # Store the mapping for later reference
+            self.model_mapping = {
+                'run_id_to_model': run_id_to_model,
+                'feature_types': self.feature_types
+            }
+            
             logging.info(f"Loaded {len(final_df)} historical predictions")
+            logging.info(f"Model mapping: {run_id_to_model}")
+            logging.info(f"Feature columns: {final_df.columns.tolist()}")
             return final_df
             
         except Exception as e:
@@ -269,7 +311,8 @@ class MetaModelTrainer:
                     scaler_path=scaler_path,
                     additional_metadata={
                         'base_model_run_ids': run_ids,
-                        'base_model_names': base_model_names
+                        'base_model_names': base_model_names,
+                        'model_mapping': self.model_mapping
                     }
                 )
                 

@@ -603,7 +603,7 @@ def display_model_details_section(model_details: Dict):
                     fig.update_xaxes(showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.2)')
                     fig.update_yaxes(showline=True, linewidth=1, linecolor='rgba(128, 128, 128, 0.2)')
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"feature_importance_{model_details['model_name']}")
                     
                     st.markdown("""
                         <div style='color: #8b8c8e; font-size: 12px; margin-top: 10px;'>

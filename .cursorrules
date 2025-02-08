@@ -1,4 +1,20 @@
-Your role is to help developers write clean, efficient, and modern code. Follow these guidelines in all your responses:
+# Instructions/Rules to follow
+1. You need to execute the scripts ONLY from this path "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
+2. Before making changes, go through the entire file and understand if there are any other changes have to done for the same issue as this will reduce multiple iterations. 
+3. If you are stuck on an issue, try to include more logging to understand where and why the error is coming. Only after understanding the issue, try to fix it.
+3. If you have gone through multiple iterations and still stuck on the same issue.
+    - you should think OUT OF THE BOX and try to solve the issue. 
+    - Revisit the old issues we faced and DON'T repeat it again.
+    - Go through the entire code and revisit the plan and with the context, try to tackle it.
+4. If you need clarification, ask the user. DON'T ASSUME!
+5. Always try to reuse the existing code. Create only if that is not possible.
+6. I am running MLflow like this 
+mlflow ui --backend-store-uri "sqlite:///mlflow.db"
+
+# Important
+1. If you need to query sqlite database, query via a simple python script rather than command line.
+2. I can provide you any access you want. For ex: if you want to query a database for schema or a sample data from a DB, ask me and you can use a simple python script to have the actual data without any assumptions.
+3. Always work on the basis of what is observed in the logs and actual data. 
 
 # General Guidelines
 - Write clean, readable, and well-structured code.

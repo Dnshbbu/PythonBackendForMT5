@@ -129,8 +129,41 @@ class MetaModelTrainer:
         
         return X, y, feature_cols
         
+    def get_base_model_names(self, run_ids: List[str]) -> List[str]:
+        """
+        Get model names corresponding to the run_ids
+        
+        Args:
+            run_ids: List of run_ids to get model names for
+            
+        Returns:
+            List of model names
+        """
+        try:
+            query = """
+                SELECT DISTINCT model_name
+                FROM historical_predictions
+                WHERE run_id IN ({})
+                ORDER BY model_name
+            """.format(','.join('?' * len(run_ids)))
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, run_ids)
+                model_names = [row[0] for row in cursor.fetchall()]
+                
+            if not model_names:
+                raise ValueError(f"No model names found for the specified run_ids")
+                
+            return model_names
+            
+        except Exception as e:
+            logging.error(f"Error fetching base model names: {e}")
+            raise
+
     def train_meta_model(self, start_date: datetime, end_date: datetime, 
-                        run_ids: List[str], test_size: float = 0.2) -> Dict[str, float]:
+                        run_ids: List[str], test_size: float = 0.2,
+                        model_name: Optional[str] = None) -> Dict[str, float]:
         """
         Train a meta-model using predictions from multiple models
         
@@ -139,11 +172,16 @@ class MetaModelTrainer:
             end_date: End date for training data
             run_ids: List of run_ids to use for training
             test_size: Proportion of data to use for testing
+            model_name: Optional name for the model. If None, will generate one.
             
         Returns:
             Dictionary of evaluation metrics
         """
         try:
+            # Get base model names
+            base_model_names = self.get_base_model_names(run_ids)
+            logging.info(f"Using base models: {base_model_names}")
+
             # Load and prepare data
             data = self.load_historical_predictions(start_date, end_date, run_ids)
             X, y, feature_cols = self.prepare_features(data)
@@ -164,9 +202,9 @@ class MetaModelTrainer:
             
             self.meta_model = xgb.XGBRegressor(**model_params)
             
-            # Generate model name with timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            model_name = f"meta_xgboost_{timestamp}"
+            # Generate model name with timestamp if not provided
+            if model_name is None:
+                model_name = f"meta_xgboost_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
             # Start MLflow run
             with self.mlflow_manager.start_run(run_name=model_name):
@@ -230,7 +268,8 @@ class MetaModelTrainer:
                     model_path=model_path,
                     scaler_path=scaler_path,
                     additional_metadata={
-                        'base_model_run_ids': run_ids
+                        'base_model_run_ids': run_ids,
+                        'base_model_names': base_model_names
                     }
                 )
                 

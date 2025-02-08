@@ -163,3 +163,60 @@ class ModelRepository:
         finally:
             if conn:
                 conn.close() 
+
+    def get_meta_model_info(self, model_name: str) -> Dict:
+        """
+        Get meta model information including base model details
+        
+        Args:
+            model_name: Name of the meta model
+            
+        Returns:
+            Dictionary containing meta model information
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT model_type, training_type, prediction_horizon,
+                       features, feature_importance, model_params,
+                       metrics, training_tables, training_period_start,
+                       training_period_end, data_points, model_path,
+                       scaler_path, additional_metadata
+                FROM model_repository
+                WHERE model_name = ? AND model_type = 'meta_xgboost'
+            """, (model_name,))
+            
+            result = cursor.fetchone()
+            if not result:
+                raise ValueError(f"Meta model not found: {model_name}")
+                
+            # Convert row to dictionary
+            columns = ['model_type', 'training_type', 'prediction_horizon',
+                      'features', 'feature_importance', 'model_params',
+                      'metrics', 'training_tables', 'training_period_start',
+                      'training_period_end', 'data_points', 'model_path',
+                      'scaler_path', 'additional_metadata']
+            
+            info = dict(zip(columns, result))
+            
+            # Parse JSON fields
+            for field in ['features', 'feature_importance', 'model_params',
+                         'metrics', 'training_tables', 'additional_metadata']:
+                if info[field]:
+                    info[field] = json.loads(info[field])
+            
+            # Extract base model information
+            if info['additional_metadata']:
+                info['base_model_run_ids'] = info['additional_metadata'].get('base_model_run_ids', [])
+                info['base_model_names'] = info['additional_metadata'].get('base_model_names', [])
+            
+            return info
+            
+        except Exception as e:
+            logging.error(f"Error retrieving meta model information: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close() 

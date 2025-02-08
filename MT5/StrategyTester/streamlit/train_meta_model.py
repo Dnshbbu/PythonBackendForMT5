@@ -47,12 +47,16 @@ def main():
     logging.info(f"\nTraining meta-model using predictions from {start_date} to {end_date}")
     logging.info(f"Using run_ids: {run_ids}")
     
+    # Generate model name
+    model_name = f"meta_xgboost_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
     # Train meta-model
     metrics = trainer.train_meta_model(
         start_date=start_date,
         end_date=end_date,
         run_ids=run_ids,
-        test_size=test_size
+        test_size=test_size,
+        model_name=model_name  # Pass the model name to trainer
     )
     
     # Log results
@@ -60,6 +64,16 @@ def main():
     logging.info("\nTraining metrics:")
     for metric_name, value in metrics.items():
         logging.info(f"{metric_name}: {value:.4f}")
+        
+    # Verify stored meta model information
+    meta_model_info = trainer.model_repository.get_meta_model_info(model_name)
+    
+    logging.info("\nMeta Model Information:")
+    logging.info(f"Base Model Names: {meta_model_info['base_model_names']}")
+    logging.info(f"Base Model Run IDs: {meta_model_info['base_model_run_ids']}")
+    logging.info(f"Model Type: {meta_model_info['model_type']}")
+    logging.info(f"Training Type: {meta_model_info['training_type']}")
+    logging.info(f"Number of Features: {len(meta_model_info['features'])}")
 
 if __name__ == "__main__":
     main() 

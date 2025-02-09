@@ -13,6 +13,35 @@ from model_predictor import ModelPredictor
 from run_predictions import HistoricalPredictor
 from model_repository import ModelRepository
 
+def setup_logging():
+    """Configure logging settings"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+def get_model_params(model_type: str) -> Dict:
+    """Get model parameters based on model type"""
+    params = {
+        'xgboost': {
+            'max_depth': 8,
+            'learning_rate': 0.05,
+            'n_estimators': 1000,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'min_child_weight': 2,
+            'objective': 'reg:squarederror',
+            'random_state': 42
+        }
+    }
+    return params.get(model_type, {})
+
+def generate_model_name(model_type: str, training_type: str, timestamp: Optional[str] = None) -> str:
+    """Generate consistent model name"""
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{model_type}_{training_type}_{timestamp}"
+
 class MetaModelPredictor:
     def __init__(self, db_path: str, models_dir: str, model_name: str):
         """
@@ -133,7 +162,6 @@ class MetaModelPredictor:
             # Set up MLflow experiment for predictions
             experiment = mlflow.get_experiment_by_name("model_predictions")
             if experiment is None:
-                # Create the experiment if it doesn't exist
                 experiment_id = mlflow.create_experiment("model_predictions")
                 logging.info(f"Created new MLflow experiment with ID: {experiment_id}")
             else:
@@ -142,7 +170,7 @@ class MetaModelPredictor:
             mlflow.set_experiment("model_predictions")
             
             # Create run name
-            current_time = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:19]  # Include milliseconds but truncate to 3 digits
+            current_time = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:19]
             run_name = f"meta_run_{current_time}"
             
             with mlflow.start_run(run_name=run_name) as run:
@@ -166,8 +194,8 @@ class MetaModelPredictor:
                 
                 # Make meta model predictions
                 meta_model = xgb.XGBRegressor()
-                meta_model.load_model(self.meta_model_info['model_path'])  # Load JSON format model
-                scaler = pd.read_pickle(self.meta_model_info['scaler_path'])  # Load pickled scaler
+                meta_model.load_model(self.meta_model_info['model_path'])
+                scaler = pd.read_pickle(self.meta_model_info['scaler_path'])
                 
                 # Scale features
                 X_scaled = scaler.transform(meta_features)
@@ -212,10 +240,65 @@ class MetaModelPredictor:
             logging.error(f"Error running meta model predictions: {e}")
             raise
 
+def run_meta_predictions(table_name: str, meta_model_name: str = None, force_new_run: bool = False) -> Dict:
+    """Run meta model predictions on a table
+    
+    Args:
+        table_name: Name of the table to run predictions on
+        meta_model_name: Name of the meta model to use (if None, will use latest)
+        force_new_run: Whether to force a new prediction run even if predictions exist
+    
+    Returns:
+        Dictionary containing results and metrics
+    """
+    try:
+        # Setup paths
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
+        models_dir = os.path.join(current_dir, 'models')
+        
+        # Initialize predictor
+        predictor = MetaModelPredictor(db_path, models_dir, meta_model_name)
+        
+        # Run predictions
+        results_df = predictor.run_predictions(table_name)
+        
+        # Print summary
+        print("\nMeta Model Prediction Summary:")
+        print(f"Total predictions: {len(results_df)}")
+        print(f"Using meta model: {meta_model_name}")
+        print(f"Base models: {list(predictor.base_predictors.keys())}")
+        print()
+        print("Error Metrics:")
+        print(f"Mean absolute error: {results_df['Error'].abs().mean():.4f}")
+        print(f"Root mean squared error: {np.sqrt((results_df['Error']**2).mean()):.4f}")
+        print(f"Mean absolute percentage error: {(abs(results_df['Error']/results_df['Actual_Price'])*100).mean():.2f}%")
+        
+        # Calculate direction accuracy
+        correct_direction = (results_df['Price_Change'] * results_df['Predicted_Change'] > 0).sum()
+        total_predictions = len(results_df) - 1  # Subtract 1 because first change is NaN
+        direction_accuracy = (correct_direction / total_predictions) * 100
+        print(f"Direction Accuracy: {direction_accuracy:.2f}%")
+        
+        return {
+            'results_df': results_df,
+            'metrics': {
+                'mae': results_df['Error'].abs().mean(),
+                'rmse': np.sqrt((results_df['Error']**2).mean()),
+                'mape': (abs(results_df['Error']/results_df['Actual_Price'])*100).mean(),
+                'direction_accuracy': direction_accuracy
+            }
+        }
+        
+    except Exception as e:
+        logging.error(f"Error in meta model predictions: {str(e)}")
+        logging.exception("Detailed traceback:")
+        raise
+
 def main():
     """Main function for testing meta model predictions"""
     try:
-        logging.basicConfig(level=logging.INFO)
+        setup_logging()
         logging.info("Starting meta model predictions...")
         
         # Setup paths
@@ -223,46 +306,26 @@ def main():
         db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
         models_dir = os.path.join(current_dir, 'models')
         
-        logging.info(f"Using database: {db_path}")
-        logging.info(f"Using models directory: {models_dir}")
-        
-        # Parameters
-        model_name = "meta_xgboost_20250209_112236"  # Our newly trained meta model
-        table_name = "strategy_TRIP_NAS_10031622"  # The table you specified
-        
-        logging.info(f"Meta model name: {model_name}")
-        logging.info(f"Target table: {table_name}")
-        
-        # Initialize predictor
-        logging.info("Initializing MetaModelPredictor...")
-        predictor = MetaModelPredictor(db_path, models_dir, model_name)
+        # Get command line arguments
+        import argparse
+        parser = argparse.ArgumentParser(description='Run meta model predictions')
+        parser.add_argument('--table', type=str, required=True, help='Table name to run predictions on')
+        parser.add_argument('--model', type=str, help='Meta model name (if not provided, will use latest)')
+        parser.add_argument('--force', action='store_true', help='Force new prediction run')
+        args = parser.parse_args()
         
         # Run predictions
-        logging.info("Running predictions...")
-        results_df = predictor.run_predictions(table_name)
-        
-        # Print summary
-        print("\nMeta Model Prediction Summary:")
-        print(f"Total predictions: {len(results_df)}")
-        print(f"Using meta model: {model_name}")
-        print(f"Base models: {list(predictor.base_predictors.keys())}")
-        print()
-        print("Error Metrics:")
-        print(f"Mean absolute error: {results_df['Error'].abs().mean():.4f}")
-        print(f"Root mean squared error: {np.sqrt((results_df['Error'] ** 2).mean()):.4f}")
-        print(f"Mean absolute percentage error: {(np.abs(results_df['Error'] / results_df['Actual_Price']) * 100).mean():.2f}%")
-        
-        # Direction accuracy
-        correct_direction = (
-            (results_df['Price_Change'] > 0) & (results_df['Predicted_Change'] > 0) |
-            (results_df['Price_Change'] < 0) & (results_df['Predicted_Change'] < 0)
+        results = run_meta_predictions(
+            table_name=args.table,
+            meta_model_name=args.model,
+            force_new_run=args.force
         )
-        print(f"\nDirection Accuracy: {correct_direction.mean():.2%}")
         
         logging.info("Meta model predictions completed successfully")
         
     except Exception as e:
-        logging.error(f"Error in main: {e}")
+        logging.error(f"Error in main: {str(e)}")
+        logging.exception("Detailed traceback:")
         raise
 
 if __name__ == "__main__":

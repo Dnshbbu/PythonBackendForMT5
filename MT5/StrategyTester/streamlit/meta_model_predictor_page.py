@@ -63,6 +63,41 @@ def get_available_meta_models(db_path: str) -> List[str]:
         st.error(f"Error accessing database: {str(e)}")
         return []
 
+def get_base_models_for_meta_model(db_path: str, meta_model_name: str) -> List[str]:
+    """Get list of base models associated with a meta model"""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get base models from the model repository
+        cursor.execute("""
+            SELECT additional_metadata
+            FROM model_repository 
+            WHERE model_name = ?
+            ORDER BY created_at DESC
+            LIMIT 1;
+        """, (meta_model_name,))  # Pass the parameter as a tuple
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result and result[0]:
+            try:
+                metadata = eval(result[0])  # Convert string representation to dict
+                base_models = metadata.get('base_model_names', [])
+                logging.info(f"Found base models for {meta_model_name}: {base_models}")
+                return base_models
+            except Exception as e:
+                logging.error(f"Error parsing metadata for {meta_model_name}: {e}")
+                return []
+        
+        logging.warning(f"No metadata found for meta model: {meta_model_name}")
+        return []
+    except Exception as e:
+        st.error(f"Error getting base models: {str(e)}")
+        logging.exception(f"Detailed error when getting base models for {meta_model_name}:")
+        return []
+
 def display_prediction_metrics(metrics: Dict):
     """Display prediction metrics in a formatted way"""
     if not metrics:
@@ -162,6 +197,26 @@ def meta_model_predictor_page():
             label_visibility="collapsed",
             help="Choose a meta model to use for predictions"
         )
+        
+        # Display base models if a meta model is selected
+        if selected_model:
+            base_models = get_base_models_for_meta_model(db_path, selected_model)
+            if base_models:
+                st.markdown("##### 🔗 Base Models")
+                for i, model in enumerate(base_models, 1):
+                    st.markdown(f"""
+                        <div style='
+                            padding: 8px 12px;
+                            border-radius: 4px;
+                            background-color: #2E303D;
+                            border: 1px solid #3E4049;
+                            margin: 4px 0;
+                            font-size: 0.9em;
+                            color: #E0E0E0;
+                        '>
+                            {i}. {model}
+                        </div>
+                    """, unsafe_allow_html=True)
         
         # Options Section
         st.markdown("##### ⚙️ Options")

@@ -367,7 +367,24 @@ class TimeSeriesModelTrainer:
                                 feature_cols: Optional[List[str]] = None,
                                 model_params: Optional[Dict] = None,
                                 model_name: Optional[str] = None,
-                                model_type: str = 'xgboost') -> Tuple[str, Dict]:
+                                model_type: str = 'xgboost',
+                                base_model_path: Optional[str] = None) -> Tuple[str, Dict]:
+        """
+        Train and save a model using data from multiple tables
+        
+        Args:
+            table_names: List of table names to use for training
+            target_col: Target column name
+            prediction_horizon: Number of steps ahead to predict
+            feature_cols: List of feature column names
+            model_params: Model parameters dictionary
+            model_name: Optional name for the model
+            model_type: Type of model to train ('xgboost', 'lstm', etc.)
+            base_model_path: Optional path to base model for incremental training
+            
+        Returns:
+            Tuple of (model_path, metrics)
+        """
         try:
             # Generate or validate model name first
             if not model_name:
@@ -381,15 +398,20 @@ class TimeSeriesModelTrainer:
 
             # Start MLflow run with the same model name
             with self.mlflow_manager.start_run(run_name=model_name):
-                # Log parameters
-                self.mlflow_manager.log_params({
+                # Prepare MLflow parameters
+                mlflow_params = {
                     'model_type': model_type,
                     'target_col': target_col,
                     'prediction_horizon': prediction_horizon,
                     'table_names': table_names,
                     'feature_cols': feature_cols,
-                    **model_params
-                })
+                    'base_model_path': base_model_path
+                }
+                if model_params:
+                    mlflow_params.update(model_params)
+                
+                # Log parameters
+                self.mlflow_manager.log_params(mlflow_params)
 
                 # Load and combine data from all tables
                 df = self.load_data_from_multiple_tables(table_names)
@@ -397,34 +419,25 @@ class TimeSeriesModelTrainer:
                 
                 # Prepare features and target
                 X, y = self.prepare_features_target(
-                    df, 
-                    target_col,
-                    feature_cols=feature_cols,
-                    prediction_horizon=prediction_horizon,
-                    model_type=model_type
+                    df, target_col, feature_cols or [], 
+                    prediction_horizon, model_type
                 )
                 logging.info(f"Prepared features shape: {X.shape}, target shape: {y.shape}")
                 
-                # Try to load existing model
+                # Load base model if provided
                 existing_model = None
-                if model_name:
-                    if model_type == 'lstm':
-                        model_path = os.path.join(self.models_dir, f"{model_name}.pt")
-                    else:
-                        model_path = os.path.join(self.models_dir, f"{model_name}.joblib")
-                        
-                    if os.path.exists(model_path):
-                        try:
-                            if model_type == 'lstm':
-                                existing_model = LSTMTimeSeriesModel()
-                                existing_model.load(model_path)
-                            else:
-                                existing_model = joblib.load(model_path)
-                            logging.info(f"Successfully loaded existing model: {model_path}")
-                        except Exception as e:
-                            logging.warning(f"Could not load existing model: {e}")
-                            existing_model = None
-
+                if base_model_path and os.path.exists(base_model_path):
+                    try:
+                        if model_type == 'xgboost':
+                            existing_model = joblib.load(base_model_path)
+                            logging.info(f"Loaded base XGBoost model from {base_model_path}")
+                        elif model_type == 'lstm':
+                            existing_model = torch.load(base_model_path)
+                            logging.info(f"Loaded base LSTM model from {base_model_path}")
+                    except Exception as e:
+                        logging.error(f"Error loading base model: {e}")
+                        existing_model = None
+                
                 # Add model_type to model_params
                 if model_params is None:
                     model_params = {}
@@ -437,6 +450,7 @@ class TimeSeriesModelTrainer:
                     model, metrics = model.train(
                         X=X,
                         y=y,
+                        base_model=existing_model,
                         **model_params
                     )
                 else:
@@ -527,9 +541,9 @@ class TimeSeriesModelTrainer:
                 # If feature importance exists, log it
                 if 'feature_importance' in metrics:
                     self.mlflow_manager.log_feature_importance(metrics['feature_importance'])
-
+                
                 return model_path, metrics
-
+            
         except Exception as e:
             logging.error(f"Error in train_and_save_multi_table with MLflow: {e}")
             raise

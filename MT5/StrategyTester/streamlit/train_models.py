@@ -92,7 +92,7 @@ def generate_model_name(model_type: str, training_type: str, timestamp: Optional
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"{model_type}_{training_type}_{timestamp}"
 
-def train_single_table(table_name: str, force_retrain: bool = False):
+def train_single_table(table_name: str, force_retrain: bool = False, model_types: List[str] = ['lstm']):
     """Train a model using a single table"""
     try:
         # Setup paths
@@ -103,13 +103,8 @@ def train_single_table(table_name: str, force_retrain: bool = False):
         # Initialize trainer
         trainer = TimeSeriesModelTrainer(db_path=db_path, models_dir=models_dir)
         
-        # Get configurations
-        configurations = [
-            # {'model_type': 'xgboost', 'prediction_horizon': 1},
-            # {'model_type': 'decision_tree', 'prediction_horizon': 1},
-            # {'model_type': 'random_forest', 'prediction_horizon': 1},
-            {'model_type': 'lstm', 'prediction_horizon': 1}
-        ]
+        # Get configurations based on model_types parameter
+        configurations = [{'model_type': model_type, 'prediction_horizon': 1} for model_type in model_types]
         
         results = {}
         for config in configurations:
@@ -130,10 +125,6 @@ def train_single_table(table_name: str, force_retrain: bool = False):
                     model_type=model_type 
                 )
                 
-                # results[(model_type, config['prediction_horizon'])] = {
-                #     'model_path': model_path,
-                #     'metrics': metrics
-                # }
                 results[f"{model_type}_h{config['prediction_horizon']}"] = {
                     'model_path': model_path,
                     'metrics': metrics,
@@ -155,7 +146,7 @@ def train_single_table(table_name: str, force_retrain: bool = False):
         logging.exception("Detailed traceback:")
         raise
 
-def train_multi_table(table_names: List[str], force_retrain: bool = False):
+def train_multi_table(table_names: List[str], force_retrain: bool = False, model_types: List[str] = ['lstm']):
     """Train a model using multiple tables simultaneously"""
     try:
         # Setup paths
@@ -166,13 +157,8 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
         # Initialize trainer
         trainer = TimeSeriesModelTrainer(db_path=db_path, models_dir=models_dir)
         
-        # Get configurations
-        configurations = [
-            {'model_type': 'xgboost', 'prediction_horizon': 1},
-            {'model_type': 'decision_tree', 'prediction_horizon': 1},
-            {'model_type': 'random_forest', 'prediction_horizon': 1},
-            {'model_type': 'lstm', 'prediction_horizon': 1}
-        ]
+        # Get configurations based on model_types parameter
+        configurations = [{'model_type': model_type, 'prediction_horizon': 1} for model_type in model_types]
         
         results = {}
         for config in configurations:
@@ -194,10 +180,6 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
                     model_type=model_type 
                 )
                 
-                # results[(model_type, config['prediction_horizon'])] = {
-                #     'model_path': model_path,
-                #     'metrics': metrics
-                # }
                 results[f"{model_type}_h{config['prediction_horizon']}"] = {
                     'model_path': model_path,
                     'metrics': metrics,
@@ -219,7 +201,7 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
         logging.exception("Detailed traceback:")
         raise
 
-def train_model_incrementally(base_table: str, new_tables: List[str], force_retrain: bool = False):
+def train_model_incrementally(base_table: str, new_tables: List[str], force_retrain: bool = False, model_types: List[str] = ['xgboost']):
     """
     Train a model incrementally using a base table and new tables
     
@@ -227,6 +209,7 @@ def train_model_incrementally(base_table: str, new_tables: List[str], force_retr
         base_table: Initial table to train on
         new_tables: List of new tables to incrementally train with
         force_retrain: Whether to force a full retrain instead of incremental
+        model_types: List of model types to train (default: ['xgboost'])
     """
     try:
         # Setup paths
@@ -237,81 +220,84 @@ def train_model_incrementally(base_table: str, new_tables: List[str], force_retr
         # Initialize trainer
         trainer = TimeSeriesModelTrainer(db_path=db_path, models_dir=models_dir)
         
-        # First, train on base table
-        logging.info(f"Initial training on base table: {base_table}")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # base_model_name = generate_model_name('xgboost', 'base', timestamp)
-        base_model_name =  "xgboost_base_20250201_210455"
-
-        model_type = 'xgboost'  # Define model type explicitly
+        results = {'base_training': {}, 'incremental_updates': []}
         
-        model_path, metrics = trainer.train_and_save_multi_table(
-            table_names=[base_table],
-            target_col="Price",
-            feature_cols=SELECTED_FEATURES,
-            prediction_horizon=1,
-            model_params=get_model_params('xgboost'),
-            model_name=base_model_name,
-            model_type=model_type 
-        )
-        
-        logging.info(f"Base model trained: {model_path}")
-        logging.info(f"Base metrics: {metrics}")
-        
-        # Store results
-        results = {
-            'base_training': {
+        for model_type in model_types:
+            logging.info(f"\nTraining {model_type} model incrementally")
+            
+            # First, train on base table
+            logging.info(f"Initial training on base table: {base_table}")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_model_name = generate_model_name(model_type, 'base', timestamp)
+            
+            # Train base model
+            model_path, metrics = trainer.train_and_save_multi_table(
+                table_names=[base_table],
+                target_col="Price",
+                feature_cols=SELECTED_FEATURES,
+                prediction_horizon=1,
+                model_params=get_model_params(model_type),
+                model_name=base_model_name,
+                model_type=model_type
+            )
+            
+            results['base_training'][model_type] = {
                 'model_path': model_path,
                 'metrics': metrics
-            },
-            'incremental_updates': []
-        }
-        
-        # Incrementally train on new tables
-        for i, table in enumerate(new_tables, 1):
-            logging.info(f"Incremental training {i}/{len(new_tables)} with table: {table}")
+            }
             
-            try:
-                updated_path, updated_metrics = trainer.train_and_save_multi_table(
-                    table_names=[table],
-                    target_col="Price",
-                    feature_cols=SELECTED_FEATURES,
-                    prediction_horizon=1,
-                    model_params=get_model_params('xgboost'),
-                    model_name=base_model_name  # Keep same name for incremental updates
-                )
+            # Then incrementally update with new tables
+            for new_table in new_tables:
+                logging.info(f"Incrementally training with table: {new_table}")
                 
-                results['incremental_updates'].append({
-                    'table': table,
-                    'model_path': updated_path,
-                    'metrics': updated_metrics
-                })
-                
-                logging.info(f"Incremental update completed: {updated_path}")
-                logging.info(f"Updated metrics: {updated_metrics}")
-                
-            except Exception as e:
-                logging.error(f"Error during incremental training on table {table}: {e}")
-                if not force_retrain:
-                    raise
+                try:
+                    # Load the latest model and update it
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    incremental_model_name = generate_model_name(model_type, 'incremental', timestamp)
                     
-                logging.info("Attempting full retrain due to force_retrain=True")
-                # If force_retrain is True, do a full retrain with all data up to this point
-                all_tables = [base_table] + new_tables[:i+1]
-                updated_path, updated_metrics = trainer.train_and_save_multi_table(
-                    table_names=all_tables,
-                    target_col="Price",
-                    feature_cols=SELECTED_FEATURES,
-                    prediction_horizon=1,
-                    model_params=get_model_params('xgboost')
-                )
-                
-                results['incremental_updates'].append({
-                    'table': table,
-                    'model_path': updated_path,
-                    'metrics': updated_metrics,
-                    'retrained': True
-                })
+                    # Use the previous model path for incremental training
+                    model_path, metrics = trainer.train_and_save_multi_table(
+                        table_names=[new_table],
+                        target_col="Price",
+                        feature_cols=SELECTED_FEATURES,
+                        prediction_horizon=1,
+                        model_params=get_model_params(model_type),
+                        model_name=incremental_model_name,
+                        model_type=model_type,
+                        base_model_path=model_path if not force_retrain else None
+                    )
+                    
+                    results['incremental_updates'].append({
+                        'model_type': model_type,
+                        'table': new_table,
+                        'model_path': model_path,
+                        'metrics': metrics
+                    })
+                    
+                except Exception as e:
+                    logging.error(f"Error in incremental update for table {new_table}: {e}")
+                    if force_retrain:
+                        logging.info("Attempting full retrain...")
+                        # If incremental update fails and force_retrain is True, do a full retrain
+                        model_path, metrics = trainer.train_and_save_multi_table(
+                            table_names=[base_table] + new_tables[:new_tables.index(new_table) + 1],
+                            target_col="Price",
+                            feature_cols=SELECTED_FEATURES,
+                            prediction_horizon=1,
+                            model_params=get_model_params(model_type),
+                            model_name=incremental_model_name,
+                            model_type=model_type
+                        )
+                        
+                        results['incremental_updates'].append({
+                            'model_type': model_type,
+                            'table': new_table,
+                            'model_path': model_path,
+                            'metrics': metrics,
+                            'retrained': True
+                        })
+                    else:
+                        raise
         
         return results
         
@@ -344,56 +330,50 @@ def train_model(table_name: str, model_type: str = 'xgboost', force_retrain: boo
         logging.error(f"Error in training: {e}")
         raise
 
-if __name__ == "__main__":
+def main():
+    """Command line interface for model training"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Train models with different configurations')
+    parser.add_argument('--mode', choices=['single', 'multi', 'incremental'], required=True,
+                       help='Training mode: single, multi, or incremental')
+    parser.add_argument('--tables', nargs='+', required=True,
+                       help='Table names for training. For incremental mode, first table is base table.')
+    parser.add_argument('--model-types', nargs='+', 
+                       choices=['xgboost', 'decision_tree', 'random_forest', 'lstm'],
+                       default=['lstm'],
+                       help='Model types to train (default: lstm)')
+    parser.add_argument('--force-retrain', action='store_true',
+                       help='Force retrain models')
+    
+    args = parser.parse_args()
+    
+    # Setup logging
     setup_logging()
     
-    # Example usage of different training methods
-    try:        
-
-        # # 1. Single table training
-        # single_table = "strategy_TRIP_NAS_10010462"
-        # single_results = train_single_table(single_table)
-        # logging.info("\nSingle Table Training Results:================================================================")
-        # for model_key, result in single_results.items():
-        #     logging.info(f"\nModel: {model_key}")
-        #     logging.info(f"Model Path: {result['model_path']}")
-        #     logging.info(f"Metrics: {result['metrics']}")
+    try:
+        if args.mode == 'single':
+            if len(args.tables) != 1:
+                raise ValueError("Single mode requires exactly one table")
+            results = train_single_table(args.tables[0], args.force_retrain, args.model_types)
+            
+        elif args.mode == 'multi':
+            results = train_multi_table(args.tables, args.force_retrain, args.model_types)
+            
+        elif args.mode == 'incremental':
+            if len(args.tables) < 2:
+                raise ValueError("Incremental mode requires at least two tables (base table and new tables)")
+            base_table = args.tables[0]
+            new_tables = args.tables[1:]
+            results = train_model_incrementally(base_table, new_tables, args.force_retrain, args.model_types)
         
-        # 2. Multi-table training
-        multiple_tables = [
-            "strategy_TRIP_NAS_10022328",
-            "strategy_TRIP_NAS_10031271",
-            "strategy_TRIP_NAS_10004584"
-        ]
-        multi_results = train_multi_table(multiple_tables)
-        # logging.info("\nMulti-Table Training Results:================================================================")
-        # for model_key, result in multi_results.items():
-        #     logging.info(f"\nModel: {model_key}")
-        #     logging.info(f"Model Path: {result['model_path']}")
-        #     logging.info(f"Metrics: {result['metrics']}")
-        
-        # # 3. Incremental training
-        # base_table = "strategy_TRIP_NAS_10019851"
-        # new_tables = [
-        #     "strategy_TRIP_NAS_10031622",
-        #     "strategy_TRIP_NAS_10026615"
-        # ]
-        # incremental_results = train_model_incrementally(base_table, new_tables)
-
-        # logging.info("\nIncremental Training Results:================================================================")
-        # logging.info("\nBase Training:")
-        # logging.info(f"Model Path: {incremental_results['base_training']['model_path']}")
-        # logging.info(f"Metrics: {incremental_results['base_training']['metrics']}")
-        
-        # for i, update in enumerate(incremental_results['incremental_updates'], 1):
-        #     logging.info(f"\nIncremental Update {i}:")
-        #     logging.info(f"Table: {update['table']}")
-        #     logging.info(f"Model Path: {update['model_path']}")
-        #     logging.info(f"Metrics: {update['metrics']}")
-        #     if update.get('retrained'):
-        #         logging.info("Note: Full retrain was performed for this update")
+        # Print results in a readable format
+        print("\nTraining Results:")
+        print(json.dumps(results, indent=2))
         
     except Exception as e:
-        logging.error(f"Critical error in training script: {str(e)}")
-        logging.exception("Detailed traceback:")
+        logging.error(f"Error during training: {str(e)}")
         raise
+
+if __name__ == "__main__":
+    main()

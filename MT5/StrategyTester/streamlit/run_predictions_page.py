@@ -8,23 +8,73 @@ import mlflow
 from run_predictions import HistoricalPredictor
 import logging
 
-def get_available_tables(db_path: str) -> List[str]:
-    """Get list of available tables from the database, sorted by creation time (newest first)"""
+def get_available_tables(db_path: str) -> List[Dict]:
+    """Get list of available tables from the database with detailed information
+    
+    Returns:
+        List of dictionaries containing table information:
+        {
+            'name': str,            # Table name
+            'date_range': str,      # Date range of data
+            'total_rows': int,      # Number of rows
+            'symbols': List[str],   # List of symbols in the table
+            'display_name': str     # Formatted name for display
+        }
+    """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
+        # Get tables with their creation time from sqlite_master
         cursor.execute("""
-            SELECT name, sql, tbl_name
+            SELECT name 
             FROM sqlite_master 
             WHERE type='table' AND name LIKE 'strategy_%'
-            ORDER BY name DESC;
+            ORDER BY name DESC
         """)
         
-        tables = [table[0] for table in cursor.fetchall()]
+        tables = []
+        for (table_name,) in cursor.fetchall():
+            try:
+                # Get date range
+                cursor.execute(f'SELECT MIN(Date || " " || Time), MAX(Date || " " || Time) FROM {table_name}')
+                start_time, end_time = cursor.fetchone()
+                
+                # Get row count
+                cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+                row_count = cursor.fetchone()[0]
+                
+                # Get unique symbols
+                cursor.execute(f'SELECT DISTINCT Symbol FROM {table_name}')
+                symbols = [row[0] for row in cursor.fetchall()]
+                
+                # Create a display name that includes key information
+                display_name = f"{table_name} ({start_time} to {end_time}, {row_count} rows)"
+                
+                tables.append({
+                    'name': table_name,
+                    'date_range': f"{start_time} to {end_time}",
+                    'total_rows': row_count,
+                    'symbols': symbols,
+                    'display_name': display_name
+                })
+                
+            except Exception as e:
+                logging.error(f"Error getting details for table {table_name}: {str(e)}")
+                continue
+        
         conn.close()
         
+        if tables:
+            logging.info(f"Found {len(tables)} strategy tables")
+            for table in tables[:3]:  # Log details of first 3 tables
+                logging.info(f"Table: {table['name']}")
+                logging.info(f"  Date Range: {table['date_range']}")
+                logging.info(f"  Rows: {table['total_rows']}")
+                logging.info(f"  Symbols: {', '.join(table['symbols'])}")
+        
         return tables
+    
     except Exception as e:
         st.error(f"Error accessing database: {str(e)}")
         return []
@@ -150,15 +200,86 @@ def run_predictions_page():
             <hr style='margin: 0.2em 0 0.7em 0;'>
         """, unsafe_allow_html=True)
         
-        # Table Selection
-        st.markdown("##### 📊 Select Table")
+        # Initialize session state for selected table if not exists
+        if 'predictor_selected_table' not in st.session_state:
+            st.session_state.predictor_selected_table = None
+        
+        # Table Selection Section with enhanced information
+        st.markdown("##### 📊 Select Table for Prediction")
+        
+        # Get available tables
         available_tables = get_available_tables(db_path)
-        selected_table = st.selectbox(
-            "Select Table for Predictions",
-            options=available_tables,
-            key="selected_table",
-            help="Choose a table to run predictions on"
+        
+        # Create a DataFrame for better visualization of table information
+        table_data = []
+        for t in available_tables:
+            # Check if this table is selected
+            is_selected = t['name'] == st.session_state.predictor_selected_table
+            table_data.append({
+                '🔍 Select': is_selected,  # Checkbox column
+                'Table Name': t['name'],
+                'Date Range': t['date_range'],
+                'Rows': t['total_rows'],
+                'Symbols': ', '.join(t['symbols'])
+            })
+        
+        table_df = pd.DataFrame(table_data)
+        
+        # Display table information with checkboxes
+        st.markdown("##### Select a table from the list below:")
+        edited_df = st.data_editor(
+            table_df,
+            hide_index=True,
+            key="run_predictions_table_editor",
+            column_config={
+                "🔍 Select": st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select this table for prediction",
+                    default=False,
+                ),
+                "Table Name": st.column_config.TextColumn(
+                    "Table Name",
+                    help="Name of the strategy table",
+                    width="medium"
+                ),
+                "Date Range": st.column_config.TextColumn(
+                    "Date Range",
+                    help="Time range of the data",
+                    width="medium"
+                ),
+                "Rows": st.column_config.NumberColumn(
+                    "Rows",
+                    help="Number of data points",
+                    format="%d"
+                ),
+                "Symbols": st.column_config.TextColumn(
+                    "Symbols",
+                    help="Trading symbols in the table",
+                    width="small"
+                )
+            },
+            disabled=["Table Name", "Date Range", "Rows", "Symbols"],
+            use_container_width=True
         )
+        
+        # Update selected table based on checkbox changes
+        selected_indices = edited_df[edited_df['🔍 Select']].index
+        if len(selected_indices) > 0:
+            # Take the first selected table (since we only want one)
+            st.session_state.predictor_selected_table = edited_df.loc[selected_indices[0], 'Table Name']
+            if len(selected_indices) > 1:
+                st.warning("⚠️ Only one table can be selected for prediction. Using the first selected table.")
+        else:
+            st.session_state.predictor_selected_table = None
+        
+        # Show selected table details
+        if st.session_state.predictor_selected_table:
+            selected_info = next((t for t in available_tables if t['name'] == st.session_state.predictor_selected_table), None)
+            if selected_info:
+                with st.expander(f"📊 Selected Table Details", expanded=True):
+                    st.write(f"**Date Range:** {selected_info['date_range']}")
+                    st.write(f"**Total Rows:** {selected_info['total_rows']:,}")
+                    st.write(f"**Symbols:** {', '.join(selected_info['symbols'])}")
         
         # Model Selection
         st.markdown("##### 🤖 Select Model")
@@ -221,17 +342,17 @@ def run_predictions_page():
         """, unsafe_allow_html=True)
         
         # Command Preview
-        if selected_table:
+        if st.session_state.predictor_selected_table:
             st.markdown("##### 📝 Command Preview")
             cmd = get_equivalent_command(
-                selected_table, model_name, output_format, 
+                st.session_state.predictor_selected_table, model_name, output_format, 
                 output_path, batch_size, force_rerun
             )
             st.code(cmd, language="bash")
         
         # Run predictions when button is clicked
         if run_button:
-            if not selected_table:
+            if not st.session_state.predictor_selected_table:
                 st.error("⚠️ Please select a table for predictions.")
             else:
                 try:
@@ -245,7 +366,7 @@ def run_predictions_page():
                             model_name=model_name
                         )
                         
-                        results_df = predictor.run_predictions(selected_table)
+                        results_df = predictor.run_predictions(st.session_state.predictor_selected_table)
                         
                         # Handle output based on format
                         if output_format in ['csv', 'both']:

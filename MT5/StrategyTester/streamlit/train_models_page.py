@@ -10,30 +10,73 @@ import torch
 import json
 import logging
 
-def get_available_tables(db_path: str) -> List[str]:
-    """Get list of available tables from the database, sorted by creation time (newest first)"""
+def get_available_tables(db_path: str) -> List[Dict]:
+    """Get list of available tables from the database with detailed information
+    
+    Returns:
+        List of dictionaries containing table information:
+        {
+            'name': str,            # Table name
+            'date_range': str,      # Date range of data
+            'total_rows': int,      # Number of rows
+            'symbols': List[str],   # List of symbols in the table
+            'display_name': str     # Formatted name for display
+        }
+    """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         # Get tables with their creation time from sqlite_master
         cursor.execute("""
-            SELECT name, sql, tbl_name
+            SELECT name 
             FROM sqlite_master 
             WHERE type='table' AND name LIKE 'strategy_%'
-            ORDER BY name DESC;  -- This will sort by name in descending order, 
-                               -- assuming your table names include timestamps
+            ORDER BY name DESC
         """)
         
-        tables = [table[0] for table in cursor.fetchall()]
+        tables = []
+        for (table_name,) in cursor.fetchall():
+            try:
+                # Get date range
+                cursor.execute(f'SELECT MIN(Date || " " || Time), MAX(Date || " " || Time) FROM {table_name}')
+                start_time, end_time = cursor.fetchone()
+                
+                # Get row count
+                cursor.execute(f'SELECT COUNT(*) FROM {table_name}')
+                row_count = cursor.fetchone()[0]
+                
+                # Get unique symbols
+                cursor.execute(f'SELECT DISTINCT Symbol FROM {table_name}')
+                symbols = [row[0] for row in cursor.fetchall()]
+                
+                # Create a display name that includes key information
+                display_name = f"{table_name} ({start_time} to {end_time}, {row_count} rows)"
+                
+                tables.append({
+                    'name': table_name,
+                    'date_range': f"{start_time} to {end_time}",
+                    'total_rows': row_count,
+                    'symbols': symbols,
+                    'display_name': display_name
+                })
+                
+            except Exception as e:
+                logging.error(f"Error getting details for table {table_name}: {str(e)}")
+                continue
+        
         conn.close()
         
-        # If you want to see the table names in the logs
         if tables:
             logging.info(f"Found {len(tables)} strategy tables")
-            logging.info(f"Most recent tables: {tables[:3]}")
+            for table in tables[:3]:  # Log details of first 3 tables
+                logging.info(f"Table: {table['name']}")
+                logging.info(f"  Date Range: {table['date_range']}")
+                logging.info(f"  Rows: {table['total_rows']}")
+                logging.info(f"  Symbols: {', '.join(table['symbols'])}")
         
         return tables
+    
     except Exception as e:
         st.error(f"Error accessing database: {str(e)}")
         return []
@@ -145,7 +188,7 @@ def train_models_page():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
     
-    # Get available tables
+    # Get available tables with detailed information
     available_tables = get_available_tables(db_path)
     if not available_tables:
         st.warning("No strategy tables found in the database.")
@@ -161,15 +204,77 @@ def train_models_page():
             <hr style='margin: 0.2em 0 0.7em 0;'>
         """, unsafe_allow_html=True)
         
-        # Table Selection Section
+        # Table Selection Section with enhanced information
         st.markdown("##### 📊 Select Tables for Training")
-        selected_tables = st.multiselect(
-            label="Select Tables",
-            options=available_tables,
-            key="selected_tables",
-            label_visibility="collapsed",
-            help="Choose one or more tables for training your model"
+        
+        # Initialize session state for selected tables if not exists
+        if 'selected_tables' not in st.session_state:
+            st.session_state.selected_tables = []
+        
+        # Create a DataFrame for better visualization of table information
+        table_data = []
+        for t in available_tables:
+            # Check if this table is selected
+            is_selected = t['name'] in st.session_state.selected_tables
+            table_data.append({
+                '🔍 Select': is_selected,  # Checkbox column
+                'Table Name': t['name'],
+                'Date Range': t['date_range'],
+                'Rows': t['total_rows'],
+                'Symbols': ', '.join(t['symbols'])
+            })
+        
+        table_df = pd.DataFrame(table_data)
+        
+        # Display table information with checkboxes
+        st.markdown("##### Select tables from the list below:")
+        edited_df = st.data_editor(
+            table_df,
+            hide_index=True,
+            column_config={
+                "🔍 Select": st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select this table for training",
+                    default=False,
+                ),
+                "Table Name": st.column_config.TextColumn(
+                    "Table Name",
+                    help="Name of the strategy table",
+                    width="medium"
+                ),
+                "Date Range": st.column_config.TextColumn(
+                    "Date Range",
+                    help="Time range of the data",
+                    width="medium"
+                ),
+                "Rows": st.column_config.NumberColumn(
+                    "Rows",
+                    help="Number of data points",
+                    format="%d"
+                ),
+                "Symbols": st.column_config.TextColumn(
+                    "Symbols",
+                    help="Trading symbols in the table",
+                    width="small"
+                )
+            },
+            disabled=["Table Name", "Date Range", "Rows", "Symbols"],
+            use_container_width=True
         )
+        
+        # Update selected tables based on checkbox changes
+        selected_indices = edited_df[edited_df['🔍 Select']].index
+        st.session_state.selected_tables = edited_df.loc[selected_indices, 'Table Name'].tolist()
+        
+        # Show selected table details in expandable sections
+        if st.session_state.selected_tables:
+            st.markdown("##### 📈 Selected Tables Details")
+            selected_info = [t for t in available_tables if t['name'] in st.session_state.selected_tables]
+            for info in selected_info:
+                with st.expander(f"📊 {info['name']}", expanded=True):
+                    st.write(f"**Date Range:** {info['date_range']}")
+                    st.write(f"**Total Rows:** {info['total_rows']:,}")
+                    st.write(f"**Symbols:** {', '.join(info['symbols'])}")
         
         # Model Selection Section
         st.markdown("##### 🤖 Select Model Types")
@@ -187,7 +292,7 @@ def train_models_page():
         training_mode = st.radio(
             label="Training Mode",
             options=["single", "multi", "incremental"],
-            horizontal=True,  # Changed to horizontal to save space
+            horizontal=True,
             key="training_mode",
             label_visibility="collapsed",
             help="Choose the type of training to perform"
@@ -206,7 +311,8 @@ def train_models_page():
             "Train Models",
             type="primary",
             use_container_width=True,
-            help="Click to start the training process"
+            help="Click to start the training process",
+            disabled=len(st.session_state.selected_tables) == 0  # Disable if no tables selected
         )
 
     # Right Column - Output
@@ -217,20 +323,20 @@ def train_models_page():
         """, unsafe_allow_html=True)
         
         # Command Preview Section
-        if selected_tables and model_types:
+        if st.session_state.selected_tables and model_types:
             st.markdown("##### 📝 Command Preview")
-            cmd = get_equivalent_command(training_mode, selected_tables, model_types, force_retrain)
+            cmd = get_equivalent_command(training_mode, st.session_state.selected_tables, model_types, force_retrain)
             st.code(cmd, language="bash")
             
             # Add validation messages
-            if training_mode == "single" and len(selected_tables) > 1:
+            if training_mode == "single" and len(st.session_state.selected_tables) > 1:
                 st.warning("⚠️ Single mode requires exactly one table")
-            elif (training_mode in ["multi", "incremental"]) and len(selected_tables) < 2:
+            elif (training_mode in ["multi", "incremental"]) and len(st.session_state.selected_tables) < 2:
                 st.warning("⚠️ This mode requires at least two tables")
         
         # Training Output Section
         if train_button:
-            if not selected_tables:
+            if not st.session_state.selected_tables:
                 st.error("⚠️ Please select at least one table for training.")
             elif not model_types:
                 st.error("⚠️ Please select at least one model type.")
@@ -238,33 +344,33 @@ def train_models_page():
                 try:
                     st.markdown("##### 🔄 Execution")
                     st.info("Executing command:")
-                    st.code(get_equivalent_command(training_mode, selected_tables, model_types, force_retrain), language="bash")
+                    st.code(get_equivalent_command(training_mode, st.session_state.selected_tables, model_types, force_retrain), language="bash")
                     
                     with st.spinner("🔄 Training models... Please wait"):
                         if training_mode == "single":
-                            if len(selected_tables) != 1:
+                            if len(st.session_state.selected_tables) != 1:
                                 st.error("⚠️ Single mode requires exactly one table")
                                 return
                             results = train_single_table(
-                                table_name=selected_tables[0],
+                                table_name=st.session_state.selected_tables[0],
                                 force_retrain=force_retrain,
                                 model_types=model_types
                             )
                         elif training_mode == "multi":
-                            if len(selected_tables) < 2:
+                            if len(st.session_state.selected_tables) < 2:
                                 st.error("⚠️ Multi-table training requires at least two tables.")
                                 return
                             results = train_multi_table(
-                                table_names=selected_tables,
+                                table_names=st.session_state.selected_tables,
                                 force_retrain=force_retrain,
                                 model_types=model_types
                             )
                         else:  # incremental
-                            if len(selected_tables) < 2:
+                            if len(st.session_state.selected_tables) < 2:
                                 st.error("⚠️ Incremental mode requires at least two tables")
                                 return
-                            base_table = selected_tables[0]
-                            new_tables = selected_tables[1:]
+                            base_table = st.session_state.selected_tables[0]
+                            new_tables = st.session_state.selected_tables[1:]
                             results = train_model_incrementally(
                                 base_table=base_table,
                                 new_tables=new_tables,

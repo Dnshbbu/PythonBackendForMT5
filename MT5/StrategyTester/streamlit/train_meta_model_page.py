@@ -7,6 +7,7 @@ from typing import List, Dict, Optional
 from train_meta_model import train_meta_model
 import json
 import logging
+from itertools import zip_longest
 
 def get_available_runs(db_path: str) -> List[Dict]:
     """Get list of available runs from historical_predictions table"""
@@ -19,6 +20,9 @@ def get_available_runs(db_path: str) -> List[Dict]:
             SELECT 
                 run_id,
                 model_name,
+                source_table,
+                MIN(id) as first_id,
+                MAX(id) as last_id,
                 COUNT(*) as prediction_count,
                 MIN(datetime) as start_date,
                 MAX(datetime) as end_date,
@@ -27,7 +31,7 @@ def get_available_runs(db_path: str) -> List[Dict]:
                 AVG(ABS(predicted_price - actual_price)) as avg_error,
                 MAX(id) as latest_id
             FROM historical_predictions
-            GROUP BY run_id, model_name
+            GROUP BY run_id, model_name, source_table
             ORDER BY latest_id DESC
         """)
         
@@ -40,7 +44,7 @@ def get_available_runs(db_path: str) -> List[Dict]:
         # Convert to list of dictionaries with run information
         available_runs = []
         for row in results:
-            run_id, model_name, count, start_date, end_date, avg_pred, avg_actual, avg_error, _ = row
+            run_id, model_name, source_table, first_id, last_id, count, start_date, end_date, avg_pred, avg_actual, avg_error, _ = row
             
             # Skip if run_id is None
             if not run_id:
@@ -49,6 +53,8 @@ def get_available_runs(db_path: str) -> List[Dict]:
             available_runs.append({
                 'run_id': run_id,
                 'model_name': model_name if model_name else 'Unknown',
+                'source_table': source_table if source_table else 'Unknown',
+                'id_range': {'first': first_id, 'last': last_id},
                 'metrics': {
                     'prediction_count': count,
                     'avg_prediction': round(avg_pred, 4) if avg_pred else None,
@@ -81,110 +87,96 @@ def get_meta_model_params() -> Dict:
 
 def display_training_metrics(metrics: Dict, meta_model_info: Dict):
     """Display training metrics in a formatted way"""
-    if not metrics:
-        return
-    
-    # Display Meta-Model Name
-    st.markdown(f"""
-        <h4 style='color: #1565C0;'>Meta-Model Information</h4>
-    """, unsafe_allow_html=True)
-    
-    st.markdown(f"**Meta-Model Name:** `{meta_model_info.get('model_name', 'Unknown')}`")
-    
-    # Create a table-like display for metrics
-    st.markdown("""
-        <h4 style='color: #1565C0;'>Performance Metrics</h4>
-    """, unsafe_allow_html=True)
-    
-    # Filter and rename metrics for display
-    display_metrics = {
-        'train_rmse': metrics.get('train_rmse', None),
-        'test_rmse': metrics.get('test_rmse', None),
-        'train_mae': metrics.get('train_mae', None),
-        'test_mae': metrics.get('test_mae', None)
-    }
-    
-    # Create a DataFrame for the metrics
-    metrics_df = pd.DataFrame([display_metrics])
-    st.dataframe(
-        metrics_df,
-        hide_index=True,
-        use_container_width=True
-    )
-    
-    # Training Information with better formatting
-    st.markdown("""
-        <h4 style='color: #1565C0; margin-top: 1em;'>Training Information</h4>
-    """, unsafe_allow_html=True)
-    
-    # Get base model count from meta_model_info
-    n_base_models = len(meta_model_info.get('base_model_run_ids', [])) if 'base_model_run_ids' in meta_model_info else 0
-    
-    # Get database path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
-    
-    # Get training information from database
     try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Get total prediction count and date range for the selected run_ids
-        cursor.execute("""
-            SELECT 
-                COUNT(*) as total_predictions,
-                MIN(datetime) as start_date,
-                MAX(datetime) as end_date
-            FROM historical_predictions
-            WHERE run_id IN ({})
-        """.format(','.join(['?' for _ in meta_model_info['base_model_run_ids']])), 
-        meta_model_info['base_model_run_ids'])
-        
-        total_predictions, start_date, end_date = cursor.fetchone()
-        conn.close()
-        
-        training_period = f"{start_date} to {end_date}" if start_date and end_date else "Not available"
-        
-        # Create training info DataFrame
-        training_info = pd.DataFrame([{
-            'Information': info,
-            'Value': value
-        } for info, value in [
-            ('Number of Base Models', str(n_base_models)),
-            ('Training Samples', str(total_predictions)),
-            ('Training Period', training_period)
-        ]])
-        
-    except Exception as e:
-        st.error(f"Error getting training information: {str(e)}")
-        training_info = pd.DataFrame([{
-            'Information': info,
-            'Value': value
-        } for info, value in [
-            ('Number of Base Models', str(n_base_models)),
-            ('Training Samples', 'Not available'),
-            ('Training Period', 'Not available')
-        ]])
-    
-    # Display training info in a consistent format
-    st.dataframe(
-        training_info,
-        hide_index=True,
-        use_container_width=True
-    )
-    
-    # Display Base Models Information
-    if 'base_model_names' in meta_model_info and 'base_model_run_ids' in meta_model_info:
-        st.markdown("""
-            <h4 style='color: #1565C0; margin-top: 1em;'>Base Models</h4>
+        # Display Meta-Model Name
+        st.markdown(f"""
+            <h4 style='color: #1565C0;'>Meta-Model Information</h4>
         """, unsafe_allow_html=True)
         
-        for i, (model_name, run_id) in enumerate(zip(
-            meta_model_info.get('base_model_names', []), 
-            meta_model_info.get('base_model_run_ids', [])
-        )):
-            st.markdown(f"{i+1}. **Model:** `{model_name}`")
-            st.markdown(f"   **Run ID:** `{run_id}`")
+        model_name = meta_model_info.get('model_name', 'Unknown')
+        if isinstance(model_name, dict):
+            model_name = str(model_name)
+        st.markdown(f"**Meta-Model Name:** `{model_name}`")
+        
+        # Create a table-like display for metrics
+        st.markdown("""
+            <h4 style='color: #1565C0;'>Performance Metrics</h4>
+        """, unsafe_allow_html=True)
+        
+        # Filter and rename metrics for display
+        display_metrics = {}
+        if isinstance(metrics, dict):
+            for key in ['train_rmse', 'test_rmse', 'train_mae', 'test_mae']:
+                if key in metrics:
+                    display_metrics[key] = metrics[key]
+        
+        # Create a DataFrame for the metrics
+        if display_metrics:
+            metrics_df = pd.DataFrame([display_metrics])
+            st.dataframe(
+                metrics_df,
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.write("No performance metrics available")
+        
+        # Training Information with better formatting
+        st.markdown("""
+            <h4 style='color: #1565C0; margin-top: 1em;'>Training Information</h4>
+        """, unsafe_allow_html=True)
+        
+        # Get base model information safely
+        base_model_run_ids = meta_model_info.get('base_model_run_ids', [])
+        if isinstance(base_model_run_ids, str):
+            base_model_run_ids = [base_model_run_ids]
+        n_base_models = len(base_model_run_ids)
+        
+        # Create training info safely
+        training_info = pd.DataFrame([{
+            'Information': 'Number of Base Models',
+            'Value': str(n_base_models)
+        }])
+        
+        # Display training info
+        st.dataframe(
+            training_info,
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        # Display Base Models Information if available
+        base_model_names = meta_model_info.get('base_model_names', [])
+        if isinstance(base_model_names, str):
+            base_model_names = [base_model_names]
+            
+        if base_model_names or base_model_run_ids:
+            st.markdown("""
+                <h4 style='color: #1565C0; margin-top: 1em;'>Base Models</h4>
+            """, unsafe_allow_html=True)
+            
+            # Create a list of tuples of model names and run ids
+            base_models = []
+            if base_model_names and base_model_run_ids:
+                base_models = list(zip_longest(base_model_names, base_model_run_ids))
+            elif base_model_names:
+                base_models = [(name, None) for name in base_model_names]
+            elif base_model_run_ids:
+                base_models = [(None, run_id) for run_id in base_model_run_ids]
+            
+            for i, (model_name, run_id) in enumerate(base_models, 1):
+                model_info = []
+                if model_name:
+                    model_info.append(f"**Model:** `{model_name}`")
+                if run_id:
+                    model_info.append(f"**Run ID:** `{run_id}`")
+                if model_info:
+                    st.markdown(f"{i}. {' | '.join(model_info)}")
+    
+    except Exception as e:
+        st.error(f"Error displaying metrics: {str(e)}")
+        st.write("Raw Results:")
+        st.json({"metrics": metrics, "meta_model_info": meta_model_info})
 
 def display_run_info(run: Dict):
     """Display run information in a formatted way"""
@@ -234,45 +226,144 @@ def train_meta_model_page():
             <hr style='margin: 0.2em 0 0.7em 0;'>
         """, unsafe_allow_html=True)
         
-        # Run Selection Section
+        # Initialize session state for selected runs if not exists
+        if 'meta_selected_runs' not in st.session_state:
+            st.session_state.meta_selected_runs = []
+        
+        # Run Selection Section with enhanced information
         st.markdown("##### 🔄 Select Base Model Runs")
-        selected_runs = st.multiselect(
-            label="Select Base Model Runs",
-            options=[run['run_id'] for run in available_runs],
-            key="meta_selected_runs",
-            help="Choose two or more model runs to combine into a meta-model"
+        
+        # Create a DataFrame for better visualization of run information
+        run_data = []
+        for run in available_runs:
+            # Check if this run is selected
+            is_selected = run['run_id'] in st.session_state.meta_selected_runs
+            # Format the period more compactly
+            start_date = run['prediction_period']['start'].split()[0] if run['prediction_period']['start'] else ''
+            end_date = run['prediction_period']['end'].split()[0] if run['prediction_period']['end'] else ''
+            period = f"{start_date} to {end_date}" if start_date and end_date else "N/A"
+            
+            run_data.append({
+                '🔍 Select': is_selected,  # Checkbox column
+                'Run ID': run['run_id'],  # Show full run_id
+                'Model': run['model_name'],  # Show full model name
+                'Source': run['source_table'].replace('strategy_', ''),  # Keep removing strategy_ prefix
+                'IDs': f"{run['id_range']['first']}-{run['id_range']['last']}",
+                'Period': period,
+                'Count': run['metrics']['prediction_count'],
+                'Error': run['metrics']['avg_error']
+            })
+        
+        run_df = pd.DataFrame(run_data)
+        
+        # Display run information with checkboxes
+        st.markdown("##### Select runs from the list below:")
+        edited_df = st.data_editor(
+            run_df,
+            hide_index=True,
+            key="meta_model_run_editor",  # Unique key for the editor
+            column_config={
+                "🔍 Select": st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select this run for meta-model training",
+                    default=False,
+                    width="small"
+                ),
+                "Run ID": st.column_config.TextColumn(
+                    "Run ID",
+                    help="Unique identifier for the prediction run",
+                    width="medium"  # Increased width to accommodate full run_id
+                ),
+                "Model": st.column_config.TextColumn(
+                    "Model",
+                    help="Model used for predictions",
+                    width="medium"  # Increased width to accommodate full model name
+                ),
+                "Source": st.column_config.TextColumn(
+                    "Source",
+                    help="Original strategy table used for predictions",
+                    width="small"
+                ),
+                "IDs": st.column_config.TextColumn(
+                    "IDs",
+                    help="Range of prediction IDs in the database",
+                    width="small"
+                ),
+                "Period": st.column_config.TextColumn(
+                    "Period",
+                    help="Time range of predictions",
+                    width="medium"
+                ),
+                "Count": st.column_config.NumberColumn(
+                    "Count",
+                    help="Number of predictions in this run",
+                    format="%d",
+                    width="small"
+                ),
+                "Error": st.column_config.NumberColumn(
+                    "Error",
+                    help="Average prediction error",
+                    format="%.4f",
+                    width="small"
+                )
+            },
+            disabled=["Run ID", "Model", "Source", "IDs", "Period", "Count", "Error"],
+            use_container_width=True
         )
         
-        # Display selected run information
-        if selected_runs:
-            st.markdown("##### 📊 Selected Runs Information")
-            for run_id in selected_runs:
-                run_info = next((run for run in available_runs if run['run_id'] == run_id), None)
-                if run_info:
-                    with st.expander(f"Run: {run_id}", expanded=False):
-                        display_run_info(run_info)
+        # Update selected runs based on checkbox changes - no need to add 'run_' prefix anymore since we're using full run_id
+        selected_indices = edited_df[edited_df['🔍 Select']].index
+        st.session_state.meta_selected_runs = edited_df.loc[selected_indices, 'Run ID'].tolist()
         
-        # Parameters Section
-        with st.expander("##### ⚙️ Advanced Parameters", expanded=False):
-            test_size = st.slider(
-                "Test Size",
-                min_value=0.1,
-                max_value=0.4,
-                value=0.2,
-                step=0.05,
-                help="Proportion of data to use for testing",
-                key="meta_test_size"
-            )
+        # Show selected runs details
+        if st.session_state.meta_selected_runs:
+            st.markdown("##### 📈 Selected Runs Details")
+            selected_info = [run for run in available_runs if run['run_id'] in st.session_state.meta_selected_runs]
             
-            st.markdown("##### Meta-Model Parameters")
-            meta_model_params = get_meta_model_params()
+            # Create a summary of selected runs
+            total_predictions = sum(run['metrics']['prediction_count'] for run in selected_info)
+            unique_models = len(set(run['model_name'] for run in selected_info))
+            
+            # Display summary metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Selected Runs", len(selected_info))
+            with col2:
+                st.metric("Total Predictions", f"{total_predictions:,}")
+            with col3:
+                st.metric("Unique Models", unique_models)
+            
+            # Show detailed information for each selected run
+            for run in selected_info:
+                with st.expander(f"📊 Run: {run['run_id']} ({run['model_name']})", expanded=True):
+                    st.write(f"**Model:** {run['model_name']}")
+                    st.write(f"**Source Table:** {run['source_table']}")
+                    st.write(f"**ID Range:** {run['id_range']['first']} - {run['id_range']['last']}")
+                    st.write(f"**Period:** {run['prediction_period']['start']} to {run['prediction_period']['end']}")
+                    st.write(f"**Predictions:** {run['metrics']['prediction_count']:,}")
+                    st.write(f"**Average Error:** {run['metrics']['avg_error']:.4f}")
+                    if run['metrics']['avg_prediction'] and run['metrics']['avg_actual']:
+                        st.write(f"**Avg Prediction:** {run['metrics']['avg_prediction']:.4f}")
+                        st.write(f"**Avg Actual:** {run['metrics']['avg_actual']:.4f}")
         
-        # Options Section
-        st.markdown("##### 🛠️ Options")
+        # Model Parameters Section
+        st.markdown("##### 🤖 Meta-Model Parameters")
+        model_params = get_meta_model_params()
+        
+        # Training Options
+        st.markdown("##### ⚙️ Training Options")
+        test_size = st.slider(
+            "Test Size",
+            min_value=0.1,
+            max_value=0.5,
+            value=0.2,
+            step=0.1,
+            help="Proportion of data to use for testing"
+        )
+        
         force_retrain = st.checkbox(
             "Force Retrain",
-            help="If checked, will perform a full retrain regardless of existing models",
-            key="meta_force_retrain"
+            help="If checked, will perform a full retrain regardless of existing meta-models"
         )
         
         # Training Button
@@ -282,7 +373,7 @@ def train_meta_model_page():
             type="primary",
             use_container_width=True,
             help="Click to start the meta-model training process",
-            key="meta_train_button"
+            disabled=len(st.session_state.meta_selected_runs) < 2  # Disable if fewer than 2 runs selected
         )
 
     # Right Column - Output
@@ -293,46 +384,42 @@ def train_meta_model_page():
         """, unsafe_allow_html=True)
         
         # Command Preview Section
-        if selected_runs:
+        if len(st.session_state.meta_selected_runs) >= 2:
             st.markdown("##### 📝 Command Preview")
-            cmd = get_equivalent_command(selected_runs, test_size, force_retrain)
+            cmd = get_equivalent_command(st.session_state.meta_selected_runs, test_size, force_retrain)
             st.code(cmd, language="bash")
-            
-            # Validation messages
-            if len(selected_runs) < 2:
-                st.warning("⚠️ Please select at least two runs for meta-model training")
+        elif st.session_state.meta_selected_runs:
+            st.warning("⚠️ Please select at least two runs for meta-model training")
         
         # Training Output Section
         if train_button:
-            if len(selected_runs) < 2:
+            if len(st.session_state.meta_selected_runs) < 2:
                 st.error("⚠️ Please select at least two runs for meta-model training.")
             else:
                 try:
-                    with st.spinner("🔄 Training meta-model... Please wait"):
-                        meta_model_info = train_meta_model(
-                            run_ids=selected_runs,
+                    st.markdown("##### 🔄 Execution")
+                    st.info("Starting meta-model training...")
+                    
+                    with st.spinner("Training meta-model... Please wait"):
+                        results = train_meta_model(
+                            run_ids=st.session_state.meta_selected_runs,
                             test_size=test_size,
                             force_retrain=force_retrain
                         )
                         
-                        st.success("✅ Meta-model training completed successfully!")
+                        # Display metrics - handle different result structures
+                        if isinstance(results, dict):
+                            metrics = results.get('metrics', {})
+                            meta_info = results.get('meta_model_info', results)  # fallback to entire results if no meta_model_info
+                            if metrics or meta_info:
+                                display_training_metrics(metrics, meta_info)
+                            else:
+                                st.json(results)  # Display raw results if no metrics found
+                        else:
+                            st.write("Training Results:", results)
                         
-                        # Display results in a formatted way
-                        st.markdown("##### 📊 Training Results")
-                        
-                        # Create tabs for different result views
-                        result_tabs = st.tabs(["Summary", "Detailed Results"])
-                        
-                        with result_tabs[0]:
-                            # Display key metrics
-                            if 'metrics' in meta_model_info:
-                                display_training_metrics(meta_model_info['metrics'], meta_model_info)
-                            
-                        with result_tabs[1]:
-                            # Show full results in an expander
-                            with st.expander("Full Results", expanded=False):
-                                st.json(meta_model_info)
-                            
+                    st.success("✅ Meta-model training completed successfully!")
+                    
                 except Exception as e:
                     st.error(f"❌ Error during training: {str(e)}")
-                    st.exception(e)  # This will show the full traceback 
+                    logging.exception("Detailed error traceback:") 

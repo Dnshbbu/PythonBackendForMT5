@@ -5,11 +5,19 @@ import numpy as np
 import sqlite3
 from datetime import datetime
 import mlflow
+import torch
 from model_predictor import ModelPredictor
 from typing import Dict, List, Optional
 import json
-import torch
+import argparse
 from model_implementations import LSTMModel, TimeSeriesDataset
+
+def setup_logging():
+    """Setup logging configuration"""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 class HistoricalPredictor:
     def __init__(self, db_path: str, models_dir: str, model_name: Optional[str] = None):
@@ -523,12 +531,34 @@ class HistoricalPredictor:
         return float(np.mean(streaks)) if streaks else 0.0
 
 def main():
-    """Main function for testing predictions"""
+    """Command line interface for running predictions"""
+    parser = argparse.ArgumentParser(description='Run predictions using trained models')
+    
+    # Required arguments
+    parser.add_argument('--table', required=True,
+                       help='Table name to run predictions on')
+    
+    # Optional arguments
+    parser.add_argument('--model-name',
+                       help='Specific model to use (default: latest model)')
+    parser.add_argument('--output-format', choices=['db', 'csv', 'both'], default='db',
+                       help='Output format for predictions (default: db)')
+    parser.add_argument('--output-path',
+                       help='Path for CSV output if output-format is csv or both')
+    parser.add_argument('--batch-size', type=int, default=1000,
+                       help='Batch size for predictions (default: 1000)')
+    parser.add_argument('--force', action='store_true',
+                       help='Force rerun predictions even if they exist')
+    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                       default='INFO', help='Logging level (default: INFO)')
+    
+    args = parser.parse_args()
+    
+    # Setup logging
+    logging.basicConfig(level=getattr(logging, args.log_level))
+    
     try:
-        # Setup logging
-        logging.basicConfig(level=logging.INFO)
-        
-        # Initialize predictor
+        # Setup paths
         current_dir = os.path.dirname(os.path.abspath(__file__))
         db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
         models_dir = os.path.join(current_dir, 'models')
@@ -536,54 +566,37 @@ def main():
         # Ensure models directory exists
         os.makedirs(models_dir, exist_ok=True)
         
-        # Example of using a specific model
-        model_name = "lstm_multi_20250209_095746"  # Replace with None to use latest model
-        predictor = HistoricalPredictor(db_path, models_dir, model_name)
+        # Initialize predictor
+        predictor = HistoricalPredictor(
+            db_path=db_path,
+            models_dir=models_dir,
+            model_name=args.model_name
+        )
         
-        # Run predictions for a specific table
-        table_name = "strategy_TRIP_NAS_10016827"  # Replace with your table name
-        results_df = predictor.run_predictions(table_name)
+        # Run predictions
+        results_df = predictor.run_predictions(args.table)
         
-        # Generate summary for display
-        summary = predictor.generate_summary(results_df)
+        # Handle output based on format
+        if args.output_format in ['csv', 'both']:
+            if not args.output_path:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                args.output_path = f"predictions_{timestamp}.csv"
+            results_df.to_csv(args.output_path)
+            logging.info(f"Predictions saved to CSV: {args.output_path}")
         
-        # Print summary
+        if args.output_format in ['db', 'both']:
+            logging.info("Predictions saved to database")
+        
+        # Print summary statistics
         print("\nPrediction Summary:")
-        print(f"Total predictions: {summary['total_predictions']}")
+        print(f"Total predictions: {len(results_df)}")
         print(f"Using model: {predictor.model_predictor.current_model_name}")
-        print()
-        print("Error Metrics:")
-        print(f"Mean absolute error: {summary['mean_absolute_error']:.4f}")
-        print(f"Root mean squared error: {summary['root_mean_squared_error']:.4f}")
-        print(f"Mean absolute percentage error: {summary['mean_absolute_percentage_error']:.2f}%")
-        print(f"R-squared score: {summary['r_squared']:.4f}")
-        print()
-        print("Error Distribution:")
-        print(f"Mean prediction error: {summary['mean_prediction_error']:.4f}")
-        print(f"Median prediction error: {summary['median_prediction_error']:.4f}")
-        print(f"Error skewness: {summary['error_skewness']:.4f}")
-        print(f"Error quartiles: Q25={summary['error_quartiles']['q25']:.4f}, "
-              f"Q50={summary['error_quartiles']['q50']:.4f}, "
-              f"Q75={summary['error_quartiles']['q75']:.4f}")
-        print()
-        print("Price Movement Analysis:")
-        print(f"Average price change: {summary['avg_price_change']:.4f}")
-        print(f"Price volatility: {summary['price_volatility']:.4f}")
-        
-        # Optional metrics if available
-        if 'max_correct_streak' in summary:
-            print(f"\nStreak Analysis:")
-            print(f"Maximum correct streak: {summary['max_correct_streak']}")
-            print(f"Average correct streak: {summary['avg_correct_streak']:.2f}")
-        
-        if 'direction_accuracy' in summary:
-            print(f"\nDirection Analysis:")
-            print(f"Direction accuracy: {summary['direction_accuracy']:.2%}")
-            print(f"Up prediction accuracy: {summary['up_prediction_accuracy']:.2%}")
-            print(f"Down prediction accuracy: {summary['down_prediction_accuracy']:.2%}")
+        print(f"\nError Metrics:")
+        print(f"Mean absolute error: {results_df['Error'].abs().mean():.4f}")
+        print(f"Root mean squared error: {np.sqrt((results_df['Error'] ** 2).mean()):.4f}")
         
     except Exception as e:
-        logging.error(f"Error in main: {e}")
+        logging.error(f"Error during prediction: {str(e)}")
         raise
 
 if __name__ == "__main__":

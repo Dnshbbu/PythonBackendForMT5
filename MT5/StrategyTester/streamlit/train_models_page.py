@@ -8,16 +8,32 @@ from train_models import train_single_table, train_multi_table, train_model_incr
 import mlflow
 import torch
 import json
+import logging
 
 def get_available_tables(db_path: str) -> List[str]:
-    """Get list of available tables from the database"""
+    """Get list of available tables from the database, sorted by creation time (newest first)"""
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        
+        # Get tables with their creation time from sqlite_master
+        cursor.execute("""
+            SELECT name, sql, tbl_name
+            FROM sqlite_master 
+            WHERE type='table' AND name LIKE 'strategy_%'
+            ORDER BY name DESC;  -- This will sort by name in descending order, 
+                               -- assuming your table names include timestamps
+        """)
+        
         tables = [table[0] for table in cursor.fetchall()]
         conn.close()
-        return [table for table in tables if table.startswith('strategy_')]
+        
+        # If you want to see the table names in the logs
+        if tables:
+            logging.info(f"Found {len(tables)} strategy tables")
+            logging.info(f"Most recent tables: {tables[:3]}")
+        
+        return tables
     except Exception as e:
         st.error(f"Error accessing database: {str(e)}")
         return []
@@ -67,49 +83,49 @@ def display_training_metrics(metrics: Dict):
         return
     
     # Create a table-like display for metrics
-    st.write("Performance Metrics:")
+    st.markdown("""
+        <h4 style='color: #1565C0;'>Performance Metrics</h4>
+    """, unsafe_allow_html=True)
     
     # Create a DataFrame for the metrics
     metrics_data = []
     metric_columns = []
     
-    # Add basic metrics
-    if 'training_loss' in metrics:
-        metrics_data.append(metrics['training_loss'])
-        metric_columns.append('training_loss')
-    if 'rmse' in metrics:
-        metrics_data.append(metrics['rmse'])
-        metric_columns.append('rmse')
-    if 'n_features' in metrics:
-        metrics_data.append(metrics['n_features'])
-        metric_columns.append('n_features')
-    if 'training_samples' in metrics:
-        metrics_data.append(metrics['training_samples'])
-        metric_columns.append('n_samples')
-    if 'sequence_length' in metrics:
-        metrics_data.append(metrics['sequence_length'])
-        metric_columns.append('sequence_length')
-    if 'hidden_size' in metrics:
-        metrics_data.append(metrics['hidden_size'])
-        metric_columns.append('hidden_size')
-    if 'num_layers' in metrics:
-        metrics_data.append(metrics['num_layers'])
-        metric_columns.append('num_layers')
-    if 'data_points' in metrics:
-        metrics_data.append(metrics['data_points'])
-        metric_columns.append('data_points')
+    # Add basic metrics with better formatting
+    metrics_mapping = {
+        'training_loss': ('Training Loss', '📉'),
+        'rmse': ('RMSE', '📊'),
+        'n_features': ('Number of Features', '🔢'),
+        'training_samples': ('Training Samples', '📈'),
+        'sequence_length': ('Sequence Length', '📏'),
+        'hidden_size': ('Hidden Size', '🔍'),
+        'num_layers': ('Number of Layers', '📚'),
+        'data_points': ('Data Points', '📊')
+    }
     
-    # Create DataFrame and display
+    for key, (display_name, emoji) in metrics_mapping.items():
+        if key in metrics:
+            metrics_data.append(metrics[key])
+            metric_columns.append(f"{emoji} {display_name}")
+    
+    # Create DataFrame and display with styling
     if metrics_data:
         metrics_df = pd.DataFrame([metrics_data], columns=metric_columns)
-        st.dataframe(metrics_df, hide_index=True)
+        st.dataframe(
+            metrics_df,
+            hide_index=True,
+            use_container_width=True
+        )
     
-    # Training Information
-    st.write("Training Information:")
+    # Training Information with better formatting
+    st.markdown("""
+        <h4 style='color: #1565C0; margin-top: 1em;'>Training Information</h4>
+    """, unsafe_allow_html=True)
+    
     training_info = {
-        "Number of Features": metrics.get('n_features', ''),
-        "Number of Samples": metrics.get('training_samples', ''),
-        "Training Period": f"{metrics.get('training_period', {}).get('start', '')} to {metrics.get('training_period', {}).get('end', '')}"
+        "📊 Number of Features": metrics.get('n_features', ''),
+        "📈 Number of Samples": metrics.get('training_samples', ''),
+        "📅 Training Period": f"{metrics.get('training_period', {}).get('start', '')} to {metrics.get('training_period', {}).get('end', '')}"
     }
     st.json(training_info)
 
@@ -125,8 +141,6 @@ def get_equivalent_command(training_mode: str, selected_tables: List[str], model
 
 def train_models_page():
     """Streamlit interface matching the command line interface of train_models.py"""
-    st.title("Base Model Training")
-    
     # Setup paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
@@ -136,101 +150,150 @@ def train_models_page():
     if not available_tables:
         st.warning("No strategy tables found in the database.")
         return
-    
-    # Table Selection Section
-    st.subheader("Select Tables for Training", help="Choose the tables you want to use for training")
-    selected_tables = st.multiselect(
-        label="Select Tables",
-        options=available_tables,
-        key="selected_tables",
-        label_visibility="collapsed"
-    )
-    
-    # Model Selection Section
-    st.subheader("Select Model Types", help="Choose the type of model to train")
-    model_types = st.multiselect(
-        label="Select Model Types",
-        options=['xgboost', 'decision_tree', 'random_forest', 'lstm'],
-        default=['lstm'],
-        key="model_types",
-        label_visibility="collapsed"
-    )
-    
-    # Training Type Section with Radio Buttons
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.subheader("Training Type", help="Choose the type of training to perform")
+
+    # Create main left-right layout
+    left_col, right_col = st.columns([1, 1], gap="large")
+
+    # Left Column - Configuration
+    with left_col:
+        st.markdown("""
+            <p style='color: #666; margin: 0; font-size: 0.9em;'>Configure your model training parameters</p>
+            <hr style='margin: 0.2em 0 0.7em 0;'>
+        """, unsafe_allow_html=True)
+        
+        # Table Selection Section
+        st.markdown("##### 📊 Select Tables for Training")
+        selected_tables = st.multiselect(
+            label="Select Tables",
+            options=available_tables,
+            key="selected_tables",
+            label_visibility="collapsed",
+            help="Choose one or more tables for training your model"
+        )
+        
+        # Model Selection Section
+        st.markdown("##### 🤖 Select Model Types")
+        model_types = st.multiselect(
+            label="Select Model Types",
+            options=['xgboost', 'decision_tree', 'random_forest', 'lstm'],
+            default=['lstm'],
+            key="model_types",
+            label_visibility="collapsed",
+            help="Choose one or more model types to train"
+        )
+        
+        # Training Type Section
+        st.markdown("##### 🔄 Training Type")
         training_mode = st.radio(
             label="Training Mode",
             options=["single", "multi", "incremental"],
-            horizontal=True,
+            horizontal=True,  # Changed to horizontal to save space
             key="training_mode",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            help="Choose the type of training to perform"
         )
-    
-    with col2:
-        st.subheader("Options")
-        force_retrain = st.checkbox("Force Retrain", help="If checked, will perform a full retrain")
-    
-    # Show equivalent command
-    if selected_tables and model_types:
-        st.subheader("Equivalent Command")
-        cmd = get_equivalent_command(training_mode, selected_tables, model_types, force_retrain)
-        st.code(cmd, language="bash")
-    
-    # Training Button
-    if st.button("Train Models", type="primary"):
-        if not selected_tables:
-            st.error("Please select at least one table for training.")
-            return
+        
+        # Options Section
+        st.markdown("##### ⚙️ Options")
+        force_retrain = st.checkbox(
+            "Force Retrain",
+            help="If checked, will perform a full retrain regardless of existing models"
+        )
+        
+        # Training Button
+        st.markdown("##### 🚀 Start Training")
+        train_button = st.button(
+            "Train Models",
+            type="primary",
+            use_container_width=True,
+            help="Click to start the training process"
+        )
+
+    # Right Column - Output
+    with right_col:
+        st.markdown("""
+            <p style='color: #666; margin: 0; font-size: 0.9em;'>Training output and results</p>
+            <hr style='margin: 0.2em 0 0.7em 0;'>
+        """, unsafe_allow_html=True)
+        
+        # Command Preview Section
+        if selected_tables and model_types:
+            st.markdown("##### 📝 Command Preview")
+            cmd = get_equivalent_command(training_mode, selected_tables, model_types, force_retrain)
+            st.code(cmd, language="bash")
             
-        if not model_types:
-            st.error("Please select at least one model type.")
-            return
-            
-        try:
-            # Show the command being executed
-            st.info("Executing command:")
-            st.code(get_equivalent_command(training_mode, selected_tables, model_types, force_retrain), language="bash")
-            
-            with st.spinner("Training model..."):
-                if training_mode == "single":
-                    if len(selected_tables) != 1:
-                        st.error("Single mode requires exactly one table")
-                        return
-                    results = train_single_table(
-                        table_name=selected_tables[0],
-                        force_retrain=force_retrain,
-                        model_types=model_types
-                    )
+            # Add validation messages
+            if training_mode == "single" and len(selected_tables) > 1:
+                st.warning("⚠️ Single mode requires exactly one table")
+            elif (training_mode in ["multi", "incremental"]) and len(selected_tables) < 2:
+                st.warning("⚠️ This mode requires at least two tables")
+        
+        # Training Output Section
+        if train_button:
+            if not selected_tables:
+                st.error("⚠️ Please select at least one table for training.")
+            elif not model_types:
+                st.error("⚠️ Please select at least one model type.")
+            else:
+                try:
+                    st.markdown("##### 🔄 Execution")
+                    st.info("Executing command:")
+                    st.code(get_equivalent_command(training_mode, selected_tables, model_types, force_retrain), language="bash")
                     
-                elif training_mode == "multi":
-                    if len(selected_tables) < 2:
-                        st.error("Multi-table training requires at least two tables.")
-                        return
-                    results = train_multi_table(
-                        table_names=selected_tables,
-                        force_retrain=force_retrain,
-                        model_types=model_types
-                    )
-                    
-                else:  # incremental
-                    if len(selected_tables) < 2:
-                        st.error("Incremental mode requires at least two tables (base table and new tables)")
-                        return
-                    base_table = selected_tables[0]
-                    new_tables = selected_tables[1:]
-                    results = train_model_incrementally(
-                        base_table=base_table,
-                        new_tables=new_tables,
-                        force_retrain=force_retrain,
-                        model_types=model_types
-                    )
-                
-                st.success("Training completed!")
-                
-                # Display results in a formatted way
-                st.subheader("Training Results")
-                st.json(results)
-        except Exception as e:
-            st.error(f"Error during training: {str(e)}") 
+                    with st.spinner("🔄 Training models... Please wait"):
+                        if training_mode == "single":
+                            if len(selected_tables) != 1:
+                                st.error("⚠️ Single mode requires exactly one table")
+                                return
+                            results = train_single_table(
+                                table_name=selected_tables[0],
+                                force_retrain=force_retrain,
+                                model_types=model_types
+                            )
+                        elif training_mode == "multi":
+                            if len(selected_tables) < 2:
+                                st.error("⚠️ Multi-table training requires at least two tables.")
+                                return
+                            results = train_multi_table(
+                                table_names=selected_tables,
+                                force_retrain=force_retrain,
+                                model_types=model_types
+                            )
+                        else:  # incremental
+                            if len(selected_tables) < 2:
+                                st.error("⚠️ Incremental mode requires at least two tables")
+                                return
+                            base_table = selected_tables[0]
+                            new_tables = selected_tables[1:]
+                            results = train_model_incrementally(
+                                base_table=base_table,
+                                new_tables=new_tables,
+                                force_retrain=force_retrain,
+                                model_types=model_types
+                            )
+                        
+                        st.success("✅ Training completed successfully!")
+                        
+                        # Display results in a formatted way
+                        st.markdown("##### 📊 Training Results")
+                        
+                        # Create tabs for different result views
+                        result_tabs = st.tabs(["Summary", "Detailed Results"])
+                        
+                        with result_tabs[0]:
+                            if isinstance(results, dict):
+                                # Display key metrics in a more condensed format
+                                metrics_to_show = {
+                                    k: v for k, v in results.items() 
+                                    if isinstance(v, (int, float, str)) or 
+                                    (isinstance(v, dict) and 'metrics' in v)
+                                }
+                                st.json(metrics_to_show)
+                        
+                        with result_tabs[1]:
+                            # Show full results in an expander
+                            with st.expander("Full Results", expanded=False):
+                                st.json(results)
+                            
+                except Exception as e:
+                    st.error(f"❌ Error during training: {str(e)}") 

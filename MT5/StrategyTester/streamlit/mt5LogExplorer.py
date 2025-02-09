@@ -14,6 +14,9 @@ from historical_predictions_page import historical_predictions_page
 # from realtime_monitoring_page import realtime_monitoring
 from model_comparison_page import model_comparison_page
 from train_models_page import train_models_page
+from run_predictions_page import run_predictions_page
+from train_meta_model_page import train_meta_model_page
+from meta_model_predictor_page import meta_model_predictor_page
 
 
 
@@ -159,6 +162,37 @@ from train_models_page import train_models_page
 
 
 
+def model_management_page():
+    """Page containing all model-related functionality in tabs"""
+    st.markdown("""
+        <h2 style='text-align: center; color: #1E88E5; margin: 0; padding: 0;'>Model Management</h2>
+        <hr style='margin: 0.5em 0 1em 0;'>
+    """, unsafe_allow_html=True)
+    
+    # Create tabs for different model functionalities
+    tabs = st.tabs([
+        "🎯 Base Model Training",
+        "🔮 Run Predictions",
+        "🚀 Meta Model Training",
+        "📊 Meta Model Predictions"
+    ])
+    
+    # Base Model Training Tab
+    with tabs[0]:
+        train_models_page()
+    
+    # Run Predictions Tab
+    with tabs[1]:
+        run_predictions_page()
+    
+    # Meta Model Training Tab
+    with tabs[2]:
+        train_meta_model_page()
+    
+    # Meta Model Predictions Tab
+    with tabs[3]:
+        meta_model_predictor_page()
+
 def main():
     st.set_page_config(
         page_title="MT5 Analysis Tools",
@@ -168,16 +202,13 @@ def main():
 
     # Page navigation
     pages = {
+        "Model Management": model_management_page,  # New combined model page
         "Log Explorer": log_explorer,
         "Scripts": scripts,
-        # "ZMQ Server": zmq_server,
-        # "ML: Analysis": sklearn_page,
-        # "ML: Predictions": prediction_page,
         "ZMQ Server Control": server_control_page,
         "Real-Time Prediction Monitor": prediction_monitoring_page,
         "Historical Predictions Analysis": historical_predictions_page,
         "Model Comparison": model_comparison_page,
-        "Model Training": train_models_page
     }
     
     # Add the navigation to the sidebar

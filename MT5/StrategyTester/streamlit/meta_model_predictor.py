@@ -227,7 +227,7 @@ def main():
         logging.info(f"Using models directory: {models_dir}")
         
         # Parameters
-        model_name = "meta_xgboost_20250208_204016"  # Our newly trained meta model
+        model_name = "meta_xgboost_20250209_112236"  # Our newly trained meta model
         table_name = "strategy_TRIP_NAS_10031622"  # The table you specified
         
         logging.info(f"Meta model name: {model_name}")

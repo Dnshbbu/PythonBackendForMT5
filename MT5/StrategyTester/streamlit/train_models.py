@@ -170,8 +170,8 @@ def train_multi_table(table_names: List[str], force_retrain: bool = False):
         configurations = [
             {'model_type': 'xgboost', 'prediction_horizon': 1},
             {'model_type': 'decision_tree', 'prediction_horizon': 1},
-            # {'model_type': 'random_forest', 'prediction_horizon': 1},
-            # {'model_type': 'lstm', 'prediction_horizon': 1}
+            {'model_type': 'random_forest', 'prediction_horizon': 1},
+            {'model_type': 'lstm', 'prediction_horizon': 1}
         ]
         
         results = {}
@@ -361,9 +361,9 @@ if __name__ == "__main__":
         
         # 2. Multi-table training
         multiple_tables = [
-            "strategy_TRIP_NAS_10010462",
-            "strategy_TRIP_NAS_10016827"
-            # "strategy_TRIP_NAS_10011351"
+            "strategy_TRIP_NAS_10022328",
+            "strategy_TRIP_NAS_10031271",
+            "strategy_TRIP_NAS_10004584"
         ]
         multi_results = train_multi_table(multiple_tables)
         # logging.info("\nMulti-Table Training Results:================================================================")

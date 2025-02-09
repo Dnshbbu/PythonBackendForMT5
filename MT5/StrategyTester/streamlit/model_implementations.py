@@ -339,11 +339,32 @@ class RandomForestTimeSeriesModel(BaseTimeSeriesModel, BatchedRetrainingMixin):
             
         return importance_dict
 
-class TimeSeriesDataset(Dataset):
-    def __init__(self, X, y, sequence_length=10):
-        self.X = torch.FloatTensor(X.values)
-        self.y = torch.FloatTensor(y.values)
+class TimeSeriesDataset:
+    def __init__(self, X, y, sequence_length):
+        """
+        Initialize the dataset
+        
+        Args:
+            X: Features (numpy array or DataFrame)
+            y: Target values (numpy array or Series)
+            sequence_length: Length of the sequence for LSTM
+        """
+        logging.info(f"Initializing TimeSeriesDataset with X shape: {X.shape if hasattr(X, 'shape') else 'unknown'}")
+        logging.info(f"X type: {type(X)}")
+        
+        # Convert to torch tensor directly if numpy array, otherwise get values first
+        if isinstance(X, pd.DataFrame):
+            self.X = torch.FloatTensor(X.values)
+        else:
+            self.X = torch.FloatTensor(X)
+            
+        if isinstance(y, pd.Series):
+            self.y = torch.FloatTensor(y.values)
+        else:
+            self.y = torch.FloatTensor(y)
+            
         self.sequence_length = sequence_length
+        logging.info(f"TimeSeriesDataset initialized with tensor shapes - X: {self.X.shape}, y: {self.y.shape}")
 
     def __len__(self):
         return len(self.X) - self.sequence_length

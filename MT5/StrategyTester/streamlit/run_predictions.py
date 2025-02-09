@@ -307,7 +307,12 @@ class HistoricalPredictor:
                 if isinstance(self.model_predictor.model, LSTMModel):
                     # Handle LSTM predictions
                     sequence_length = self.model_predictor.sequence_length
-                    dataset = TimeSeriesDataset(X.values, df['Price'].values, sequence_length)
+                    logging.info(f"Preparing LSTM predictions with sequence length: {sequence_length}")
+                    logging.info(f"X shape before dataset creation: {X.shape}")
+                    logging.info(f"X type: {type(X)}")
+                    
+                    # Create dataset - X is already a numpy array from prepare_features
+                    dataset = TimeSeriesDataset(X, df['Price'].values, sequence_length)
                     predictions = []
                     
                     with torch.no_grad():
@@ -317,8 +322,23 @@ class HistoricalPredictor:
                             pred = self.model_predictor.model(x)
                             predictions.append(pred.item())
                     
+                    logging.info(f"DataFrame length: {len(df)}")
+                    logging.info(f"Predictions length: {len(predictions)}")
+                    logging.info(f"Sequence length: {sequence_length}")
+                    
                     # Pad the beginning with NaN values due to sequence length
                     pad = [np.nan] * (sequence_length - 1)
+                    # Ensure predictions array matches DataFrame length
+                    if len(pad) + len(predictions) < len(df):
+                        # Add one more NaN if needed
+                        pad = [np.nan] * sequence_length
+                        logging.info("Added extra padding to match DataFrame length")
+                    elif len(pad) + len(predictions) > len(df):
+                        # Trim predictions if needed
+                        predictions = predictions[:len(df) - len(pad)]
+                        logging.info("Trimmed predictions to match DataFrame length")
+                    
+                    logging.info(f"Final combined length: {len(pad) + len(predictions)}")
                     results_df['Predicted_Price'] = pad + predictions
                 else:
                     # Handle other model types
@@ -517,7 +537,7 @@ def main():
         os.makedirs(models_dir, exist_ok=True)
         
         # Example of using a specific model
-        model_name = "xgboost_multi_20250207_234414"  # Replace with None to use latest model
+        model_name = "lstm_multi_20250209_095746"  # Replace with None to use latest model
         predictor = HistoricalPredictor(db_path, models_dir, model_name)
         
         # Run predictions for a specific table

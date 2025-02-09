@@ -18,7 +18,7 @@ def main():
     test_size = 0.2
     
     # Specific run IDs we want to use
-    run_ids = ['run_20250208_203729_009', 'run_20250208_203811_123']  # XGBoost and Decision Tree runs
+    run_ids = ['run_20250209_105232_384', 'run_20250209_100009_183', 'run_20250209_095859_071','run_20250209_111611_120']  # XGBoost and Decision Tree runs
     
     # Setup logging
     setup_logging()
@@ -38,8 +38,8 @@ def main():
         cursor.execute("""
             SELECT MIN(datetime) as start_date, MAX(datetime) as end_date
             FROM historical_predictions
-            WHERE run_id IN (?, ?)
-        """, run_ids)
+            WHERE run_id IN ({})
+        """.format(','.join(['?' for _ in run_ids])), run_ids)
         min_date, max_date = cursor.fetchone()
         start_date = datetime.strptime(min_date, '%Y-%m-%d %H:%M:%S')
         end_date = datetime.strptime(max_date, '%Y-%m-%d %H:%M:%S')

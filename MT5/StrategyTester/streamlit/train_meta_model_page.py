@@ -226,9 +226,25 @@ def train_meta_model_page():
             <hr style='margin: 0.2em 0 0.7em 0;'>
         """, unsafe_allow_html=True)
         
-        # Initialize session state for selected runs if not exists
+        # Initialize session state variables if they don't exist
         if 'meta_selected_runs' not in st.session_state:
-            st.session_state.meta_selected_runs = []
+            st.session_state['meta_selected_runs'] = []
+        if 'meta_run_selections' not in st.session_state:
+            st.session_state['meta_run_selections'] = {}
+        
+        def on_meta_run_selection_change():
+            """Callback to handle run selection changes"""
+            edited_rows = st.session_state['meta_model_run_editor']['edited_rows']
+            for idx, changes in edited_rows.items():
+                if '🔍 Select' in changes:
+                    run_id = run_df.iloc[idx]['Run ID']
+                    st.session_state['meta_run_selections'][run_id] = changes['🔍 Select']
+            
+            # Update selected runs list
+            st.session_state['meta_selected_runs'] = [
+                run_id for run_id, is_selected in st.session_state['meta_run_selections'].items() 
+                if is_selected
+            ]
         
         # Run Selection Section with enhanced information
         st.markdown("##### 🔄 Select Base Model Runs")
@@ -236,8 +252,8 @@ def train_meta_model_page():
         # Create a DataFrame for better visualization of run information
         run_data = []
         for run in available_runs:
-            # Check if this run is selected
-            is_selected = run['run_id'] in st.session_state.meta_selected_runs
+            # Use the stored selection state or default to False
+            is_selected = st.session_state['meta_run_selections'].get(run['run_id'], False)
             # Format the period more compactly
             start_date = run['prediction_period']['start'].split()[0] if run['prediction_period']['start'] else ''
             end_date = run['prediction_period']['end'].split()[0] if run['prediction_period']['end'] else ''
@@ -308,12 +324,15 @@ def train_meta_model_page():
                 )
             },
             disabled=["Run ID", "Model", "Source", "IDs", "Period", "Count", "Error"],
-            use_container_width=True
+            use_container_width=True,
+            on_change=on_meta_run_selection_change
         )
         
-        # Update selected runs based on checkbox changes - no need to add 'run_' prefix anymore since we're using full run_id
-        selected_indices = edited_df[edited_df['🔍 Select']].index
-        st.session_state.meta_selected_runs = edited_df.loc[selected_indices, 'Run ID'].tolist()
+        # Update selected runs based on checkbox changes
+        st.session_state.meta_selected_runs = [
+            run_id for run_id, is_selected in st.session_state['meta_run_selections'].items() 
+            if is_selected
+        ]
         
         # Show selected runs details
         if st.session_state.meta_selected_runs:

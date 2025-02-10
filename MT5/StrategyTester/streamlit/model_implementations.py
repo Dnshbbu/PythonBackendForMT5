@@ -546,10 +546,12 @@ class LSTMTimeSeriesModel(BaseTimeSeriesModel):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             model_name = f"single_{timestamp}"
         
-        # Add model type prefix here
-        full_model_name = f"{self.model_name}_{model_name}"
-        model_path = os.path.join(save_dir, f"{full_model_name}.pt")
-        scaler_path = os.path.join(save_dir, f"{full_model_name}_scaler.joblib")
+        # Check if model_name already starts with lstm_
+        if not model_name.startswith('lstm_'):
+            model_name = f"{self.model_name}_{model_name}"
+        
+        model_path = os.path.join(save_dir, f"{model_name}.pt")
+        scaler_path = os.path.join(save_dir, f"{model_name}_scaler.joblib")
         
         # Save model state dict
         torch.save({

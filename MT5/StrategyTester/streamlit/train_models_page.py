@@ -207,17 +207,33 @@ def train_models_page():
         # Table Selection Section with enhanced information
         st.markdown("##### 📊 Select Tables for Training")
         
-        # Initialize session state for selected tables if not exists
+        # Initialize session state variables if they don't exist
         if 'selected_tables' not in st.session_state:
-            st.session_state.selected_tables = []
+            st.session_state['selected_tables'] = []
+        if 'table_selections' not in st.session_state:
+            st.session_state['table_selections'] = {}
+        
+        def on_table_selection_change():
+            """Callback to handle table selection changes"""
+            edited_rows = st.session_state['table_editor']['edited_rows']
+            for idx, changes in edited_rows.items():
+                if '🔍 Select' in changes:
+                    table_name = table_df.iloc[idx]['Table Name']
+                    st.session_state['table_selections'][table_name] = changes['🔍 Select']
+            
+            # Update selected tables list
+            st.session_state['selected_tables'] = [
+                name for name, is_selected in st.session_state['table_selections'].items() 
+                if is_selected
+            ]
         
         # Create a DataFrame for better visualization of table information
         table_data = []
         for t in available_tables:
-            # Check if this table is selected
-            is_selected = t['name'] in st.session_state.selected_tables
+            # Use the stored selection state or default to False
+            is_selected = st.session_state['table_selections'].get(t['name'], False)
             table_data.append({
-                '🔍 Select': is_selected,  # Checkbox column
+                '🔍 Select': is_selected,
                 'Table Name': t['name'],
                 'Date Range': t['date_range'],
                 'Rows': t['total_rows'],
@@ -259,17 +275,15 @@ def train_models_page():
                 )
             },
             disabled=["Table Name", "Date Range", "Rows", "Symbols"],
-            use_container_width=True
+            use_container_width=True,
+            key="table_editor",
+            on_change=on_table_selection_change
         )
         
-        # Update selected tables based on checkbox changes
-        selected_indices = edited_df[edited_df['🔍 Select']].index
-        st.session_state.selected_tables = edited_df.loc[selected_indices, 'Table Name'].tolist()
-        
         # Show selected table details in expandable sections
-        if st.session_state.selected_tables:
+        if st.session_state['selected_tables']:
             st.markdown("##### 📈 Selected Tables Details")
-            selected_info = [t for t in available_tables if t['name'] in st.session_state.selected_tables]
+            selected_info = [t for t in available_tables if t['name'] in st.session_state['selected_tables']]
             for info in selected_info:
                 with st.expander(f"📊 {info['name']}", expanded=True):
                     st.write(f"**Date Range:** {info['date_range']}")
@@ -312,7 +326,7 @@ def train_models_page():
             type="primary",
             use_container_width=True,
             help="Click to start the training process",
-            disabled=len(st.session_state.selected_tables) == 0  # Disable if no tables selected
+            disabled=len(st.session_state['selected_tables']) == 0  # Disable if no tables selected
         )
 
     # Right Column - Output
@@ -323,20 +337,20 @@ def train_models_page():
         """, unsafe_allow_html=True)
         
         # Command Preview Section
-        if st.session_state.selected_tables and model_types:
+        if st.session_state['selected_tables'] and model_types:
             st.markdown("##### 📝 Command Preview")
-            cmd = get_equivalent_command(training_mode, st.session_state.selected_tables, model_types, force_retrain)
+            cmd = get_equivalent_command(training_mode, st.session_state['selected_tables'], model_types, force_retrain)
             st.code(cmd, language="bash")
             
             # Add validation messages
-            if training_mode == "single" and len(st.session_state.selected_tables) > 1:
+            if training_mode == "single" and len(st.session_state['selected_tables']) > 1:
                 st.warning("⚠️ Single mode requires exactly one table")
-            elif (training_mode in ["multi", "incremental"]) and len(st.session_state.selected_tables) < 2:
+            elif (training_mode in ["multi", "incremental"]) and len(st.session_state['selected_tables']) < 2:
                 st.warning("⚠️ This mode requires at least two tables")
         
         # Training Output Section
         if train_button:
-            if not st.session_state.selected_tables:
+            if not st.session_state['selected_tables']:
                 st.error("⚠️ Please select at least one table for training.")
             elif not model_types:
                 st.error("⚠️ Please select at least one model type.")
@@ -344,33 +358,33 @@ def train_models_page():
                 try:
                     st.markdown("##### 🔄 Execution")
                     st.info("Executing command:")
-                    st.code(get_equivalent_command(training_mode, st.session_state.selected_tables, model_types, force_retrain), language="bash")
+                    st.code(get_equivalent_command(training_mode, st.session_state['selected_tables'], model_types, force_retrain), language="bash")
                     
                     with st.spinner("🔄 Training models... Please wait"):
                         if training_mode == "single":
-                            if len(st.session_state.selected_tables) != 1:
+                            if len(st.session_state['selected_tables']) != 1:
                                 st.error("⚠️ Single mode requires exactly one table")
                                 return
                             results = train_single_table(
-                                table_name=st.session_state.selected_tables[0],
+                                table_name=st.session_state['selected_tables'][0],
                                 force_retrain=force_retrain,
                                 model_types=model_types
                             )
                         elif training_mode == "multi":
-                            if len(st.session_state.selected_tables) < 2:
+                            if len(st.session_state['selected_tables']) < 2:
                                 st.error("⚠️ Multi-table training requires at least two tables.")
                                 return
                             results = train_multi_table(
-                                table_names=st.session_state.selected_tables,
+                                table_names=st.session_state['selected_tables'],
                                 force_retrain=force_retrain,
                                 model_types=model_types
                             )
                         else:  # incremental
-                            if len(st.session_state.selected_tables) < 2:
+                            if len(st.session_state['selected_tables']) < 2:
                                 st.error("⚠️ Incremental mode requires at least two tables")
                                 return
-                            base_table = st.session_state.selected_tables[0]
-                            new_tables = st.session_state.selected_tables[1:]
+                            base_table = st.session_state['selected_tables'][0]
+                            new_tables = st.session_state['selected_tables'][1:]
                             results = train_model_incrementally(
                                 base_table=base_table,
                                 new_tables=new_tables,

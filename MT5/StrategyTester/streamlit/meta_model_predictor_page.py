@@ -291,6 +291,7 @@ def meta_model_predictor_page():
             st.session_state.meta_predictor_selected_table = None
         
         # Show selected table details
+        selected_info = None  # Initialize selected_info
         if st.session_state.meta_predictor_selected_table:
             selected_info = next((t for t in available_tables if t['name'] == st.session_state.meta_predictor_selected_table), None)
             if selected_info:
@@ -355,13 +356,19 @@ def meta_model_predictor_page():
         """, unsafe_allow_html=True)
         
         # Command Preview Section
-        if selected_model:
+        if selected_model and selected_info:  # Check both conditions
             st.markdown("##### 📝 Command Preview")
             cmd = get_equivalent_command(selected_info['name'], selected_model, force_new_run)
             st.code(cmd, language="bash")
+        elif selected_model:  # Show message if table is not selected
+            st.warning("Please select a table to preview the command")
         
         # Prediction Output Section
         if predict_button:
+            if not selected_info:
+                st.error("Please select a table before running predictions")
+                return
+                
             try:
                 st.markdown("##### 🔄 Execution")
                 st.info("Executing command:")

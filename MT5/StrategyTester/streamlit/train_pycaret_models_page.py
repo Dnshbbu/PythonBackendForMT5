@@ -8,13 +8,52 @@ from db_info import get_table_names, get_numeric_columns
 from feature_config import get_feature_groups, get_all_features
 import logging
 from datetime import datetime
+import queue
+from logging.handlers import QueueHandler
+import time
 
-def setup_logging():
-    """Configure logging settings"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+class StreamlitHandler(logging.Handler):
+    def __init__(self, placeholder):
+        super().__init__()
+        self.placeholder = placeholder
+        self.logs = []
+    
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.logs.append(msg)
+            
+            # Keep only last 1000 messages
+            if len(self.logs) > 1000:
+                self.logs = self.logs[-1000:]
+            
+            # Update the placeholder with all logs
+            log_text = "\n".join(self.logs)
+            self.placeholder.code(log_text)
+            
+        except Exception:
+            self.handleError(record)
+
+def setup_logging(placeholder):
+    """Configure logging settings with Streamlit output"""
+    # Create Streamlit handler
+    streamlit_handler = StreamlitHandler(placeholder)
+    streamlit_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     )
+    
+    # Get root logger and add handlers
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # Remove any existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Add our custom handler
+    root_logger.addHandler(streamlit_handler)
+    
+    return streamlit_handler
 
 def get_available_tables(db_path: str) -> List[Dict]:
     """Get list of available tables from the database with detailed information"""
@@ -443,33 +482,52 @@ def train_pycaret_models_page():
                 # Training button
                 if st.button("🚀 Train Model", type="primary"):
                     try:
-                        with st.spinner("Training model..."):
-                            trainer = PyCaretModelTrainer(db_path, models_dir)
+                        # Create a placeholder for live output in the right column
+                        with right_col:
+                            st.markdown("##### 📝 Training Progress")
+                            output_placeholder = st.empty()
                             
-                            # Prepare model parameters
-                            training_params = {
-                                'cv_folds': cv_folds
-                            }
+                            # Setup logging with Streamlit output
+                            streamlit_handler = setup_logging(output_placeholder)
                             
-                            if not use_automl:
-                                training_params['model_type'] = model_type
-                                training_params['model_params'] = model_params
+                            try:
+                                with st.spinner("Training model..."):
+                                    trainer = PyCaretModelTrainer(db_path, models_dir)
+                                    
+                                    # Prepare model parameters
+                                    training_params = {}
+                                    
+                                    if not use_automl:
+                                        training_params['model_type'] = model_type
+                                        if model_params:
+                                            training_params['model_params'] = {
+                                                **model_params,
+                                                'cv': cv_folds  # Include CV folds in model parameters
+                                            }
+                                    else:
+                                        training_params['model_params'] = {
+                                            'cv': cv_folds  # Include CV folds for AutoML
+                                        }
+                                    
+                                    model_dir, metrics = trainer.train_and_save(
+                                        table_names=st.session_state['selected_tables'],
+                                        target_col=target_col,
+                                        feature_cols=selected_features,
+                                        prediction_horizon=prediction_horizon,
+                                        model_name=model_name,
+                                        **training_params
+                                    )
+                                    
+                                    # Display success message
+                                    st.success(f"✨ Model trained successfully and saved to {model_dir}")
+                                    
+                                    # Display metrics below the output
+                                    display_training_metrics(metrics)
                             
-                            model_dir, metrics = trainer.train_and_save(
-                                table_names=st.session_state['selected_tables'],
-                                target_col=target_col,
-                                feature_cols=selected_features,
-                                prediction_horizon=prediction_horizon,
-                                model_name=model_name,
-                                **training_params
-                            )
-                            
-                            # Display success message
-                            st.success(f"✨ Model trained successfully and saved to {model_dir}")
-                            
-                            # Display metrics in right column
-                            with right_col:
-                                display_training_metrics(metrics)
+                            finally:
+                                # Clean up logging handler
+                                root_logger = logging.getLogger()
+                                root_logger.removeHandler(streamlit_handler)
                                 
                     except Exception as e:
                         st.error(f"Error during training: {str(e)}")
@@ -486,5 +544,4 @@ def train_pycaret_models_page():
             st.info("👈 Please select tables and configure your model on the left to start training.")
 
 if __name__ == "__main__":
-    setup_logging()
     train_pycaret_models_page() 

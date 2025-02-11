@@ -17,6 +17,9 @@ from train_models_page import train_models_page
 from run_predictions_page import run_predictions_page
 from train_meta_model_page import train_meta_model_page
 from meta_model_predictor_page import meta_model_predictor_page
+from automatic_ml_page import automatic_ml_page
+from deep_learning_page import deep_learning_page
+from time_series_page import time_series_page
 
 
 
@@ -202,7 +205,10 @@ def main():
 
     # Page navigation
     pages = {
-        "Model Management": model_management_page,  # New combined model page
+        "Model Management": model_management_page,
+        "🤖 Automatic ML - PyCaret": automatic_ml_page,
+        "🧠 Deep Learning Models": deep_learning_page,
+        "📈 Time Series Models": time_series_page,
         "Log Explorer": log_explorer,
         "Scripts": scripts,
         "ZMQ Server Control": server_control_page,

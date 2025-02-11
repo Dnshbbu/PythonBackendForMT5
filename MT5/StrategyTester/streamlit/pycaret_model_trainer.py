@@ -1,0 +1,404 @@
+import pandas as pd
+import numpy as np
+from typing import List, Tuple, Dict, Optional, Any
+import sqlite3
+import logging
+import joblib
+import os
+import json
+from datetime import datetime
+from sklearn.model_selection import TimeSeriesSplit
+from pycaret.regression import *
+from model_repository import ModelRepository
+from mlflow_utils import MLflowManager
+
+class PyCaretModelTrainer:
+    def __init__(self, db_path: str, models_dir: str):
+        """
+        Initialize the PyCaret trainer with database and model paths
+        
+        Args:
+            db_path: Path to SQLite database
+            models_dir: Directory to save trained models
+        """
+        # Update the db_path to point to the logs directory
+        if not os.path.exists(db_path) and os.path.exists(os.path.join('logs', db_path)):
+            self.db_path = os.path.join('logs', db_path)
+        else:
+            self.db_path = db_path
+            
+        self.models_dir = models_dir
+        self.setup_logging()
+        self.setup_directories()
+        self.mlflow_manager = MLflowManager()
+        
+    def setup_logging(self):
+        """Configure logging settings"""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        
+    def setup_directories(self):
+        """Create necessary directories"""
+        os.makedirs(self.models_dir, exist_ok=True)
+        
+    def load_data_from_db(self, table_name: str) -> pd.DataFrame:
+        """Load data from SQLite database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            query = f"""
+                SELECT * FROM {table_name}
+                ORDER BY Date, Time
+            """
+            
+            df = pd.read_sql_query(query, conn, coerce_float=True)
+            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+            df = df.set_index('DateTime')
+            
+            logging.info(f"Loaded {len(df)} rows from {table_name}")
+            return df
+        finally:
+            if conn:
+                conn.close()
+
+    def prepare_features_target(self, df: pd.DataFrame, 
+                              target_col: str,
+                              feature_cols: List[str],
+                              prediction_horizon: int = 1) -> Tuple[pd.DataFrame, pd.Series]:
+        """
+        Prepare features and target for training
+        
+        Args:
+            df: Input DataFrame
+            target_col: Name of target column
+            feature_cols: List of feature column names
+            prediction_horizon: Number of steps ahead to predict
+            
+        Returns:
+            Tuple of features DataFrame and target Series
+        """
+        # Shift target column up by prediction_horizon to align features with future target
+        y = df[target_col].shift(-prediction_horizon)
+        X = df[feature_cols]
+        
+        # Remove rows with NaN values created by shift
+        X = X[:-prediction_horizon]
+        y = y[:-prediction_horizon]
+        
+        return X, y
+
+    def train_pycaret_model(self, X: pd.DataFrame, y: pd.Series, 
+                           model_params: Optional[Dict] = None) -> Tuple[Any, Dict]:
+        """
+        Train models individually and select the best one
+        
+        Args:
+            X: Feature DataFrame
+            y: Target Series
+            model_params: Optional parameters for setup and training
+            
+        Returns:
+            Tuple of (trained model, metrics dictionary)
+        """
+        try:
+            # Convert data types to reduce memory usage
+            X = X.astype('float32')
+            y = y.astype('float32')
+            
+            # Initialize models
+            from sklearn.linear_model import LinearRegression, Ridge, Lasso
+            from lightgbm import LGBMRegressor
+            from sklearn.model_selection import train_test_split
+            from sklearn.preprocessing import StandardScaler
+            from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+            from xgboost import XGBRegressor
+            from sklearn.ensemble import RandomForestRegressor
+            
+            # Split data into train and test sets
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+            
+            # Scale the features
+            scaler = StandardScaler()
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_test_scaled = scaler.transform(X_test)
+            
+            # Initialize models with parameters
+            models = {
+                'Linear Regression': LinearRegression(),
+                'Ridge': Ridge(alpha=1.0),
+                'Lasso': Lasso(alpha=1.0),
+                'LightGBM': LGBMRegressor(
+                    n_estimators=1000,
+                    learning_rate=0.05,
+                    max_depth=8,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    min_child_weight=2,
+                    random_state=42,
+                    verbose=-1
+                ),
+                'XGBoost': XGBRegressor(
+                    max_depth=8,
+                    learning_rate=0.05,
+                    n_estimators=1000,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    min_child_weight=2,
+                    objective='reg:squarederror',
+                    random_state=42
+                ),
+                'Random Forest': RandomForestRegressor(
+                    n_estimators=100,
+                    max_depth=10,
+                    min_samples_split=2,
+                    min_samples_leaf=1,
+                    random_state=42
+                )
+            }
+            
+            if model_params and model_params.get('model_type') in models:
+                # Use only the specified model if provided in parameters
+                model_name = model_params['model_type']
+                models = {model_name: models[model_name]}
+            
+            best_score = float('inf')
+            best_model = None
+            best_name = None
+            best_metrics = None
+            all_metrics = {}  # Store metrics for all models
+            
+            def calculate_mape(y_true, y_pred):
+                """Calculate Mean Absolute Percentage Error"""
+                return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+            
+            def calculate_directional_accuracy(y_true, y_pred):
+                """Calculate directional accuracy"""
+                y_true_dir = np.sign(np.diff(y_true))
+                y_pred_dir = np.sign(np.diff(y_pred))
+                return np.mean(y_true_dir == y_pred_dir) * 100
+            
+            # Train and evaluate each model
+            for name, model in models.items():
+                try:
+                    # Train model
+                    model.fit(X_train_scaled, y_train)
+                    
+                    # Make predictions
+                    y_pred = model.predict(X_test_scaled)
+                    
+                    # Calculate multiple metrics
+                    mae = mean_absolute_error(y_test, y_pred)
+                    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+                    r2 = r2_score(y_test, y_pred)
+                    mape = calculate_mape(y_test, y_pred)
+                    dir_acc = calculate_directional_accuracy(y_test, y_pred)
+                    
+                    # Log all metrics
+                    logging.info(f"\n{name} Performance Metrics:")
+                    logging.info(f"MAE: {mae:.4f}")
+                    logging.info(f"RMSE: {rmse:.4f}")
+                    logging.info(f"R²: {r2:.4f}")
+                    logging.info(f"MAPE: {mape:.2f}%")
+                    logging.info(f"Directional Accuracy: {dir_acc:.2f}%")
+                    
+                    # Store metrics for this model
+                    current_metrics = {
+                        'MAE': float(mae),
+                        'RMSE': float(rmse),
+                        'R2': float(r2),
+                        'MAPE': float(mape),
+                        'DirectionalAccuracy': float(dir_acc)
+                    }
+                    
+                    # Store metrics for all models
+                    all_metrics[name] = current_metrics
+                    
+                    # Still use MAE as the primary metric for model selection
+                    if mae < best_score:
+                        best_score = mae
+                        best_model = model
+                        best_name = name
+                        best_metrics = current_metrics
+                        
+                except Exception as e:
+                    logging.warning(f"Error training {name}: {str(e)}")
+                    logging.warning("Full traceback:", exc_info=True)
+                    continue
+            
+            if best_model is None:
+                raise ValueError("No models were successfully trained")
+            
+            # Create metrics dictionary with all metrics
+            metrics = {
+                'Model': best_name,
+                'Features': list(X.columns),
+                'AllModels': {
+                    name: {k: float(v) for k, v in model_metrics.items()}
+                    for name, model_metrics in all_metrics.items()
+                },  # Convert all numeric values to native Python floats
+                **{k: float(v) for k, v in best_metrics.items()}  # Convert best metrics to native Python floats
+            }
+            
+            # Try to get feature importance if available
+            try:
+                if hasattr(best_model, 'feature_importances_'):
+                    importances = best_model.feature_importances_
+                elif hasattr(best_model, 'coef_'):
+                    importances = np.abs(best_model.coef_)
+                else:
+                    importances = None
+                
+                if importances is not None:
+                    feature_importance = {
+                        feature: float(importance)  # Convert to native Python float
+                        for feature, importance in zip(X.columns, importances)
+                    }
+                    metrics['FeatureImportance'] = feature_importance
+            except Exception as e:
+                logging.warning(f"Could not calculate feature importance: {str(e)}")
+            
+            # Save scaler with the model
+            final_model = {
+                'model': best_model,
+                'scaler': scaler,
+                'feature_names': list(X.columns)
+            }
+            
+            return final_model, metrics
+            
+        except Exception as e:
+            logging.error(f"Error in train_model: {str(e)}")
+            raise
+
+    def save_model_and_metadata(self, model: Dict, 
+                              metrics: Dict,
+                              model_name: Optional[str] = None) -> str:
+        """
+        Save trained model and its metadata
+        
+        Args:
+            model: Dictionary containing model, scaler, and feature names
+            metrics: Dictionary of model metrics
+            model_name: Optional name for the model
+            
+        Returns:
+            Path where model was saved
+        """
+        if model_name is None:
+            model_name = f"model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+        model_dir = os.path.join(self.models_dir, model_name)
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Save model components
+        model_path = os.path.join(model_dir, "model.pkl")
+        scaler_path = os.path.join(model_dir, "scaler.pkl")
+        
+        joblib.dump(model['model'], model_path)
+        joblib.dump(model['scaler'], scaler_path)
+        
+        # Save metadata
+        metadata = {
+            'feature_names': model['feature_names'],
+            'metrics': metrics,
+            'timestamp': datetime.now().isoformat(),
+            'model_type': metrics['Model']
+        }
+        
+        metadata_path = os.path.join(model_dir, "metadata.json")
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=4)
+            
+        return model_dir
+
+    def train_and_save(self, 
+                      table_names: List[str],
+                      target_col: str,
+                      prediction_horizon: int = 1,
+                      feature_cols: Optional[List[str]] = None,
+                      model_params: Optional[Dict] = None,
+                      model_name: Optional[str] = None) -> Tuple[str, Dict]:
+        """
+        Complete training pipeline: load data, train model, and save
+        
+        Args:
+            table_names: List of table names to load data from
+            target_col: Name of target column
+            prediction_horizon: Number of steps ahead to predict
+            feature_cols: Optional list of feature columns
+            model_params: Optional model parameters
+            model_name: Optional name for the model
+            
+        Returns:
+            Tuple of (model directory path, metrics dictionary)
+        """
+        # Load and combine data from all tables
+        dfs = []
+        for table in table_names:
+            df = self.load_data_from_db(table)
+            dfs.append(df)
+        combined_df = pd.concat(dfs)
+        
+        # Use all numeric columns as features if not specified
+        if feature_cols is None:
+            feature_cols = combined_df.select_dtypes(include=[np.number]).columns.tolist()
+            feature_cols = [col for col in feature_cols if col != target_col]
+        
+        # Prepare features and target
+        X, y = self.prepare_features_target(
+            combined_df, target_col, feature_cols, prediction_horizon
+        )
+        
+        # Train model
+        model, metrics = self.train_pycaret_model(X, y, model_params)
+        
+        # Save model and metadata
+        model_dir = self.save_model_and_metadata(
+            model, metrics, model_name
+        )
+        
+        # Log to MLflow
+        try:
+            import mlflow
+            with mlflow.start_run(run_name=model_name or "pycaret_model"):
+                # Log metrics for all models
+                for model_name, model_metrics in metrics['AllModels'].items():
+                    for metric_name, value in model_metrics.items():
+                        mlflow.log_metric(f"{model_name}_{metric_name}", value)
+                
+                # Log best model metrics separately
+                mlflow.log_metrics({
+                    "best_MAE": metrics["MAE"],
+                    "best_RMSE": metrics["RMSE"],
+                    "best_R2": metrics["R2"],
+                    "best_MAPE": metrics["MAPE"],
+                    "best_DirectionalAccuracy": metrics["DirectionalAccuracy"]
+                })
+                
+                # Log parameters
+                mlflow_params = {
+                    "best_model_type": metrics["Model"],
+                    "feature_columns": ", ".join(metrics["Features"]),
+                    "target_column": target_col,
+                    "prediction_horizon": prediction_horizon,
+                    "train_test_split": 0.2,
+                    "shuffle": False,
+                    "scaling": "StandardScaler"
+                }
+                
+                # Add feature importance if available
+                if "FeatureImportance" in metrics:
+                    for feature, importance in metrics["FeatureImportance"].items():
+                        mlflow_params[f"importance_{feature}"] = importance
+                
+                mlflow.log_params(mlflow_params)
+                
+                # Log model artifacts
+                mlflow.sklearn.log_model(metrics["Model"], "model")
+                
+        except Exception as e:
+            logging.warning(f"Error logging to MLflow: {str(e)}")
+            logging.warning("Full traceback:", exc_info=True)
+            
+        return model_dir, metrics 

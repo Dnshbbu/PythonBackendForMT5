@@ -23,4 +23,9 @@
 
 ## 2023
 
+##### M10
+
 1M strategy_TRIP_NAS_10018305 -> Jan 1 to Mar 31, 2023
+1M strategy_TRIP_NAS_10019172 -> April 1 to June 30, 2023
+1M strategy_TRIP_NAS_100 -> July 1 to September 30, 2023
+1M strategy_TRIP_NAS_100 -> October 1 to December 31, 2023

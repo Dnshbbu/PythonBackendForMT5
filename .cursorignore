@@ -3,6 +3,12 @@ models/
 logs/
 venv/
 ml_venv/
+ml_venv2/
+ml_venv3/
+ml_venv4/
+ml_venv5/
+ml_venv6/
+ml_conda/
 advanced/
 backtesting_system/
 logs/

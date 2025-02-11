@@ -11,12 +11,21 @@ from datetime import datetime
 import queue
 from logging.handlers import QueueHandler
 import time
+import threading
+import signal
+import sys
+
+class TrainingInterrupt(Exception):
+    """Custom exception for interrupting the training process"""
+    pass
 
 class StreamlitHandler(logging.Handler):
     def __init__(self, placeholder):
         super().__init__()
         self.placeholder = placeholder
-        self.logs = []
+        if 'training_logs' not in st.session_state:
+            st.session_state['training_logs'] = []
+        self.logs = st.session_state['training_logs']
     
     def emit(self, record):
         try:
@@ -31,8 +40,37 @@ class StreamlitHandler(logging.Handler):
             log_text = "\n".join(self.logs)
             self.placeholder.code(log_text)
             
+            # Force a Streamlit rerun to update the UI
+            st.session_state['training_logs'] = self.logs
+            
+            # Check for stop after each log message
+            if check_stop_clicked():
+                raise TrainingInterrupt("Training stopped by user")
+            
+        except TrainingInterrupt:
+            raise
         except Exception:
             self.handleError(record)
+
+def initialize_session_state():
+    """Initialize session state variables if they don't exist"""
+    if 'selected_tables' not in st.session_state:
+        st.session_state['selected_tables'] = []
+    if 'training_logs' not in st.session_state:
+        st.session_state['training_logs'] = []
+    if 'stop_clicked' not in st.session_state:
+        st.session_state['stop_clicked'] = False
+    if 'stop_message' not in st.session_state:
+        st.session_state['stop_message'] = None
+
+def check_stop_clicked():
+    """Check if stop button was clicked"""
+    return st.session_state.get('stop_clicked', False)
+
+def on_stop_click():
+    """Callback for stop button click"""
+    st.session_state['stop_clicked'] = True
+    st.session_state['stop_message'] = "⚠️ Training was stopped by user"
 
 def setup_logging(placeholder):
     """Configure logging settings with Streamlit output"""
@@ -57,6 +95,10 @@ def setup_logging(placeholder):
 
 def get_available_tables(db_path: str) -> List[Dict]:
     """Get list of available tables from the database with detailed information"""
+    # Check if training was stopped
+    if st.session_state.get('stop_clicked', False):
+        return []
+        
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -103,7 +145,8 @@ def get_available_tables(db_path: str) -> List[Dict]:
         return tables
     
     except Exception as e:
-        st.error(f"Error accessing database: {str(e)}")
+        if not st.session_state.get('stop_clicked', False):
+            st.error(f"Error accessing database: {str(e)}")
         return []
 
 def get_model_types() -> List[str]:
@@ -288,6 +331,9 @@ def get_equivalent_command(table_names: List[str], target_col: str, feature_cols
 
 def train_pycaret_models_page():
     """Streamlit page for training PyCaret models"""
+    # Initialize session state
+    initialize_session_state()
+    
     # Setup paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
@@ -295,12 +341,30 @@ def train_pycaret_models_page():
     
     # Get available tables with detailed information
     available_tables = get_available_tables(db_path)
-    if not available_tables:
-        st.warning("No strategy tables found in the database.")
-        return
-
+    
     # Create main left-right layout
     left_col, right_col = st.columns([1, 1], gap="large")
+
+    # Right Column - Results and Visualization (moved up to show messages first)
+    with right_col:
+        st.markdown("""
+            <p style='color: #666; margin: 0; font-size: 0.9em;'>Training Results and Model Performance</p>
+            <hr style='margin: 0.2em 0 0.7em 0;'>
+        """, unsafe_allow_html=True)
+        
+        # Show stop message if exists
+        if st.session_state.get('stop_message'):
+            st.warning(st.session_state['stop_message'])
+            # Don't show the no tables warning if we stopped training
+            if not available_tables and not st.session_state.get('stop_clicked', False):
+                st.warning("No strategy tables found in the database.")
+        elif not st.session_state['selected_tables']:
+            st.info("👈 Please select tables and configure your model on the left to start training.")
+
+        # Show training logs if they exist
+        if st.session_state.get('training_logs'):
+            st.markdown("##### 📝 Training Progress")
+            st.code("\n".join(st.session_state['training_logs']))
 
     # Left Column - Configuration
     with left_col:
@@ -309,6 +373,10 @@ def train_pycaret_models_page():
             <hr style='margin: 0.2em 0 0.7em 0;'>
         """, unsafe_allow_html=True)
         
+        if not available_tables and not st.session_state.get('stop_clicked', False):
+            st.warning("No strategy tables found in the database.")
+            return
+
         # Table Selection Section
         st.markdown("##### 📊 Select Tables for Training")
         
@@ -482,10 +550,24 @@ def train_pycaret_models_page():
                 # Training button
                 if st.button("🚀 Train Model", type="primary"):
                     try:
-                        # Create a placeholder for live output in the right column
+                        # Reset stop flag, logs and message
+                        st.session_state['stop_clicked'] = False
+                        st.session_state['training_logs'] = []
+                        st.session_state['stop_message'] = None
+                        
+                        # Create placeholders for output and stop button in the right column
                         with right_col:
                             st.markdown("##### 📝 Training Progress")
-                            output_placeholder = st.empty()
+                            col1, col2 = st.columns([4, 1])
+                            with col1:
+                                output_placeholder = st.empty()
+                            with col2:
+                                # Create stop button with callback
+                                st.button("🛑 Stop Training", 
+                                        on_click=on_stop_click,
+                                        key="stop_training",
+                                        help="Click to stop the training process",
+                                        type="secondary")
                             
                             # Setup logging with Streamlit output
                             streamlit_handler = setup_logging(output_placeholder)
@@ -509,6 +591,10 @@ def train_pycaret_models_page():
                                             'cv': cv_folds  # Include CV folds for AutoML
                                         }
                                     
+                                    # Check for stop before starting training
+                                    if check_stop_clicked():
+                                        raise TrainingInterrupt("Training stopped by user before starting")
+                                    
                                     model_dir, metrics = trainer.train_and_save(
                                         table_names=st.session_state['selected_tables'],
                                         target_col=target_col,
@@ -518,11 +604,23 @@ def train_pycaret_models_page():
                                         **training_params
                                     )
                                     
-                                    # Display success message
-                                    st.success(f"✨ Model trained successfully and saved to {model_dir}")
-                                    
-                                    # Display metrics below the output
-                                    display_training_metrics(metrics)
+                                    # Display success message only if not stopped
+                                    if not check_stop_clicked():
+                                        st.success(f"✨ Model trained successfully and saved to {model_dir}")
+                                        # Display metrics below the output
+                                        display_training_metrics(metrics)
+                            
+                            except TrainingInterrupt:
+                                if 'stop_message' in st.session_state and st.session_state['stop_message']:
+                                    st.warning(st.session_state['stop_message'])
+                                # Clean up any partial training artifacts if needed
+                                if 'model_dir' in locals():
+                                    try:
+                                        # Log cleanup attempt
+                                        logging.info(f"Cleaning up partial training artifacts in {model_dir}")
+                                        # Add cleanup code here if needed
+                                    except Exception as cleanup_error:
+                                        logging.error(f"Error during cleanup: {str(cleanup_error)}")
                             
                             finally:
                                 # Clean up logging handler
@@ -530,18 +628,9 @@ def train_pycaret_models_page():
                                 root_logger.removeHandler(streamlit_handler)
                                 
                     except Exception as e:
-                        st.error(f"Error during training: {str(e)}")
-                        logging.error(f"Training error: {str(e)}", exc_info=True)
-    
-    # Right Column - Results and Visualization
-    with right_col:
-        st.markdown("""
-            <p style='color: #666; margin: 0; font-size: 0.9em;'>Training Results and Model Performance</p>
-            <hr style='margin: 0.2em 0 0.7em 0;'>
-        """, unsafe_allow_html=True)
-        
-        if not st.session_state['selected_tables']:
-            st.info("👈 Please select tables and configure your model on the left to start training.")
+                        if not isinstance(e, TrainingInterrupt):
+                            st.error(f"Error during training: {str(e)}")
+                            logging.error(f"Training error: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     train_pycaret_models_page() 

@@ -20,6 +20,7 @@ from meta_model_predictor_page import meta_model_predictor_page
 from automatic_ml_page import automatic_ml_page
 from deep_learning_page import deep_learning_page
 from time_series_page import time_series_page
+from train_pycaret_models_pagev2 import train_pycaret_models_pagev2
 
 
 
@@ -206,7 +207,7 @@ def main():
     # Page navigation
     pages = {
         "Model Management": model_management_page,
-        "🤖 Automatic ML - PyCaret": automatic_ml_page,
+        "🤖 PyCaret AutoML": train_pycaret_models_pagev2,
         "🧠 Deep Learning Models": deep_learning_page,
         "📈 Time Series Models": time_series_page,
         "Log Explorer": log_explorer,

@@ -107,14 +107,16 @@ class PyCaretModelTrainer:
             y = y.astype('float32')
             
             # Initialize models
-            from sklearn.linear_model import LinearRegression, Ridge, Lasso
+            from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet, HuberRegressor, BayesianRidge
             from lightgbm import LGBMRegressor
             from sklearn.model_selection import train_test_split
             from sklearn.preprocessing import StandardScaler
             from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
             from xgboost import XGBRegressor
-            from sklearn.ensemble import RandomForestRegressor
-            
+            from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor
+            from sklearn.neighbors import KNeighborsRegressor
+            from sklearn.svm import SVR
+
             # Split data into train and test sets
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
             
@@ -128,6 +130,7 @@ class PyCaretModelTrainer:
                 'Linear Regression': LinearRegression(),
                 'Ridge': Ridge(alpha=1.0),
                 'Lasso': Lasso(alpha=1.0),
+                'ElasticNet': ElasticNet(alpha=1.0, l1_ratio=0.5),
                 'LightGBM': LGBMRegressor(
                     n_estimators=1000,
                     learning_rate=0.05,
@@ -154,13 +157,96 @@ class PyCaretModelTrainer:
                     min_samples_split=2,
                     min_samples_leaf=1,
                     random_state=42
+                ),
+                'K Neighbors Regressor': KNeighborsRegressor(
+                    n_neighbors=5,
+                    weights='uniform',
+                    algorithm='auto'
+                ),
+                'AdaBoost': AdaBoostRegressor(
+                    n_estimators=100,
+                    learning_rate=1.0,
+                    random_state=42
+                ),
+                'Gradient Boosting': GradientBoostingRegressor(
+                    n_estimators=100,
+                    learning_rate=0.1,
+                    max_depth=3,
+                    subsample=1.0,
+                    random_state=42
+                ),
+                'Support Vector Regression': SVR(
+                    kernel='rbf',
+                    C=1.0,
+                    epsilon=0.1
+                ),
+                'Huber Regressor': HuberRegressor(
+                    epsilon=1.35,
+                    alpha=0.0001,
+                    max_iter=100
+                ),
+                'Bayesian Ridge': BayesianRidge(
+                    n_iter=300,
+                    alpha_1=1e-6,
+                    alpha_2=1e-6
                 )
             }
+
+            # Try to add CatBoost if available
+            try:
+                from catboost import CatBoostRegressor
+                models['CatBoost'] = CatBoostRegressor(
+                    iterations=1000,
+                    learning_rate=0.05,
+                    depth=6,
+                    l2_leaf_reg=3,
+                    verbose=False,
+                    random_state=42
+                )
+            except ImportError:
+                logging.warning("CatBoost is not installed. Skipping CatBoost model.")
             
-            if model_params and model_params.get('model_type') in models:
-                # Use only the specified model if provided in parameters
-                model_name = model_params['model_type']
-                models = {model_name: models[model_name]}
+            # Update model parameters if provided
+            if model_params:
+                model_type = model_params.get('model_type')
+                logging.info(f"Requested model type: {model_type}")
+                
+                if model_type == "automl":
+                    # Handle AutoML with selected models
+                    selected_models = model_params.get('selected_models')
+                    model_specific_params = model_params.get('model_specific_params', {})
+                    
+                    if selected_models:
+                        logging.info(f"AutoML mode with selected models: {selected_models}")
+                        # Filter to keep only selected models
+                        filtered_models = {}
+                        for name in selected_models:
+                            if name in models:
+                                filtered_models[name] = models[name]
+                                # Apply model-specific parameters if available
+                                if name in model_specific_params:
+                                    logging.info(f"Applying parameters for {name}: {model_specific_params[name]}")
+                                    filtered_models[name].set_params(**model_specific_params[name])
+                            else:
+                                logging.warning(f"Model {name} not found in available models")
+                        models = filtered_models
+                        if not models:
+                            raise ValueError("None of the selected models are available")
+                        logging.info(f"Using models: {list(models.keys())}")
+                    else:
+                        logging.info("AutoML mode with all available models")
+                
+                elif model_type in models:
+                    logging.info(f"Training single model: {model_type}")
+                    # If specific model parameters are provided, update them
+                    model_specific_params = {k: v for k, v in model_params.items() if k != 'model_type' and k != 'cv' and k != 'selected_models'}
+                    if model_specific_params:
+                        logging.info(f"Applying model parameters: {model_specific_params}")
+                        models[model_type].set_params(**model_specific_params)
+                    # Use only the specified model
+                    models = {model_type: models[model_type]}
+                else:
+                    logging.warning(f"Model type {model_type} not found in available models: {list(models.keys())}")
             
             best_score = float('inf')
             best_model = None

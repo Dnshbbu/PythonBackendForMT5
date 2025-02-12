@@ -203,14 +203,38 @@ def train_pycaret_models_pagev2():
             
             # Model Selection
             st.markdown("**Model Selection:**")
-            use_automl = st.radio(
+            training_mode = st.radio(
                 "Training Mode",
                 ["AutoML (Try all models)", "Single Model"],
                 help="Choose whether to try all models or train a specific one"
             )
             
-            if use_automl:
-                st.info("🤖 AutoML mode will try all models and select the best one")
+            if training_mode == "AutoML (Try all models)":
+                st.info("🤖 Select which models to include in AutoML")
+                
+                # Option to select all models
+                use_all_models = st.checkbox("Use All Available Models", value=True, 
+                                           help="Select this to use all available models")
+                
+                # If not using all models, show multi-select
+                if not use_all_models:
+                    selected_models = st.multiselect(
+                        "Select Models to Include",
+                        options=get_model_types(),
+                        default=['LightGBM', 'XGBoost', 'Random Forest'],
+                        help="Choose which models to include in the AutoML process"
+                    )
+                    if not selected_models:
+                        st.warning("⚠️ Please select at least one model")
+                    else:
+                        # Show parameters for each selected model
+                        st.markdown("**Model Parameters:**")
+                        model_specific_params = {}
+                        for model in selected_models:
+                            with st.expander(f"{model} Parameters"):
+                                model_specific_params[model] = get_model_params(model)
+                
+                model_type = "automl"  # Set default model type for AutoML
             else:
                 model_type = st.selectbox(
                     "Select Model",
@@ -243,7 +267,7 @@ def train_pycaret_models_pagev2():
             )
             
             # Model name
-            if use_automl:
+            if training_mode == "AutoML (Try all models)":
                 model_type = "automl"
             model_name = generate_model_name(
                 model_type=model_type,
@@ -295,17 +319,28 @@ def train_pycaret_models_pagev2():
                                 # Prepare model parameters
                                 training_params = {}
                                 
-                                if not use_automl:
-                                    training_params['model_type'] = model_type
+                                if training_mode != "AutoML (Try all models)":
+                                    training_params['model_params'] = {
+                                        'model_type': model_type,  # Include model type in model_params
+                                        'cv': cv_folds,  # Include CV folds in model parameters
+                                    }
                                     if model_params:
-                                        training_params['model_params'] = {
-                                            **model_params,
-                                            'cv': cv_folds  # Include CV folds in model parameters
-                                        }
+                                        training_params['model_params'].update(model_params)  # Add other model parameters
                                 else:
                                     training_params['model_params'] = {
-                                        'cv': cv_folds  # Include CV folds for AutoML
+                                        'cv': cv_folds,  # Include CV folds for AutoML
+                                        'model_type': 'automl'  # Explicitly set model type for AutoML
                                     }
+                                    # Add selected models for AutoML
+                                    if not use_all_models:
+                                        if not selected_models:
+                                            st.error("Please select at least one model for AutoML")
+                                            return
+                                        training_params['model_params']['selected_models'] = selected_models
+                                        # Add model-specific parameters if configured
+                                        if 'model_specific_params' in locals():
+                                            training_params['model_params']['model_specific_params'] = model_specific_params
+                                        logging.info(f"Selected models for AutoML: {selected_models}")
                                 
                                 # Check for stop before starting training
                                 if check_stop_clicked():

@@ -148,52 +148,58 @@ def get_available_tables(db_path: str) -> List[Dict]:
 
 def get_model_types() -> List[str]:
     """Get available model types"""
-    return [
+    models = [
         'Linear Regression',
         'Ridge',
         'Lasso',
         'ElasticNet',
-        'Decision Tree',
-        'Random Forest',
-        'Extra Trees',
         'LightGBM',
         'XGBoost',
-        'CatBoost',
+        'Random Forest',
+        'K Neighbors Regressor',
         'AdaBoost',
         'Gradient Boosting',
         'Support Vector Regression',
-        'K Neighbors Regressor',
         'Huber Regressor',
         'Bayesian Ridge'
     ]
+    
+    # Add CatBoost if available
+    try:
+        from catboost import CatBoostRegressor
+        models.append('CatBoost')
+    except ImportError:
+        pass
+        
+    return models
 
 def get_model_params(model_type: str) -> Dict:
     """Get model parameters based on model type"""
     if model_type == 'LightGBM':
         return {
-            'n_estimators': st.number_input('Number of Estimators', 100, 2000, 1000, 100),
-            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.05, 0.01),
-            'max_depth': st.slider('Max Depth', 3, 10, 8, 1),
-            'subsample': st.slider('Subsample', 0.5, 1.0, 0.8, 0.1),
-            'colsample_bytree': st.slider('Column Sample by Tree', 0.5, 1.0, 0.8, 0.1),
-            'min_child_weight': st.number_input('Min Child Weight', 1, 10, 2, 1)
+            'n_estimators': st.number_input('Number of Estimators', 100, 2000, 1000, 100, key=f"lgb_n_est_{model_type}"),
+            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.05, 0.01, key=f"lgb_lr_{model_type}"),
+            'max_depth': st.slider('Max Depth', 3, 10, 8, 1, key=f"lgb_depth_{model_type}"),
+            'subsample': st.slider('Subsample', 0.5, 1.0, 0.8, 0.1, key=f"lgb_ss_{model_type}"),
+            'colsample_bytree': st.slider('Column Sample by Tree', 0.5, 1.0, 0.8, 0.1, key=f"lgb_cs_{model_type}"),
+            'min_child_weight': st.number_input('Min Child Weight', 1, 10, 2, 1, key=f"lgb_mcw_{model_type}")
         }
     elif model_type == 'XGBoost':
         return {
-            'max_depth': st.slider('Max Depth', 3, 10, 8, 1),
-            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.05, 0.01),
-            'n_estimators': st.number_input('Number of Estimators', 100, 2000, 1000, 100),
-            'subsample': st.slider('Subsample', 0.5, 1.0, 0.8, 0.1),
-            'colsample_bytree': st.slider('Column Sample by Tree', 0.5, 1.0, 0.8, 0.1),
-            'min_child_weight': st.number_input('Min Child Weight', 1, 10, 2, 1)
+            'max_depth': st.slider('Max Depth', 3, 10, 8, 1, key=f"xgb_depth_{model_type}"),
+            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.05, 0.01, key=f"xgb_lr_{model_type}"),
+            'n_estimators': st.number_input('Number of Estimators', 100, 2000, 1000, 100, key=f"xgb_n_est_{model_type}"),
+            'subsample': st.slider('Subsample', 0.5, 1.0, 0.8, 0.1, key=f"xgb_ss_{model_type}"),
+            'colsample_bytree': st.slider('Column Sample by Tree', 0.5, 1.0, 0.8, 0.1, key=f"xgb_cs_{model_type}"),
+            'min_child_weight': st.number_input('Min Child Weight', 1, 10, 2, 1, key=f"xgb_mcw_{model_type}")
         }
     elif model_type == 'Random Forest':
         return {
-            'n_estimators': st.number_input('Number of Estimators', 50, 500, 100, 50),
-            'max_depth': st.slider('Max Depth', 3, 20, 10, 1),
-            'min_samples_split': st.number_input('Min Samples Split', 2, 10, 2, 1),
-            'min_samples_leaf': st.number_input('Min Samples Leaf', 1, 10, 1, 1),
-            'max_features': st.selectbox('Max Features', ['auto', 'sqrt', 'log2'])
+            'n_estimators': st.number_input('Number of Estimators', 50, 500, 100, 50, key=f"rf_n_est_{model_type}"),
+            'max_depth': st.slider('Max Depth', 3, 20, 10, 1, key=f"rf_depth_{model_type}"),
+            'min_samples_split': st.number_input('Min Samples Split', 2, 10, 2, 1, key=f"rf_mss_{model_type}"),
+            'min_samples_leaf': st.number_input('Min Samples Leaf', 1, 10, 1, 1, key=f"rf_msl_{model_type}"),
+            'max_features': st.selectbox('Max Features', ['auto', 'sqrt', 'log2'], key=f"rf_mf_{model_type}")
         }
     elif model_type == 'Decision Tree':
         return {
@@ -204,52 +210,52 @@ def get_model_params(model_type: str) -> Dict:
         }
     elif model_type == 'CatBoost':
         return {
-            'iterations': st.number_input('Iterations', 100, 2000, 1000, 100),
-            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.05, 0.01),
-            'depth': st.slider('Depth', 3, 10, 6, 1),
-            'l2_leaf_reg': st.number_input('L2 Regularization', 1, 10, 3, 1)
+            'iterations': st.number_input('Iterations', 100, 2000, 1000, 100, key=f"cb_iter_{model_type}"),
+            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.05, 0.01, key=f"cb_lr_{model_type}"),
+            'depth': st.slider('Depth', 3, 10, 6, 1, key=f"cb_depth_{model_type}"),
+            'l2_leaf_reg': st.number_input('L2 Regularization', 1, 10, 3, 1, key=f"cb_l2_{model_type}")
         }
     elif model_type == 'AdaBoost':
         return {
-            'n_estimators': st.number_input('Number of Estimators', 50, 500, 100, 50),
-            'learning_rate': st.number_input('Learning Rate', 0.01, 2.0, 1.0, 0.1),
-            'loss': st.selectbox('Loss Function', ['linear', 'square', 'exponential'])
+            'n_estimators': st.number_input('Number of Estimators', 50, 500, 100, 50, key=f"ab_n_est_{model_type}"),
+            'learning_rate': st.number_input('Learning Rate', 0.01, 2.0, 1.0, 0.1, key=f"ab_lr_{model_type}"),
+            'loss': st.selectbox('Loss Function', ['linear', 'square', 'exponential'], key=f"ab_loss_{model_type}")
         }
     elif model_type == 'Gradient Boosting':
         return {
-            'n_estimators': st.number_input('Number of Estimators', 50, 500, 100, 50),
-            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.1, 0.01),
-            'max_depth': st.slider('Max Depth', 3, 10, 3, 1),
-            'subsample': st.slider('Subsample', 0.5, 1.0, 1.0, 0.1)
+            'n_estimators': st.number_input('Number of Estimators', 50, 500, 100, 50, key=f"gb_n_est_{model_type}"),
+            'learning_rate': st.number_input('Learning Rate', 0.01, 0.5, 0.1, 0.01, key=f"gb_lr_{model_type}"),
+            'max_depth': st.slider('Max Depth', 3, 10, 3, 1, key=f"gb_depth_{model_type}"),
+            'subsample': st.slider('Subsample', 0.5, 1.0, 1.0, 0.1, key=f"gb_ss_{model_type}")
         }
     elif model_type == 'Support Vector Regression':
         return {
-            'kernel': st.selectbox('Kernel', ['linear', 'poly', 'rbf', 'sigmoid']),
-            'C': st.number_input('C (Regularization)', 0.1, 10.0, 1.0, 0.1),
-            'epsilon': st.number_input('Epsilon', 0.01, 1.0, 0.1, 0.01)
+            'kernel': st.selectbox('Kernel', ['linear', 'poly', 'rbf', 'sigmoid'], key=f"svr_k_{model_type}"),
+            'C': st.number_input('C (Regularization)', 0.1, 10.0, 1.0, 0.1, key=f"svr_c_{model_type}"),
+            'epsilon': st.number_input('Epsilon', 0.01, 1.0, 0.1, 0.01, key=f"svr_e_{model_type}")
         }
     elif model_type == 'K Neighbors Regressor':
         return {
-            'n_neighbors': st.number_input('Number of Neighbors', 1, 20, 5, 1),
-            'weights': st.selectbox('Weight Function', ['uniform', 'distance']),
-            'algorithm': st.selectbox('Algorithm', ['auto', 'ball_tree', 'kd_tree', 'brute'])
+            'n_neighbors': st.number_input('Number of Neighbors', 1, 20, 5, 1, key=f"knn_n_{model_type}"),
+            'weights': st.selectbox('Weight Function', ['uniform', 'distance'], key=f"knn_w_{model_type}"),
+            'algorithm': st.selectbox('Algorithm', ['auto', 'ball_tree', 'kd_tree', 'brute'], key=f"knn_algo_{model_type}")
         }
     elif model_type == 'ElasticNet':
         return {
-            'alpha': st.number_input('Alpha (Regularization)', 0.01, 10.0, 1.0, 0.1),
-            'l1_ratio': st.slider('L1 Ratio (0=Ridge, 1=Lasso)', 0.0, 1.0, 0.5, 0.1)
+            'alpha': st.number_input('Alpha (Regularization)', 0.01, 10.0, 1.0, 0.1, key=f"en_alpha_{model_type}"),
+            'l1_ratio': st.slider('L1 Ratio (0=Ridge, 1=Lasso)', 0.0, 1.0, 0.5, 0.1, key=f"en_l1_{model_type}")
         }
     elif model_type == 'Huber Regressor':
         return {
-            'epsilon': st.number_input('Epsilon', 1.1, 5.0, 1.35, 0.1),
-            'alpha': st.number_input('Alpha (Regularization)', 0.0001, 1.0, 0.0001, 0.0001),
-            'max_iter': st.number_input('Max Iterations', 100, 1000, 100, 100)
+            'epsilon': st.number_input('Epsilon', 1.1, 5.0, 1.35, 0.1, key=f"hr_e_{model_type}"),
+            'alpha': st.number_input('Alpha (Regularization)', 0.0001, 1.0, 0.0001, 0.0001, key=f"hr_a_{model_type}"),
+            'max_iter': st.number_input('Max Iterations', 100, 1000, 100, 100, key=f"hr_mi_{model_type}")
         }
     elif model_type == 'Bayesian Ridge':
         return {
-            'n_iter': st.number_input('Number of Iterations', 100, 1000, 300, 100),
-            'alpha_1': st.number_input('Alpha 1', 1e-6, 1e-4, 1e-6, 1e-6),
-            'alpha_2': st.number_input('Alpha 2', 1e-6, 1e-4, 1e-6, 1e-6)
+            'n_iter': st.number_input('Number of Iterations', 100, 1000, 300, 100, key=f"br_ni_{model_type}"),
+            'alpha_1': st.number_input('Alpha 1', 1e-6, 1e-4, 1e-6, 1e-6, key=f"br_a1_{model_type}"),
+            'alpha_2': st.number_input('Alpha 2', 1e-6, 1e-4, 1e-6, 1e-6, key=f"br_a2_{model_type}")
         }
     elif model_type == 'Extra Trees':
         return {
@@ -262,8 +268,8 @@ def get_model_params(model_type: str) -> Dict:
     else:  # Linear models (Ridge, Lasso)
         if model_type in ['Ridge', 'Lasso']:
             return {
-                'alpha': st.number_input('Alpha (Regularization)', 0.01, 10.0, 1.0, 0.1),
-                'max_iter': st.number_input('Max Iterations', 100, 2000, 1000, 100)
+                'alpha': st.number_input('Alpha (Regularization)', 0.01, 10.0, 1.0, 0.1, key=f"linear_alpha_{model_type}"),
+                'max_iter': st.number_input('Max Iterations', 100, 2000, 1000, 100, key=f"linear_iter_{model_type}")
             }
         return {}  # Linear Regression has no parameters
 

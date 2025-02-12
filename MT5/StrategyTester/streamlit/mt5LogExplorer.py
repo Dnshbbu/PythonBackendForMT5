@@ -17,7 +17,7 @@ from train_models_page import train_models_page
 from run_predictions_page import run_predictions_page
 from train_meta_model_page import train_meta_model_page
 from meta_model_predictor_page import meta_model_predictor_page
-from automatic_ml_page import automatic_ml_page
+# from automatic_ml_page import automatic_ml_page
 from deep_learning_page import deep_learning_page
 from time_series_page import time_series_page
 from train_pycaret_models_pagev2 import train_pycaret_models_pagev2

@@ -210,14 +210,34 @@ def create_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: flo
     return model
 
 def prepare_sequences(data: pd.DataFrame, sequence_length: int, target_col: str, feature_cols: List[str]):
-    """Prepare sequences for LSTM training"""
+    """Prepare sequences for LSTM training to predict the next row's price
+    
+    Args:
+        data: Input DataFrame with features and target
+        sequence_length: Number of time steps to use as input sequence
+        target_col: Name of the price column to predict
+        feature_cols: List of feature column names to use for prediction
+        
+    Returns:
+        X: Array of shape (n_sequences, sequence_length, n_features) containing input sequences
+        y: Array of shape (n_sequences,) containing next row's prices (targets)
+        scaler: Fitted MinMaxScaler for feature scaling
+        
+    Example:
+        If sequence_length = 3, creates sequences like:
+        Input sequence (X)                     Target (y)
+        [Features from row 0,1,2]   ->        Price from row 3
+        [Features from row 1,2,3]   ->        Price from row 4
+    """
     # Scale the data
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(data[feature_cols + [target_col]])
     
     X, y = [], []
     for i in range(len(data) - sequence_length):
+        # Take sequence_length rows of features as input
         X.append(scaled_data[i:(i + sequence_length), :-1])
+        # Take the price from the next row after the sequence as target
         y.append(scaled_data[i + sequence_length, -1])
     
     return np.array(X), np.array(y), scaler

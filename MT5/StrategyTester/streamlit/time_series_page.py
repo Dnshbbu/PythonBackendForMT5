@@ -455,6 +455,44 @@ def generate_model_name(model_type: str, training_type: str, timestamp: Optional
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"ts-{model_type}_{training_type}_{timestamp}"
 
+def prepare_time_series_data(df: pd.DataFrame, target_col: str, selected_features: List[str], prediction_horizon: int = 1, n_lags: int = 3):
+    """Prepare time series data for training to predict future prices
+    
+    Args:
+        df: Input DataFrame
+        target_col: Target column name (e.g., 'Price')
+        selected_features: List of feature columns
+        prediction_horizon: Number of steps ahead to predict (default: 1 for next row)
+        n_lags: Number of previous price values to include as features (default: 3)
+        
+    Returns:
+        Tuple of (features DataFrame, target Series) with target shifted for future prediction
+    """
+    # Create a copy to avoid modifying original data
+    data = df.copy()
+    
+    # Add lagged price values as features
+    for i in range(1, n_lags + 1):
+        lag_col = f"{target_col}_lag_{i}"
+        data[lag_col] = data[target_col].shift(i)
+        if selected_features is not None:
+            selected_features.append(lag_col)
+    
+    # Shift target column up by prediction_horizon to align current features with future target
+    future_target = data[target_col].shift(-prediction_horizon)
+    
+    # Remove rows with NaN values due to lags at the beginning and prediction_horizon at the end
+    data = data[n_lags:-prediction_horizon]
+    future_target = future_target[n_lags:-prediction_horizon]
+    
+    # For Prophet, we need a specific format
+    if selected_features:
+        features = data[selected_features]
+    else:
+        features = None
+        
+    return data, future_target, features
+
 def time_series_page():
     """Streamlit page for time series models"""
     # Initialize session state
@@ -714,6 +752,17 @@ def time_series_page():
             )
             st.code(cmd, language='bash')
             
+            # Add configuration for lagged features
+            st.markdown("#### 🕒 Lagged Features Configuration")
+            use_lagged_features = st.checkbox("Use Previous Price Values as Features", value=True,
+                                            help="Include previous price values to improve prediction")
+            if use_lagged_features:
+                n_lags = st.number_input("Number of Previous Prices to Use", 
+                                       min_value=1, max_value=10, value=3,
+                                       help="Number of previous price values to include as features")
+            else:
+                n_lags = 0
+            
             # Training button
             if st.button("🚀 Train Model", type="primary"):
                 try:
@@ -759,22 +808,36 @@ def time_series_page():
                             df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
                             df = df.set_index('DateTime')
                             
+                            # Prepare data for future prediction
+                            data, future_target, features = prepare_time_series_data(
+                                df, 
+                                target_col, 
+                                selected_features.copy(),  # Create a copy to avoid modifying original list
+                                prediction_horizon=1,  # Predict next row's price
+                                n_lags=n_lags if use_lagged_features else 0
+                            )
+                            
+                            # Log the features being used
+                            if features is not None:
+                                logging.info(f"Using features: {features.columns.tolist()}")
+                                logging.info(f"Number of lagged price features: {n_lags if use_lagged_features else 0}")
+                            
                             # For Prophet, we need to prepare data differently
                             if model_type == 'Prophet':
                                 prophet_df = pd.DataFrame({
-                                    'ds': df.index,
-                                    'y': df[target_col]
+                                    'ds': data.index,
+                                    'y': future_target  # Use shifted target for future prediction
                                 })
                                 # Add selected features as regressors
-                                for feature in selected_features:
-                                    if feature != target_col:
-                                        prophet_df[feature] = df[feature]
+                                if features is not None:
+                                    for feature in selected_features:
+                                        if feature != target_col:
+                                            prophet_df[feature] = features[feature]
                                 model, metrics = train_prophet(prophet_df, selected_features)
                             else:
-                                # For ARIMA models, we'll use the target column
-                                # and optionally incorporate features as exogenous variables
-                                series = df[target_col]
-                                exog = df[selected_features] if selected_features else None
+                                # For ARIMA models, use the shifted target
+                                series = future_target
+                                exog = features
                                 
                                 if model_type == 'Auto ARIMA':
                                     model, metrics = auto_arima(

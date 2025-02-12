@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import os
 import sqlite3
 import tensorflow as tf
@@ -209,53 +209,145 @@ def create_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: flo
     
     return model
 
-def prepare_sequences(data: pd.DataFrame, sequence_length: int, target_col: str, feature_cols: List[str], n_lags: int = 3):
-    """Prepare sequences for LSTM training to predict the next row's price
+def load_and_validate_tables(db_path: str, selected_tables: List[str], target_col: str, feature_cols: List[str]) -> pd.DataFrame:
+    """Load and validate multiple tables for training
     
     Args:
-        data: Input DataFrame with features and target
+        db_path: Path to the SQLite database
+        selected_tables: List of selected table names
+        target_col: Name of the target column
+        feature_cols: List of feature column names
+        
+    Returns:
+        Combined DataFrame with data from all tables, sorted by DateTime
+    """
+    all_data = []
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        
+        for table_name in selected_tables:
+            # Load data from table
+            logging.info(f"Loading data from table: {table_name}")
+            
+            # Validate table has DateTime columns
+            cursor = conn.execute(f"PRAGMA table_info({table_name})")
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'Date' not in columns or 'Time' not in columns:
+                raise ValueError(f"Table {table_name} is missing required DateTime columns (Date, Time)")
+            
+            # Load data with proper ordering
+            df = pd.read_sql_query(
+                f"SELECT *, Date || ' ' || Time as DateTime FROM {table_name} ORDER BY Date, Time",
+                conn
+            )
+            
+            # Convert DateTime to pandas datetime
+            df['DateTime'] = pd.to_datetime(df['DateTime'])
+            
+            # Validate other required columns
+            missing_cols = [col for col in [target_col] + feature_cols if col not in df.columns]
+            if missing_cols:
+                raise ValueError(f"Table {table_name} is missing required columns: {missing_cols}")
+            
+            # Add table identifier column
+            df['source_table'] = table_name
+            all_data.append(df)
+            
+            logging.info(f"Loaded {len(df)} rows from {table_name}")
+            logging.info(f"Time range: {df['DateTime'].min()} to {df['DateTime'].max()}")
+        
+        conn.close()
+        
+        if not all_data:
+            raise ValueError("No data was loaded from the selected tables")
+        
+        # Combine all data and sort by DateTime
+        combined_df = pd.concat(all_data, axis=0, ignore_index=True)
+        combined_df = combined_df.sort_values('DateTime')
+        
+        # Log temporal information
+        logging.info(f"Combined dataset has {len(combined_df)} rows from {len(selected_tables)} tables")
+        logging.info(f"Total time range: {combined_df['DateTime'].min()} to {combined_df['DateTime'].max()}")
+        
+        # Check for overlapping time periods
+        for table_name in selected_tables:
+            table_data = combined_df[combined_df['source_table'] == table_name]
+            logging.info(f"Table {table_name} time range: {table_data['DateTime'].min()} to {table_data['DateTime'].max()}")
+        
+        return combined_df
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.close()
+        raise ValueError(f"Error loading tables: {str(e)}")
+
+def prepare_sequences_multi_table(data: pd.DataFrame, sequence_length: int, target_col: str, 
+                                feature_cols: List[str], n_lags: int = 3) -> Tuple[np.ndarray, np.ndarray, MinMaxScaler]:
+    """Prepare sequences for LSTM training with multiple tables
+    
+    This version ensures sequences don't cross table boundaries and maintains temporal consistency
+    
+    Args:
+        data: Input DataFrame with features and target, must be sorted by DateTime
         sequence_length: Number of time steps to use as input sequence
         target_col: Name of the price column to predict
         feature_cols: List of feature column names to use for prediction
-        n_lags: Number of previous price values to include as features (default: 3)
+        n_lags: Number of previous price values to include as features
         
     Returns:
-        X: Array of shape (n_sequences, sequence_length, n_features) containing input sequences
-        y: Array of shape (n_sequences,) containing next row's prices (targets)
-        scaler: Fitted MinMaxScaler for feature scaling
-        
-    Example:
-        If sequence_length = 3, creates sequences like:
-        Input sequence (X)                                                     Target (y)
-        [Features & Price from row 0,1,2]   ->        Price from row 3
-        [Features & Price from row 1,2,3]   ->        Price from row 4
+        X: Array of input sequences
+        y: Array of target values
+        scaler: Fitted MinMaxScaler
     """
     # Create a copy to avoid modifying original data
     df = data.copy()
     
+    # Verify temporal ordering
+    if not df['DateTime'].equals(df['DateTime'].sort_values()):
+        raise ValueError("Data must be sorted by DateTime before preparing sequences")
+    
     # Add lagged price values as features
     for i in range(1, n_lags + 1):
         lag_col = f"{target_col}_lag_{i}"
-        df[lag_col] = df[target_col].shift(i)
+        # Calculate lags within each table group, respecting time order
+        df[lag_col] = df.groupby('source_table')[target_col].shift(i)
         feature_cols.append(lag_col)
     
     # Add current price as a feature
     feature_cols.append(target_col)
     
     # Remove rows with NaN values from lagging
-    df = df.iloc[n_lags:]
+    df = df.dropna()
     
     # Scale the data
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df[feature_cols + [target_col]])
     
     X, y = [], []
-    for i in range(len(df) - sequence_length):
-        # Take sequence_length rows of features as input
-        X.append(scaled_data[i:(i + sequence_length), :-1])
-        # Take the price from the next row after the sequence as target
-        y.append(scaled_data[i + sequence_length, -1])
+    # Process each table separately while maintaining temporal order
+    for table_name in df['source_table'].unique():
+        table_mask = df['source_table'] == table_name
+        table_data = scaled_data[table_mask]
+        table_dates = df.loc[table_mask, 'DateTime']
+        
+        # Create sequences only within this table's data
+        for i in range(len(table_data) - sequence_length):
+            # Verify temporal continuity
+            date_sequence = table_dates.iloc[i:i + sequence_length + 1]
+            time_diffs = date_sequence.diff().dropna()
+            
+            # Check if the sequence is continuous (no large time gaps)
+            if all(time_diff.total_seconds() <= 3600 for time_diff in time_diffs):  # 1 hour threshold
+                X.append(table_data[i:(i + sequence_length), :-1])
+                y.append(table_data[i + sequence_length, -1])
+            else:
+                logging.debug(f"Skipping sequence in {table_name} due to time gap at {date_sequence.iloc[0]}")
     
+    if not X:
+        raise ValueError("No valid sequences could be created after applying temporal consistency checks")
+    
+    logging.info(f"Created {len(X)} valid sequences after temporal consistency checks")
     return np.array(X), np.array(y), scaler
 
 class DLProgressCallback(tf.keras.callbacks.Callback):
@@ -545,25 +637,26 @@ def deep_learning_page():
                                         type="secondary")
                             
                             try:
-                                # Load and prepare data
-                                conn = sqlite3.connect(db_path)
-                                df = pd.read_sql_query(f"SELECT * FROM {first_table}", conn)
-                                conn.close()
-                                
-                                # Log progress
-                                logging.info(f"Loaded data from {first_table} with {len(df)} rows")
+                                # Load and validate data from all selected tables
+                                logging.info(f"Loading data from {len(st.session_state['dl_selected_tables'])} tables")
+                                combined_df = load_and_validate_tables(
+                                    db_path,
+                                    st.session_state['dl_selected_tables'],
+                                    target_col,
+                                    selected_features
+                                )
                                 
                                 # Check for stop
                                 if check_dl_stop_clicked():
                                     raise DLTrainingInterrupt("Training stopped by user")
                                 
-                                # Prepare sequences
+                                # Prepare sequences with multi-table support
                                 logging.info("Preparing sequences...")
-                                X, y, scaler = prepare_sequences(
-                                    df,
+                                X, y, scaler = prepare_sequences_multi_table(
+                                    combined_df,
                                     sequence_length,
                                     target_col,
-                                    selected_features.copy(),  # Create a copy to avoid modifying original list
+                                    selected_features.copy(),
                                     n_lags=n_lags if use_price_features else 0
                                 )
                                 

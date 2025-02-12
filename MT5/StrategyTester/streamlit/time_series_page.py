@@ -493,6 +493,53 @@ def prepare_time_series_data(df: pd.DataFrame, target_col: str, selected_feature
         
     return data, future_target, features
 
+def combine_tables_data(db_path: str, table_names: List[str]) -> pd.DataFrame:
+    """Combine data from multiple tables into a single DataFrame
+    
+    Args:
+        db_path: Path to the SQLite database
+        table_names: List of table names to combine
+        
+    Returns:
+        Combined DataFrame with data from all tables
+    """
+    combined_data = []
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        
+        for table_name in table_names:
+            # Load data from each table
+            df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
+            
+            # Add table name as a source column
+            df['DataSource'] = table_name
+            
+            # Convert date and time to datetime
+            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+            
+            combined_data.append(df)
+            
+            logging.info(f"Loaded {len(df)} rows from {table_name}")
+        
+        conn.close()
+        
+        # Combine all dataframes
+        if not combined_data:
+            raise ValueError("No data loaded from tables")
+            
+        combined_df = pd.concat(combined_data, axis=0, ignore_index=True)
+        
+        # Sort by DateTime
+        combined_df = combined_df.sort_values('DateTime')
+        
+        logging.info(f"Combined data shape: {combined_df.shape}")
+        return combined_df
+        
+    except Exception as e:
+        logging.error(f"Error combining table data: {str(e)}")
+        raise
+
 def time_series_page():
     """Streamlit page for time series models"""
     # Initialize session state
@@ -792,20 +839,15 @@ def time_series_page():
                     
                     try:
                         with st.spinner("Training model..."):
-                            # Load and prepare data
-                            conn = sqlite3.connect(db_path)
-                            df = pd.read_sql_query(f"SELECT * FROM {first_table}", conn)
-                            conn.close()
-                            
-                            # Log progress
-                            logging.info(f"Loaded data from {first_table} with {len(df)} rows")
+                            # Load and combine data from all selected tables
+                            logging.info(f"Loading data from {len(st.session_state['ts_selected_tables'])} tables")
+                            df = combine_tables_data(db_path, st.session_state['ts_selected_tables'])
                             
                             # Check for stop
                             if check_ts_stop_clicked():
                                 raise TrainingInterrupt("Training stopped by user")
                             
-                            # Prepare time series data
-                            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+                            # Set DateTime as index
                             df = df.set_index('DateTime')
                             
                             # Prepare data for future prediction

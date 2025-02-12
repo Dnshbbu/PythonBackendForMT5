@@ -464,6 +464,9 @@ class PyCaretModelTrainer:
             df = self.load_data_from_db(table)
             dfs.append(df)
         combined_df = pd.concat(dfs)
+        # Sort the combined DataFrame by DateTime index to maintain temporal consistency
+        combined_df = combined_df.sort_index()
+        logging.info(f"Combined data from {len(table_names)} tables, total rows: {len(combined_df)}")
         
         # Use all numeric columns as features if not specified
         if feature_cols is None:

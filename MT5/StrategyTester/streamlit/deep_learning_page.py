@@ -209,7 +209,7 @@ def create_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: flo
     
     return model
 
-def prepare_sequences(data: pd.DataFrame, sequence_length: int, target_col: str, feature_cols: List[str]):
+def prepare_sequences(data: pd.DataFrame, sequence_length: int, target_col: str, feature_cols: List[str], n_lags: int = 3):
     """Prepare sequences for LSTM training to predict the next row's price
     
     Args:
@@ -217,6 +217,7 @@ def prepare_sequences(data: pd.DataFrame, sequence_length: int, target_col: str,
         sequence_length: Number of time steps to use as input sequence
         target_col: Name of the price column to predict
         feature_cols: List of feature column names to use for prediction
+        n_lags: Number of previous price values to include as features (default: 3)
         
     Returns:
         X: Array of shape (n_sequences, sequence_length, n_features) containing input sequences
@@ -225,16 +226,31 @@ def prepare_sequences(data: pd.DataFrame, sequence_length: int, target_col: str,
         
     Example:
         If sequence_length = 3, creates sequences like:
-        Input sequence (X)                     Target (y)
-        [Features from row 0,1,2]   ->        Price from row 3
-        [Features from row 1,2,3]   ->        Price from row 4
+        Input sequence (X)                                                     Target (y)
+        [Features & Price from row 0,1,2]   ->        Price from row 3
+        [Features & Price from row 1,2,3]   ->        Price from row 4
     """
+    # Create a copy to avoid modifying original data
+    df = data.copy()
+    
+    # Add lagged price values as features
+    for i in range(1, n_lags + 1):
+        lag_col = f"{target_col}_lag_{i}"
+        df[lag_col] = df[target_col].shift(i)
+        feature_cols.append(lag_col)
+    
+    # Add current price as a feature
+    feature_cols.append(target_col)
+    
+    # Remove rows with NaN values from lagging
+    df = df.iloc[n_lags:]
+    
     # Scale the data
     scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(data[feature_cols + [target_col]])
+    scaled_data = scaler.fit_transform(df[feature_cols + [target_col]])
     
     X, y = [], []
-    for i in range(len(data) - sequence_length):
+    for i in range(len(df) - sequence_length):
         # Take sequence_length rows of features as input
         X.append(scaled_data[i:(i + sequence_length), :-1])
         # Take the price from the next row after the sequence as target
@@ -502,6 +518,17 @@ def deep_learning_page():
                 )
                 st.code(cmd, language='bash')
                 
+                # Add configuration for lagged features before the training button
+                st.markdown("#### 🕒 Price Features Configuration")
+                use_price_features = st.checkbox("Use Current and Previous Prices as Features", value=True,
+                                               help="Include current and previous price values to improve prediction")
+                if use_price_features:
+                    n_lags = st.number_input("Number of Previous Prices to Use", 
+                                           min_value=1, max_value=10, value=3,
+                                           help="Number of previous price values to include as features")
+                else:
+                    n_lags = 0
+                
                 # Training button
                 if st.button("🚀 Train Model", type="primary"):
                     try:
@@ -536,9 +563,16 @@ def deep_learning_page():
                                     df,
                                     sequence_length,
                                     target_col,
-                                    selected_features
+                                    selected_features.copy(),  # Create a copy to avoid modifying original list
+                                    n_lags=n_lags if use_price_features else 0
                                 )
-                                logging.info(f"Prepared {len(X)} sequences")
+                                
+                                # Log feature information
+                                total_features = len(selected_features) + (n_lags if use_price_features else 0) + (1 if use_price_features else 0)
+                                logging.info(f"Total number of features: {total_features}")
+                                logging.info(f"Sequence shape: {X.shape}")
+                                if use_price_features:
+                                    logging.info(f"Using current price and {n_lags} previous prices as features")
                                 
                                 # Check for stop
                                 if check_dl_stop_clicked():
@@ -547,7 +581,7 @@ def deep_learning_page():
                                 # Create and train model
                                 logging.info("Creating LSTM model...")
                                 model = create_lstm_model(
-                                    input_shape=(sequence_length, len(selected_features)),
+                                    input_shape=(sequence_length, total_features),
                                     layers=lstm_layers,
                                     learning_rate=learning_rate
                                 )

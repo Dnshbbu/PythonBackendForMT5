@@ -201,6 +201,17 @@ def train_pycaret_models_pagev2():
             # Model Training Parameters
             st.markdown("##### ⚙️ Training Parameters")
             
+            # Add configuration for price features
+            st.markdown("#### 🕒 Price Features Configuration")
+            use_price_features = st.checkbox("Use Current and Previous Prices as Features", value=True,
+                                          help="Include current and previous price values to improve prediction")
+            if use_price_features:
+                n_lags = st.number_input("Number of Previous Prices to Use", 
+                                       min_value=1, max_value=10, value=3,
+                                       help="Number of previous price values to include as features")
+            else:
+                n_lags = 0
+
             # Model Selection
             st.markdown("**Model Selection:**")
             training_mode = st.radio(
@@ -349,9 +360,11 @@ def train_pycaret_models_pagev2():
                                 model_dir, metrics = trainer.train_and_save(
                                     table_names=st.session_state['selected_tables'],
                                     target_col=target_col,
-                                    feature_cols=selected_features,
+                                    feature_cols=selected_features.copy(),  # Create a copy to avoid modifying original list
                                     prediction_horizon=prediction_horizon,
                                     model_name=model_name,
+                                    n_lags=n_lags if use_price_features else 0,
+                                    use_price_features=use_price_features,
                                     **training_params
                                 )
                                 

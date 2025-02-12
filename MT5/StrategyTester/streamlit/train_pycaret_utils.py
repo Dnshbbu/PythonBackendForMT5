@@ -477,11 +477,11 @@ def display_training_metrics(metrics: Dict):
                             # Common visualizations for all models
                             st.markdown("#### Actual vs Predicted Values")
                             fig_scatter = create_scatter_plot(y_true, y_pred)
-                            st.plotly_chart(fig_scatter, use_container_width=True)
+                            st.plotly_chart(fig_scatter, use_container_width=True, key=f"{model_name}_scatter")
                             
                             st.markdown("#### Residual Plot")
                             fig_residual = create_residual_plot(y_true, y_pred)
-                            st.plotly_chart(fig_residual, use_container_width=True)
+                            st.plotly_chart(fig_residual, use_container_width=True, key=f"{model_name}_residual")
                             
                             # Model-specific visualizations
                             if model_name in ['Random Forest', 'XGBoost', 'LightGBM', 'CatBoost']:
@@ -490,13 +490,13 @@ def display_training_metrics(metrics: Dict):
                                     fig_importance = create_detailed_importance_plot(
                                         model_metrics['feature_importance_detailed']
                                     )
-                                    st.plotly_chart(fig_importance, use_container_width=True)
+                                    st.plotly_chart(fig_importance, use_container_width=True, key=f"{model_name}_importance")
                             
                             elif model_name in ['Linear Regression', 'Ridge', 'Lasso', 'ElasticNet']:
                                 st.markdown("#### Linear Model Visualizations")
                                 if 'coefficients' in model_metrics:
                                     fig_coef = create_coefficient_plot(model_metrics['coefficients'])
-                                    st.plotly_chart(fig_coef, use_container_width=True)
+                                    st.plotly_chart(fig_coef, use_container_width=True, key=f"{model_name}_coef")
                             
                             elif model_name == 'K Neighbors Regressor':
                                 st.markdown("#### K-Neighbors Visualizations")
@@ -504,7 +504,7 @@ def display_training_metrics(metrics: Dict):
                                     fig_dist = create_neighbor_distance_plot(
                                         model_metrics['neighbor_distances']
                                     )
-                                    st.plotly_chart(fig_dist, use_container_width=True)
+                                    st.plotly_chart(fig_dist, use_container_width=True, key=f"{model_name}_dist")
                             
                             elif model_name == 'Support Vector Regression':
                                 st.markdown("#### SVR Visualizations")
@@ -512,7 +512,7 @@ def display_training_metrics(metrics: Dict):
                                     fig_sv = create_support_vector_plot(
                                         model_metrics['support_vectors']
                                     )
-                                    st.plotly_chart(fig_sv, use_container_width=True)
+                                    st.plotly_chart(fig_sv, use_container_width=True, key=f"{model_name}_sv")
                             
                             # Display metrics for this model
                             st.markdown("#### Model Metrics")
@@ -539,11 +539,11 @@ def display_training_metrics(metrics: Dict):
                     # Common visualizations for all models
                     st.markdown("#### Actual vs Predicted Values")
                     fig_scatter = create_scatter_plot(y_true, y_pred)
-                    st.plotly_chart(fig_scatter, use_container_width=True)
+                    st.plotly_chart(fig_scatter, use_container_width=True, key="single_scatter")
                     
                     st.markdown("#### Residual Plot")
                     fig_residual = create_residual_plot(y_true, y_pred)
-                    st.plotly_chart(fig_residual, use_container_width=True)
+                    st.plotly_chart(fig_residual, use_container_width=True, key="single_residual")
                     
                     # Model-specific visualizations
                     if model_type in ['Random Forest', 'XGBoost', 'LightGBM', 'CatBoost']:
@@ -552,13 +552,13 @@ def display_training_metrics(metrics: Dict):
                             fig_importance = create_detailed_importance_plot(
                                 metrics['feature_importance_detailed']
                             )
-                            st.plotly_chart(fig_importance, use_container_width=True)
+                            st.plotly_chart(fig_importance, use_container_width=True, key="single_importance")
                     
                     elif model_type in ['Linear Regression', 'Ridge', 'Lasso', 'ElasticNet']:
                         st.markdown("#### Linear Model Visualizations")
                         if 'coefficients' in metrics:
                             fig_coef = create_coefficient_plot(metrics['coefficients'])
-                            st.plotly_chart(fig_coef, use_container_width=True)
+                            st.plotly_chart(fig_coef, use_container_width=True, key="single_coef")
                     
                     elif model_type == 'K Neighbors Regressor':
                         st.markdown("#### K-Neighbors Visualizations")
@@ -566,7 +566,7 @@ def display_training_metrics(metrics: Dict):
                             fig_dist = create_neighbor_distance_plot(
                                 metrics['neighbor_distances']
                             )
-                            st.plotly_chart(fig_dist, use_container_width=True)
+                            st.plotly_chart(fig_dist, use_container_width=True, key="single_dist")
                     
                     elif model_type == 'Support Vector Regression':
                         st.markdown("#### SVR Visualizations")
@@ -574,7 +574,7 @@ def display_training_metrics(metrics: Dict):
                             fig_sv = create_support_vector_plot(
                                 metrics['support_vectors']
                             )
-                            st.plotly_chart(fig_sv, use_container_width=True)
+                            st.plotly_chart(fig_sv, use_container_width=True, key="single_sv")
                     
                     # Display metrics for single model
                     st.markdown("#### Model Metrics")

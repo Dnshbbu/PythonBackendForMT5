@@ -65,7 +65,9 @@ class PyCaretModelTrainer:
     def prepare_features_target(self, df: pd.DataFrame, 
                               target_col: str,
                               feature_cols: List[str],
-                              prediction_horizon: int = 1) -> Tuple[pd.DataFrame, pd.Series]:
+                              prediction_horizon: int = 1,
+                              n_lags: int = 3,
+                              use_price_features: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Prepare features and target for training
         
@@ -74,15 +76,36 @@ class PyCaretModelTrainer:
             target_col: Name of target column
             feature_cols: List of feature column names
             prediction_horizon: Number of steps ahead to predict
+            n_lags: Number of previous price values to include as features
+            use_price_features: Whether to use current and lagged price values as features
             
         Returns:
             Tuple of features DataFrame and target Series
         """
-        # Shift target column up by prediction_horizon to align features with future target
-        y = df[target_col].shift(-prediction_horizon)
-        X = df[feature_cols]
+        # Create a copy to avoid modifying original data
+        data = df.copy()
+        features = feature_cols.copy()
         
-        # Remove rows with NaN values created by shift
+        if use_price_features:
+            # Add lagged price values as features
+            for i in range(1, n_lags + 1):
+                lag_col = f"{target_col}_lag_{i}"
+                data[lag_col] = data[target_col].shift(i)
+                features.append(lag_col)
+            
+            # Add current price as a feature
+            features.append(target_col)
+        
+        # Shift target column up by prediction_horizon to align features with future target
+        y = data[target_col].shift(-prediction_horizon)
+        X = data[features]
+        
+        # Remove rows with NaN values created by shift operations
+        if use_price_features:
+            X = X.iloc[n_lags:]
+            y = y.iloc[n_lags:]
+        
+        # Remove rows with NaN values from prediction horizon
         X = X[:-prediction_horizon]
         y = y[:-prediction_horizon]
         
@@ -416,7 +439,9 @@ class PyCaretModelTrainer:
                       prediction_horizon: int = 1,
                       feature_cols: Optional[List[str]] = None,
                       model_params: Optional[Dict] = None,
-                      model_name: Optional[str] = None) -> Tuple[str, Dict]:
+                      model_name: Optional[str] = None,
+                      n_lags: int = 3,
+                      use_price_features: bool = True) -> Tuple[str, Dict]:
         """
         Complete training pipeline: load data, train model, and save
         
@@ -427,6 +452,8 @@ class PyCaretModelTrainer:
             feature_cols: Optional list of feature columns
             model_params: Optional model parameters
             model_name: Optional name for the model
+            n_lags: Number of previous price values to include as features (default: 3)
+            use_price_features: Whether to use current and previous prices as features (default: True)
             
         Returns:
             Tuple of (model directory path, metrics dictionary)
@@ -445,7 +472,9 @@ class PyCaretModelTrainer:
         
         # Prepare features and target
         X, y = self.prepare_features_target(
-            combined_df, target_col, feature_cols, prediction_horizon
+            combined_df, target_col, feature_cols, prediction_horizon,
+            n_lags=n_lags if use_price_features else 0,
+            use_price_features=use_price_features
         )
         
         # Train model
@@ -498,7 +527,9 @@ class PyCaretModelTrainer:
                     "prediction_horizon": prediction_horizon,
                     "train_test_split": 0.2,
                     "shuffle": False,
-                    "scaling": "StandardScaler"
+                    "scaling": "StandardScaler",
+                    "n_lags": n_lags if use_price_features else 0,
+                    "use_price_features": use_price_features
                 }
                 
                 # Log feature importance if available

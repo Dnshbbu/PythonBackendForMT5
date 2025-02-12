@@ -250,6 +250,30 @@ class DLProgressCallback(tf.keras.callbacks.Callback):
         metrics = ' - '.join(f"{k}: {v:.4f}" for k, v in logs.items())
         logging.info(f"Epoch {self.current_epoch}/{self.total_epochs} - {metrics}")
 
+def get_dl_equivalent_command(table_names: List[str], target_col: str, feature_cols: List[str], 
+                         sequence_length: int, lstm_layers: List[Dict], batch_size: int,
+                         epochs: int, learning_rate: float, model_name: str) -> str:
+    """Generate the equivalent command line command for deep learning training"""
+    base_cmd = "python train_deep_learning_models.py"
+    tables_arg = f"--tables {' '.join(table_names)}"
+    target_arg = f"--target {target_col}"
+    features_arg = f"--features {' '.join(feature_cols)}"
+    sequence_arg = f"--sequence-length {sequence_length}"
+    
+    # Format LSTM layers configuration
+    layers_config = []
+    for i, layer in enumerate(lstm_layers):
+        layers_config.append(f"layer{i+1}:{layer['units']}:{layer['dropout']}")
+    layers_arg = f"--lstm-layers {' '.join(layers_config)}"
+    
+    # Training parameters
+    batch_arg = f"--batch-size {batch_size}"
+    epochs_arg = f"--epochs {epochs}"
+    lr_arg = f"--learning-rate {learning_rate}"
+    model_arg = f"--model-name {model_name}"
+    
+    return f"{base_cmd} {tables_arg} {target_arg} {features_arg} {sequence_arg} {layers_arg} {batch_arg} {epochs_arg} {lr_arg} {model_arg}".strip()
+
 def deep_learning_page():
     """Streamlit page for deep learning models"""
     # Initialize session state
@@ -428,187 +452,204 @@ def deep_learning_page():
                 value=f"lstm_model_{datetime.now().strftime('%Y%m%d_%H%M')}"
             )
             
-            # Training button
-            if st.button("🚀 Train Model", type="primary"):
-                try:
-                    with st.spinner("Training model..."):
-                        # Setup logging with Streamlit output
-                        streamlit_handler = setup_dl_logging(training_progress)
-                        
-                        # Show stop button
-                        with stop_button_placeholder:
-                            st.button("🛑 Stop Training", 
-                                    on_click=on_dl_stop_click,
-                                    key="dl_stop_training",
-                                    help="Click to stop the training process",
-                                    type="secondary")
-                        
-                        try:
-                            # Load and prepare data
-                            conn = sqlite3.connect(db_path)
-                            df = pd.read_sql_query(f"SELECT * FROM {first_table}", conn)
-                            conn.close()
-                            
-                            # Log progress
-                            logging.info(f"Loaded data from {first_table} with {len(df)} rows")
-                            
-                            # Check for stop
-                            if check_dl_stop_clicked():
-                                raise DLTrainingInterrupt("Training stopped by user")
-                            
-                            # Prepare sequences
-                            logging.info("Preparing sequences...")
-                            X, y, scaler = prepare_sequences(
-                                df,
-                                sequence_length,
-                                target_col,
-                                selected_features
-                            )
-                            logging.info(f"Prepared {len(X)} sequences")
-                            
-                            # Check for stop
-                            if check_dl_stop_clicked():
-                                raise DLTrainingInterrupt("Training stopped by user")
-                            
-                            # Create and train model
-                            logging.info("Creating LSTM model...")
-                            model = create_lstm_model(
-                                input_shape=(sequence_length, len(selected_features)),
-                                layers=lstm_layers,
-                                learning_rate=learning_rate
-                            )
-                            
-                            # Custom training callback to check for stop
-                            class StopTrainingCallback(tf.keras.callbacks.Callback):
-                                def on_epoch_end(self, epoch, logs=None):
-                                    if check_dl_stop_clicked():
-                                        self.model.stop_training = True
-                                        raise DLTrainingInterrupt("Training stopped by user")
-                            
-                            # Train model with progress logging
-                            logging.info("Starting model training...")
-                            callbacks = [
-                                StopTrainingCallback(),
-                                DLProgressCallback(total_epochs=epochs)
-                            ]
-                            
-                            # Clear previous logs before starting new training
-                            st.session_state['dl_training_logs'] = []
-                            
-                            history = model.fit(
-                                X, y,
-                                batch_size=batch_size,
-                                epochs=epochs,
-                                validation_split=0.2,
-                                verbose=0,  # Set to 0 as we'll handle progress display
-                                callbacks=callbacks
-                            )
-                            
-                            # Save model and results
-                            if not check_dl_stop_clicked():
-                                # Save model
-                                model_path = os.path.join(models_dir, model_name)
-                                os.makedirs(model_path, exist_ok=True)
-                                model.save(os.path.join(model_path, 'model.h5'))
-                                
-                                # Save scaler and metadata
-                                import joblib
-                                joblib.dump(scaler, os.path.join(model_path, 'scaler.pkl'))
-                                
-                                metadata = {
-                                    'features': selected_features,
-                                    'target': target_col,
-                                    'sequence_length': sequence_length,
-                                    'layers': lstm_layers,
-                                    'training_params': {
-                                        'batch_size': batch_size,
-                                        'epochs': epochs,
-                                        'learning_rate': learning_rate
-                                    },
-                                    'training_history': {
-                                        'loss': float(history.history['loss'][-1]),
-                                        'val_loss': float(history.history['val_loss'][-1]),
-                                        'mae': float(history.history['mae'][-1]),
-                                        'val_mae': float(history.history['val_mae'][-1])
-                                    }
-                                }
-                                
-                                import json
-                                with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
-                                    json.dump(metadata, f, indent=4)
-                                
-                                # Display results in right column
-                                with metrics_placeholder:
-                                    st.success(f"✨ Model trained successfully and saved to {model_path}")
-                                    
-                                    # Create tabs for different visualizations
-                                    tab1, tab2 = st.tabs(["📈 Training Metrics", "📊 Training History"])
-                                    
-                                    # Training Metrics Tab
-                                    with tab1:
-                                        st.markdown("#### Training Results")
-                                        col1, col2 = st.columns(2)
-                                        with col1:
-                                            st.metric(
-                                                "Final Loss",
-                                                f"{history.history['loss'][-1]:.4f}",
-                                                help="Mean Squared Error loss on training data"
-                                            )
-                                            st.metric(
-                                                "Final MAE",
-                                                f"{history.history['mae'][-1]:.4f}",
-                                                help="Mean Absolute Error on training data"
-                                            )
-                                        with col2:
-                                            st.metric(
-                                                "Validation Loss",
-                                                f"{history.history['val_loss'][-1]:.4f}",
-                                                help="Mean Squared Error loss on validation data"
-                                            )
-                                            st.metric(
-                                                "Validation MAE",
-                                                f"{history.history['val_mae'][-1]:.4f}",
-                                                help="Mean Absolute Error on validation data"
-                                            )
-                                    
-                                    # Training History Tab
-                                    with tab2:
-                                        st.markdown("#### Training History")
-                                        history_df = pd.DataFrame(history.history)
-                                        
-                                        # Plot loss curves
-                                        st.markdown("##### Loss Curves")
-                                        loss_df = history_df[['loss', 'val_loss']]
-                                        loss_df.columns = ['Training Loss', 'Validation Loss']
-                                        st.line_chart(loss_df)
-                                        
-                                        # Plot MAE curves
-                                        st.markdown("##### MAE Curves")
-                                        mae_df = history_df[['mae', 'val_mae']]
-                                        mae_df.columns = ['Training MAE', 'Validation MAE']
-                                        st.line_chart(mae_df)
+            # Add this before the Training button
+            # Display equivalent command
+            if selected_features:
+                st.markdown("##### 💻 Equivalent Command")
+                cmd = get_dl_equivalent_command(
+                    st.session_state['dl_selected_tables'],
+                    target_col,
+                    selected_features,
+                    sequence_length,
+                    lstm_layers,
+                    batch_size,
+                    epochs,
+                    learning_rate,
+                    model_name
+                )
+                st.code(cmd, language='bash')
                 
-                        finally:
-                            # Clean up logging handler
-                            root_logger = logging.getLogger()
-                            root_logger.removeHandler(streamlit_handler)
-                            # Ensure stop button is removed in all cases
-                            stop_button_placeholder.empty()
+                # Training button
+                if st.button("🚀 Train Model", type="primary"):
+                    try:
+                        with st.spinner("Training model..."):
+                            # Setup logging with Streamlit output
+                            streamlit_handler = setup_dl_logging(training_progress)
                             
-                except DLTrainingInterrupt:
-                    if 'dl_stop_message' in st.session_state and st.session_state['dl_stop_message']:
-                        status_placeholder.warning(st.session_state['dl_stop_message'])
-                    # Clean up any partial training artifacts if needed
-                    if 'model_path' in locals():
-                        try:
-                            logging.info(f"Cleaning up partial training artifacts in {model_path}")
-                            # Add cleanup code here if needed
-                        except Exception as cleanup_error:
-                            logging.error(f"Error during cleanup: {str(cleanup_error)}")
+                            # Show stop button
+                            with stop_button_placeholder:
+                                st.button("🛑 Stop Training", 
+                                        on_click=on_dl_stop_click,
+                                        key="dl_stop_training",
+                                        help="Click to stop the training process",
+                                        type="secondary")
                             
-                except Exception as e:
-                    status_placeholder.error(f"Error during training: {str(e)}")
-                    logging.error(f"Training error: {str(e)}", exc_info=True)
+                            try:
+                                # Load and prepare data
+                                conn = sqlite3.connect(db_path)
+                                df = pd.read_sql_query(f"SELECT * FROM {first_table}", conn)
+                                conn.close()
+                                
+                                # Log progress
+                                logging.info(f"Loaded data from {first_table} with {len(df)} rows")
+                                
+                                # Check for stop
+                                if check_dl_stop_clicked():
+                                    raise DLTrainingInterrupt("Training stopped by user")
+                                
+                                # Prepare sequences
+                                logging.info("Preparing sequences...")
+                                X, y, scaler = prepare_sequences(
+                                    df,
+                                    sequence_length,
+                                    target_col,
+                                    selected_features
+                                )
+                                logging.info(f"Prepared {len(X)} sequences")
+                                
+                                # Check for stop
+                                if check_dl_stop_clicked():
+                                    raise DLTrainingInterrupt("Training stopped by user")
+                                
+                                # Create and train model
+                                logging.info("Creating LSTM model...")
+                                model = create_lstm_model(
+                                    input_shape=(sequence_length, len(selected_features)),
+                                    layers=lstm_layers,
+                                    learning_rate=learning_rate
+                                )
+                                
+                                # Custom training callback to check for stop
+                                class StopTrainingCallback(tf.keras.callbacks.Callback):
+                                    def on_epoch_end(self, epoch, logs=None):
+                                        if check_dl_stop_clicked():
+                                            self.model.stop_training = True
+                                            raise DLTrainingInterrupt("Training stopped by user")
+                                
+                                # Train model with progress logging
+                                logging.info("Starting model training...")
+                                callbacks = [
+                                    StopTrainingCallback(),
+                                    DLProgressCallback(total_epochs=epochs)
+                                ]
+                                
+                                # Clear previous logs before starting new training
+                                st.session_state['dl_training_logs'] = []
+                                
+                                history = model.fit(
+                                    X, y,
+                                    batch_size=batch_size,
+                                    epochs=epochs,
+                                    validation_split=0.2,
+                                    verbose=0,  # Set to 0 as we'll handle progress display
+                                    callbacks=callbacks
+                                )
+                                
+                                # Save model and results
+                                if not check_dl_stop_clicked():
+                                    # Save model
+                                    model_path = os.path.join(models_dir, model_name)
+                                    os.makedirs(model_path, exist_ok=True)
+                                    model.save(os.path.join(model_path, 'model.h5'))
+                                    
+                                    # Save scaler and metadata
+                                    import joblib
+                                    joblib.dump(scaler, os.path.join(model_path, 'scaler.pkl'))
+                                    
+                                    metadata = {
+                                        'features': selected_features,
+                                        'target': target_col,
+                                        'sequence_length': sequence_length,
+                                        'layers': lstm_layers,
+                                        'training_params': {
+                                            'batch_size': batch_size,
+                                            'epochs': epochs,
+                                            'learning_rate': learning_rate
+                                        },
+                                        'training_history': {
+                                            'loss': float(history.history['loss'][-1]),
+                                            'val_loss': float(history.history['val_loss'][-1]),
+                                            'mae': float(history.history['mae'][-1]),
+                                            'val_mae': float(history.history['val_mae'][-1])
+                                        }
+                                    }
+                                    
+                                    import json
+                                    with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
+                                        json.dump(metadata, f, indent=4)
+                                    
+                                    # Display results in right column
+                                    with metrics_placeholder:
+                                        st.success(f"✨ Model trained successfully and saved to {model_path}")
+                                        
+                                        # Create tabs for different visualizations
+                                        tab1, tab2 = st.tabs(["📈 Training Metrics", "📊 Training History"])
+                                        
+                                        # Training Metrics Tab
+                                        with tab1:
+                                            st.markdown("#### Training Results")
+                                            col1, col2 = st.columns(2)
+                                            with col1:
+                                                st.metric(
+                                                    "Final Loss",
+                                                    f"{history.history['loss'][-1]:.4f}",
+                                                    help="Mean Squared Error loss on training data"
+                                                )
+                                                st.metric(
+                                                    "Final MAE",
+                                                    f"{history.history['mae'][-1]:.4f}",
+                                                    help="Mean Absolute Error on training data"
+                                                )
+                                            with col2:
+                                                st.metric(
+                                                    "Validation Loss",
+                                                    f"{history.history['val_loss'][-1]:.4f}",
+                                                    help="Mean Squared Error loss on validation data"
+                                                )
+                                                st.metric(
+                                                    "Validation MAE",
+                                                    f"{history.history['val_mae'][-1]:.4f}",
+                                                    help="Mean Absolute Error on validation data"
+                                                )
+                                        
+                                        # Training History Tab
+                                        with tab2:
+                                            st.markdown("#### Training History")
+                                            history_df = pd.DataFrame(history.history)
+                                            
+                                            # Plot loss curves
+                                            st.markdown("##### Loss Curves")
+                                            loss_df = history_df[['loss', 'val_loss']]
+                                            loss_df.columns = ['Training Loss', 'Validation Loss']
+                                            st.line_chart(loss_df)
+                                            
+                                            # Plot MAE curves
+                                            st.markdown("##### MAE Curves")
+                                            mae_df = history_df[['mae', 'val_mae']]
+                                            mae_df.columns = ['Training MAE', 'Validation MAE']
+                                            st.line_chart(mae_df)
+                
+                            finally:
+                                # Clean up logging handler
+                                root_logger = logging.getLogger()
+                                root_logger.removeHandler(streamlit_handler)
+                                # Ensure stop button is removed in all cases
+                                stop_button_placeholder.empty()
+                                
+                    except DLTrainingInterrupt:
+                        if 'dl_stop_message' in st.session_state and st.session_state['dl_stop_message']:
+                            status_placeholder.warning(st.session_state['dl_stop_message'])
+                        # Clean up any partial training artifacts if needed
+                        if 'model_path' in locals():
+                            try:
+                                logging.info(f"Cleaning up partial training artifacts in {model_path}")
+                                # Add cleanup code here if needed
+                            except Exception as cleanup_error:
+                                logging.error(f"Error during cleanup: {str(cleanup_error)}")
+                                
+                    except Exception as e:
+                        status_placeholder.error(f"Error during training: {str(e)}")
+                        logging.error(f"Training error: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     setup_logging()

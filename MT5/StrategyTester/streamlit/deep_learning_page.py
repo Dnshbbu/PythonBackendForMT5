@@ -6,7 +6,7 @@ import os
 import sqlite3
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, GRU, Conv1D, GlobalMaxPooling1D, Bidirectional, MultiHeadAttention, LayerNormalization
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import MinMaxScaler
 import logging
@@ -208,6 +208,205 @@ def create_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: flo
     )
     
     return model
+
+def create_gru_model(input_shape: tuple, layers: List[Dict], learning_rate: float = 0.001) -> Sequential:
+    """Create a GRU model with specified architecture"""
+    model = Sequential()
+    
+    # Add GRU layers
+    for i, layer in enumerate(layers):
+        return_sequences = i < len(layers) - 1  # Return sequences for all but last GRU layer
+        if i == 0:
+            model.add(GRU(
+                units=layer['units'],
+                return_sequences=return_sequences,
+                input_shape=input_shape
+            ))
+        else:
+            model.add(GRU(
+                units=layer['units'],
+                return_sequences=return_sequences
+            ))
+        
+        if layer.get('dropout', 0) > 0:
+            model.add(Dropout(layer['dropout']))
+    
+    model.add(Dense(1))
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss='mse', metrics=['mae'])
+    return model
+
+def create_cnn_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: float = 0.001) -> Sequential:
+    """Create a CNN-LSTM model with specified architecture"""
+    model = Sequential()
+    
+    # Add CNN layers for feature extraction
+    model.add(Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=input_shape))
+    model.add(Conv1D(filters=64, kernel_size=3, activation='relu'))
+    model.add(Dropout(0.2))
+    
+    # Add LSTM layers
+    for i, layer in enumerate(layers):
+        return_sequences = i < len(layers) - 1
+        model.add(LSTM(
+            units=layer['units'],
+            return_sequences=return_sequences
+        ))
+        if layer.get('dropout', 0) > 0:
+            model.add(Dropout(layer['dropout']))
+    
+    model.add(Dense(1))
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss='mse', metrics=['mae'])
+    return model
+
+def create_bidirectional_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: float = 0.001) -> Sequential:
+    """Create a Bidirectional LSTM model with specified architecture"""
+    model = Sequential()
+    
+    # Add Bidirectional LSTM layers
+    for i, layer in enumerate(layers):
+        return_sequences = i < len(layers) - 1
+        if i == 0:
+            model.add(Bidirectional(
+                LSTM(units=layer['units'], return_sequences=return_sequences),
+                input_shape=input_shape
+            ))
+        else:
+            model.add(Bidirectional(
+                LSTM(units=layer['units'], return_sequences=return_sequences)
+            ))
+        
+        if layer.get('dropout', 0) > 0:
+            model.add(Dropout(layer['dropout']))
+    
+    model.add(Dense(1))
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss='mse', metrics=['mae'])
+    return model
+
+def create_transformer_model(input_shape: tuple, layers: List[Dict], learning_rate: float = 0.001) -> Sequential:
+    """Create a Transformer model with specified architecture"""
+    seq_len, d_model = input_shape
+    inputs = tf.keras.Input(shape=input_shape)
+    
+    # Simple positional encoding with proper type handling
+    positions = tf.cast(tf.range(seq_len), dtype=tf.float32)[:, tf.newaxis]
+    div_term = tf.exp(
+        tf.cast(tf.range(0, d_model, 2), dtype=tf.float32) * 
+        (-tf.math.log(10000.0) / tf.cast(d_model, tf.float32))
+    )
+    
+    # Create positional encoding matrix
+    pos_encoding = tf.zeros((seq_len, d_model), dtype=tf.float32)
+    
+    # Calculate sin values for even indices
+    sin_indices = tf.range(0, d_model, 2)
+    sin_values = tf.sin(positions * div_term)
+    pos_encoding = tf.tensor_scatter_nd_update(
+        pos_encoding,
+        tf.stack([
+            tf.repeat(tf.range(seq_len), tf.shape(sin_indices)[0]),
+            tf.tile(sin_indices, [seq_len])
+        ], axis=1),
+        tf.reshape(sin_values, [-1])
+    )
+    
+    # Calculate cos values for odd indices
+    cos_indices = tf.range(1, d_model, 2)
+    if tf.shape(cos_indices)[0] > 0:  # Check if there are odd indices
+        cos_values = tf.cos(positions * div_term[:tf.shape(cos_indices)[0]])
+        pos_encoding = tf.tensor_scatter_nd_update(
+            pos_encoding,
+            tf.stack([
+                tf.repeat(tf.range(seq_len), tf.shape(cos_indices)[0]),
+                tf.tile(cos_indices, [seq_len])
+            ], axis=1),
+            tf.reshape(cos_values, [-1])
+        )
+    
+    # Add positional encoding to input
+    x = tf.keras.layers.Add()([inputs, pos_encoding[tf.newaxis, ...]])
+    
+    # Add Transformer blocks
+    for layer in layers:
+        # Multi-head self attention
+        attention_output = MultiHeadAttention(
+            num_heads=layer.get('num_heads', 4),
+            key_dim=layer.get('key_dim', 64)
+        )(x, x, x)  # query, key, value
+        
+        # Add & Normalize (first residual connection)
+        x = tf.keras.layers.Add()([x, attention_output])
+        x = LayerNormalization(epsilon=1e-6)(x)
+        
+        # Feed-forward network
+        ffn = tf.keras.Sequential([
+            Dense(layer['units'] * 4, activation='relu'),
+            Dense(d_model),  # Match input dimension
+            Dropout(layer.get('dropout', 0))
+        ])
+        ffn_output = ffn(x)
+        
+        # Add & Normalize (second residual connection)
+        x = tf.keras.layers.Add()([x, ffn_output])
+        x = LayerNormalization(epsilon=1e-6)(x)
+    
+    # Global average pooling
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    
+    # Final dense layer
+    outputs = Dense(1)(x)
+    
+    # Create model
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.compile(
+        optimizer=Adam(learning_rate=learning_rate),
+        loss='mse',
+        metrics=['mae']
+    )
+    
+    return model
+
+def create_tcn_model(input_shape: tuple, layers: List[Dict], learning_rate: float = 0.001) -> Sequential:
+    """Create a Temporal Convolutional Network model"""
+    model = Sequential()
+    
+    # Add TCN layers (using dilated convolutions)
+    for i, layer in enumerate(layers):
+        dilation_rate = 2 ** i  # Exponentially increasing dilation
+        if i == 0:
+            model.add(Conv1D(
+                filters=layer['units'],
+                kernel_size=3,
+                dilation_rate=dilation_rate,
+                padding='causal',
+                activation='relu',
+                input_shape=input_shape
+            ))
+        else:
+            model.add(Conv1D(
+                filters=layer['units'],
+                kernel_size=3,
+                dilation_rate=dilation_rate,
+                padding='causal',
+                activation='relu'
+            ))
+        
+        if layer.get('dropout', 0) > 0:
+            model.add(Dropout(layer['dropout']))
+    
+    model.add(GlobalMaxPooling1D())
+    model.add(Dense(1))
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss='mse', metrics=['mae'])
+    return model
+
+# Dictionary mapping model types to their creation functions
+MODEL_CREATORS = {
+    'lstm': create_lstm_model,
+    'gru': create_gru_model,
+    'cnn_lstm': create_cnn_lstm_model,
+    'bidirectional_lstm': create_bidirectional_lstm_model,
+    'transformer': create_transformer_model,
+    'tcn': create_tcn_model
+}
 
 def load_and_validate_tables(db_path: str, selected_tables: List[str], target_col: str, feature_cols: List[str]) -> pd.DataFrame:
     """Load and validate multiple tables for training
@@ -545,6 +744,22 @@ def deep_learning_page():
             # Model Configuration
             st.markdown("#### ⚙️ Model Configuration")
             
+            # Model type selection
+            model_type = st.selectbox(
+                "Select Model Architecture",
+                options=list(MODEL_CREATORS.keys()),
+                format_func=lambda x: x.replace('_', ' ').upper(),
+                help="""
+                Available models:
+                - LSTM: Long Short-Term Memory (standard)
+                - GRU: Gated Recurrent Unit (faster alternative to LSTM)
+                - CNN-LSTM: Combines CNN for feature extraction with LSTM
+                - Bidirectional LSTM: Processes sequences in both directions
+                - Transformer: Modern architecture with attention mechanism
+                - TCN: Temporal Convolutional Network
+                """
+            )
+
             # Sequence length
             sequence_length = st.number_input(
                 "Sequence Length",
@@ -554,11 +769,35 @@ def deep_learning_page():
                 help="Number of time steps to use for prediction"
             )
             
-            # LSTM layers
-            st.markdown("**LSTM Layers:**")
-            num_layers = st.number_input("Number of LSTM Layers", 1, 5, 2)
+            # Model-specific parameters
+            if model_type == 'cnn_lstm':
+                st.markdown("**CNN Parameters:**")
+                cnn_filters = st.number_input("CNN Filters", 32, 256, 64)
+                cnn_kernel_size = st.number_input("CNN Kernel Size", 2, 5, 3)
+                
+                st.markdown("**LSTM Layers:**")
+            elif model_type == 'transformer':
+                st.markdown("**Transformer Parameters:**")
+                num_heads = st.number_input("Number of Attention Heads", 1, 8, 4)
+                key_dim = st.number_input("Key Dimension", 16, 128, 64)
+                
+                st.markdown("**Feed-Forward Layers:**")
+            elif model_type == 'tcn':
+                st.markdown("**TCN Parameters:**")
+                kernel_size = st.number_input("Kernel Size", 2, 5, 3)
+                dilation_base = st.number_input("Dilation Base", 2, 4, 2)
+                
+                st.markdown("**Network Layers:**")
+            else:
+                st.markdown(f"**{model_type.upper()} Layers:**")
             
-            lstm_layers = []
+            num_layers = st.number_input(
+                "Number of Layers", 
+                1, 5, 2,
+                help="Number of layers in the model"
+            )
+            
+            layers = []
             for i in range(num_layers):
                 with st.expander(f"Layer {i+1}"):
                     units = st.number_input(
@@ -575,10 +814,29 @@ def deep_learning_page():
                         value=0.2,
                         key=f"dropout_{i}"
                     )
-                    lstm_layers.append({
+                    layer_config = {
                         'units': units,
                         'dropout': dropout
-                    })
+                    }
+                    
+                    # Add model-specific parameters
+                    if model_type == 'transformer':
+                        layer_config.update({
+                            'num_heads': num_heads,
+                            'key_dim': key_dim
+                        })
+                    elif model_type == 'cnn_lstm' and i == 0:
+                        layer_config.update({
+                            'filters': cnn_filters,
+                            'kernel_size': cnn_kernel_size
+                        })
+                    elif model_type == 'tcn':
+                        layer_config.update({
+                            'kernel_size': kernel_size,
+                            'dilation_base': dilation_base
+                        })
+                    
+                    layers.append(layer_config)
             
             # Training parameters
             st.markdown("**Training Parameters:**")
@@ -588,7 +846,7 @@ def deep_learning_page():
             
             # Model name - auto-generated based on model type and timestamp
             model_name = generate_model_name(
-                model_type="lstm",
+                model_type=model_type,
                 training_type="single",
                 timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
             )
@@ -602,7 +860,7 @@ def deep_learning_page():
                     target_col,
                     selected_features,
                     sequence_length,
-                    lstm_layers,
+                    layers,
                     batch_size,
                     epochs,
                     learning_rate,
@@ -672,10 +930,11 @@ def deep_learning_page():
                                     raise DLTrainingInterrupt("Training stopped by user")
                                 
                                 # Create and train model
-                                logging.info("Creating LSTM model...")
-                                model = create_lstm_model(
+                                logging.info(f"Creating {model_type.upper()} model...")
+                                model_creator = MODEL_CREATORS[model_type]
+                                model = model_creator(
                                     input_shape=(sequence_length, total_features),
-                                    layers=lstm_layers,
+                                    layers=layers,
                                     learning_rate=learning_rate
                                 )
                                 
@@ -720,7 +979,7 @@ def deep_learning_page():
                                         'features': selected_features,
                                         'target': target_col,
                                         'sequence_length': sequence_length,
-                                        'layers': lstm_layers,
+                                        'layers': layers,
                                         'training_params': {
                                             'batch_size': batch_size,
                                             'epochs': epochs,

@@ -11,6 +11,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import logging
 from datetime import datetime
 from db_info import get_table_names, get_numeric_columns
+from feature_config import get_feature_groups, get_all_features
 import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -347,17 +348,27 @@ def train_sarima(data: pd.Series, order: tuple, seasonal_order: tuple) -> Dict:
     
     return results, metrics
 
-def train_prophet(data: pd.DataFrame) -> Dict:
-    """Train Prophet model"""
+def train_prophet(data: pd.DataFrame, features: List[str] = None) -> Dict:
+    """Train Prophet model with optional additional regressors"""
     model = Prophet(
         daily_seasonality=True,
         weekly_seasonality=True,
         yearly_seasonality=True
     )
+    
+    # Add additional regressors if features are provided
+    if features:
+        for feature in features:
+            model.add_regressor(feature)
+    
     model.fit(data)
     
     # Make in-sample predictions
     future = model.make_future_dataframe(periods=0)
+    if features:
+        for feature in features:
+            future[feature] = data[feature].values
+    
     predictions = model.predict(future)
     
     # Calculate metrics
@@ -371,7 +382,8 @@ def train_prophet(data: pd.DataFrame) -> Dict:
 
 def get_ts_equivalent_command(
     table_names: List[str], 
-    target_col: str, 
+    target_col: str,
+    selected_features: List[str],
     model_type: str,
     model_name: str,
     **model_params
@@ -380,6 +392,7 @@ def get_ts_equivalent_command(
     base_cmd = "python train_time_series_models.py"
     tables_arg = f"--tables {' '.join(table_names)}"
     target_arg = f"--target {target_col}"
+    features_arg = f"--features {' '.join(selected_features)}"
     model_type_arg = f"--model-type {model_type}"
     model_name_arg = f"--model-name {model_name}"
     
@@ -414,7 +427,7 @@ def get_ts_equivalent_command(
         ])
     
     params_str = " ".join(params_list)
-    return f"{base_cmd} {tables_arg} {target_arg} {model_type_arg} {model_name_arg} {params_str}".strip()
+    return f"{base_cmd} {tables_arg} {target_arg} {features_arg} {model_type_arg} {model_name_arg} {params_str}".strip()
 
 def display_ts_evaluation_status():
     """Display model evaluation status"""
@@ -570,6 +583,48 @@ def time_series_page():
                 index=numeric_cols.index('Price') if 'Price' in numeric_cols else 0
             )
             
+            # Feature Selection Section
+            st.markdown("##### 🎨 Feature Selection")
+            
+            # Get feature groups
+            feature_groups = get_feature_groups()
+            all_features = get_all_features()
+            
+            # Feature group selection
+            st.markdown("**Select Feature Groups:**")
+            selected_groups = {}
+            for group_name, group_features in feature_groups.items():
+                selected_groups[group_name] = st.checkbox(
+                    f"{group_name.title()} Features",
+                    value=True,
+                    help=f"Select all {group_name} features"
+                )
+            
+            # Individual feature selection
+            st.markdown("**Fine-tune Feature Selection:**")
+            selected_features = []
+            for group_name, group_features in feature_groups.items():
+                if selected_groups[group_name]:
+                    with st.expander(f"{group_name.title()} Features"):
+                        for feature in group_features:
+                            if feature in numeric_cols and st.checkbox(
+                                feature,
+                                value=True,
+                                key=f"ts_feature_{feature}"
+                            ):
+                                selected_features.append(feature)
+            
+            # Additional numeric columns not in predefined groups
+            other_numeric_cols = [col for col in numeric_cols if col not in all_features and col != target_col]
+            if other_numeric_cols:
+                with st.expander("Additional Numeric Features"):
+                    for col in other_numeric_cols:
+                        if st.checkbox(col, value=False, key=f"ts_feature_{col}"):
+                            selected_features.append(col)
+            
+            # Model Configuration
+            st.markdown("#### ⚙️ Model Configuration")
+            
             # Model Selection
             st.markdown("#### 🤖 Model Selection")
             model_type = st.selectbox(
@@ -577,9 +632,6 @@ def time_series_page():
                 options=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet'],
                 help="Choose the type of time series model"
             )
-            
-            # Model Configuration
-            st.markdown("#### ⚙️ Model Configuration")
             
             if model_type == 'Auto ARIMA':
                 with st.expander("Auto ARIMA Configuration", expanded=True):
@@ -655,6 +707,7 @@ def time_series_page():
             cmd = get_ts_equivalent_command(
                 st.session_state['ts_selected_tables'],
                 target_col,
+                selected_features,
                 model_type,
                 model_name,
                 **model_params
@@ -690,64 +743,72 @@ def time_series_page():
                     
                     try:
                         with st.spinner("Training model..."):
-                            # Load data
+                            # Load and prepare data
                             conn = sqlite3.connect(db_path)
                             df = pd.read_sql_query(f"SELECT * FROM {first_table}", conn)
                             conn.close()
                             
-                            # Prepare time series
+                            # Log progress
+                            logging.info(f"Loaded data from {first_table} with {len(df)} rows")
+                            
+                            # Check for stop
+                            if check_ts_stop_clicked():
+                                raise TrainingInterrupt("Training stopped by user")
+                            
+                            # Prepare time series data
                             df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
                             df = df.set_index('DateTime')
-                            series = df[target_col]
                             
-                            # Check for stop before starting training
-                            if check_ts_stop_clicked():
-                                raise TrainingInterrupt("Training stopped by user before starting")
-                            
-                            if model_type == 'Auto ARIMA':
-                                model, metrics = auto_arima(
-                                    series,
-                                    max_p=max_p,
-                                    max_d=max_d,
-                                    max_q=max_q,
-                                    seasonal=use_seasonal,
-                                    m=seasonal_period if use_seasonal else 1,
-                                    progress_bar=evaluation_progress_bar,
-                                    status_text=evaluation_status
-                                )
-                                
-                            elif model_type == 'ARIMA':
-                                model, metrics = train_arima(series, order)
-                                
-                            elif model_type == 'SARIMA':
-                                model, metrics = train_sarima(series, order, seasonal_order)
-                                
-                            elif model_type == 'Prophet':
-                                # Prepare data for Prophet
+                            # For Prophet, we need to prepare data differently
+                            if model_type == 'Prophet':
                                 prophet_df = pd.DataFrame({
                                     'ds': df.index,
-                                    'y': series
+                                    'y': df[target_col]
                                 })
-                                model, metrics = train_prophet(prophet_df)
+                                # Add selected features as regressors
+                                for feature in selected_features:
+                                    if feature != target_col:
+                                        prophet_df[feature] = df[feature]
+                                model, metrics = train_prophet(prophet_df, selected_features)
+                            else:
+                                # For ARIMA models, we'll use the target column
+                                # and optionally incorporate features as exogenous variables
+                                series = df[target_col]
+                                exog = df[selected_features] if selected_features else None
+                                
+                                if model_type == 'Auto ARIMA':
+                                    model, metrics = auto_arima(
+                                        series,
+                                        max_p=max_p,
+                                        max_d=max_d,
+                                        max_q=max_q,
+                                        seasonal=use_seasonal,
+                                        m=seasonal_period if use_seasonal else 1,
+                                        progress_bar=evaluation_progress_bar,
+                                        status_text=evaluation_status
+                                    )
+                                elif model_type == 'ARIMA':
+                                    model, metrics = train_arima(series, order)
+                                elif model_type == 'SARIMA':
+                                    model, metrics = train_sarima(series, order, seasonal_order)
                             
                             # Save model and metadata
                             model_path = os.path.join(models_dir, model_name)
                             os.makedirs(model_path, exist_ok=True)
                             
+                            # Save model
                             import joblib
                             joblib.dump(model, os.path.join(model_path, 'model.pkl'))
                             
-                            # Create JSON-serializable metadata
-                            json_metrics = {
-                                key: float(value) if isinstance(value, (np.floating, np.integer)) 
-                                else value for key, value in metrics.items() 
-                                if key not in ['predictions']  # Exclude predictions from metadata
-                            }
-                            
+                            # Save metadata
                             metadata = {
                                 'model_type': model_type,
                                 'target_column': target_col,
-                                'metrics': json_metrics,
+                                'selected_features': selected_features,
+                                'metrics': {
+                                    key: float(value) if isinstance(value, (np.floating, np.integer)) 
+                                    else value for key, value in metrics.items()
+                                },
                                 'parameters': {
                                     'order': order if model_type in ['ARIMA', 'SARIMA'] else None,
                                     'seasonal_order': seasonal_order if model_type == 'SARIMA' else None,

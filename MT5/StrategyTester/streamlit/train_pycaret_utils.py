@@ -11,6 +11,8 @@ import time
 import threading
 import signal
 import sys
+import numpy as np
+import plotly.graph_objects as go
 
 class TrainingInterrupt(Exception):
     """Custom exception for interrupting the training process"""
@@ -332,7 +334,7 @@ def display_training_metrics(metrics: Dict):
         st.markdown("---")
         
         # Create tabs for different visualizations
-        tab1, tab2 = st.tabs(["📊 Model Comparison", "🎯 Feature Importance"])
+        tab1, tab2, tab3 = st.tabs(["📊 Model Comparison", "🎯 Feature Analysis", "📈 Model-Specific Visualizations"])
         
         # Model Comparison Tab
         with tab1:
@@ -371,31 +373,370 @@ def display_training_metrics(metrics: Dict):
                     use_container_width=True
                 )
         
-        # Feature Importance Tab
+        # Feature Analysis Tab
         with tab2:
-            if 'FeatureImportance' in metrics:
-                # Create DataFrame for feature importance
-                importance_df = pd.DataFrame(
-                    list(metrics['FeatureImportance'].items()),
-                    columns=['Feature', 'Importance']
-                ).sort_values('Importance', ascending=False)
+            model_type = metrics.get('Model', '')
+            
+            # Check for feature importance in tree-based models
+            if 'feature_importance_detailed' in metrics:
+                importance_data = metrics['feature_importance_detailed']
+                importance_df = pd.DataFrame({
+                    'Feature': importance_data['feature'],
+                    'Importance': importance_data['importance']
+                }).sort_values('Importance', ascending=False)
                 
-                # Create a bar chart using Streamlit's native bar_chart
-                st.bar_chart(
-                    importance_df.set_index('Feature')['Importance'],
-                    use_container_width=True
+                st.markdown("#### Feature Importance (Tree-based Model)")
+                
+                # Create a bar chart using plotly for better visualization
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=importance_df['Importance'],
+                    y=importance_df['Feature'],
+                    orientation='h'
+                ))
+                
+                fig.update_layout(
+                    title='Feature Importance',
+                    xaxis_title='Importance Score',
+                    yaxis_title='Feature',
+                    height=max(400, len(importance_df) * 20),
+                    showlegend=False
                 )
+                
+                st.plotly_chart(fig, use_container_width=True)
                 
                 # Display feature importance as a table
                 st.markdown("#### Feature Importance Details")
                 styled_importance_df = importance_df.style.format({
                     'Importance': '{:.4f}'
                 })
+                st.dataframe(styled_importance_df, use_container_width=True)
+            
+            # Check for coefficients in linear models
+            elif 'coefficients' in metrics:
+                coef_data = metrics['coefficients']
+                coef_df = pd.DataFrame({
+                    'Feature': coef_data['feature'],
+                    'Coefficient': coef_data['coefficient']
+                })
                 
-                st.dataframe(
-                    styled_importance_df,
-                    use_container_width=True
+                # Add absolute values for sorting
+                coef_df['Absolute Coefficient'] = abs(coef_df['Coefficient'])
+                coef_df = coef_df.sort_values('Absolute Coefficient', ascending=False)
+                
+                st.markdown("#### Feature Coefficients (Linear Model)")
+                
+                # Create a bar chart using plotly
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=coef_df['Coefficient'],
+                    y=coef_df['Feature'],
+                    orientation='h'
+                ))
+                
+                fig.update_layout(
+                    title='Feature Coefficients',
+                    xaxis_title='Coefficient Value',
+                    yaxis_title='Feature',
+                    height=max(400, len(coef_df) * 20),
+                    showlegend=False
                 )
+                
+                # Add a vertical line at x=0 to better visualize positive/negative coefficients
+                fig.add_vline(x=0, line_dash="dash", line_color="red")
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Display coefficients as a table
+                st.markdown("#### Coefficient Details")
+                styled_coef_df = coef_df[['Feature', 'Coefficient']].style.format({
+                    'Coefficient': '{:.4f}'
+                })
+                st.dataframe(styled_coef_df, use_container_width=True)
+            
+            else:
+                st.info("No feature importance or coefficient information available for this model type.")
+
+        # Model-Specific Visualizations Tab
+        with tab3:
+            if 'AllModels' in metrics:
+                # Create tabs for each model
+                model_names = list(metrics['AllModels'].keys())
+                model_tabs = st.tabs(model_names)
+                
+                # Create visualizations for each model in its respective tab
+                for model_tab, model_name in zip(model_tabs, model_names):
+                    with model_tab:
+                        model_metrics = metrics['AllModels'][model_name]
+                        
+                        # Get predictions and actual values from metrics if available
+                        y_true = model_metrics.get('y_true', None)
+                        y_pred = model_metrics.get('y_pred', None)
+                        
+                        if y_true is not None and y_pred is not None:
+                            # Common visualizations for all models
+                            st.markdown("#### Actual vs Predicted Values")
+                            fig_scatter = create_scatter_plot(y_true, y_pred)
+                            st.plotly_chart(fig_scatter, use_container_width=True)
+                            
+                            st.markdown("#### Residual Plot")
+                            fig_residual = create_residual_plot(y_true, y_pred)
+                            st.plotly_chart(fig_residual, use_container_width=True)
+                            
+                            # Model-specific visualizations
+                            if model_name in ['Random Forest', 'XGBoost', 'LightGBM', 'CatBoost']:
+                                st.markdown("#### Tree-based Model Visualizations")
+                                if 'feature_importance_detailed' in model_metrics:
+                                    fig_importance = create_detailed_importance_plot(
+                                        model_metrics['feature_importance_detailed']
+                                    )
+                                    st.plotly_chart(fig_importance, use_container_width=True)
+                            
+                            elif model_name in ['Linear Regression', 'Ridge', 'Lasso', 'ElasticNet']:
+                                st.markdown("#### Linear Model Visualizations")
+                                if 'coefficients' in model_metrics:
+                                    fig_coef = create_coefficient_plot(model_metrics['coefficients'])
+                                    st.plotly_chart(fig_coef, use_container_width=True)
+                            
+                            elif model_name == 'K Neighbors Regressor':
+                                st.markdown("#### K-Neighbors Visualizations")
+                                if 'neighbor_distances' in model_metrics:
+                                    fig_dist = create_neighbor_distance_plot(
+                                        model_metrics['neighbor_distances']
+                                    )
+                                    st.plotly_chart(fig_dist, use_container_width=True)
+                            
+                            elif model_name == 'Support Vector Regression':
+                                st.markdown("#### SVR Visualizations")
+                                if 'support_vectors' in model_metrics:
+                                    fig_sv = create_support_vector_plot(
+                                        model_metrics['support_vectors']
+                                    )
+                                    st.plotly_chart(fig_sv, use_container_width=True)
+                            
+                            # Display metrics for this model
+                            st.markdown("#### Model Metrics")
+                            metrics_df = pd.DataFrame({
+                                'Metric': ['MAE', 'RMSE', 'R²', 'MAPE', 'Directional Accuracy'],
+                                'Value': [
+                                    f"{model_metrics.get('MAE', 0):.4f}",
+                                    f"{model_metrics.get('RMSE', 0):.4f}",
+                                    f"{model_metrics.get('R2', 0):.4f}",
+                                    f"{model_metrics.get('MAPE', 0):.2f}%",
+                                    f"{model_metrics.get('DirectionalAccuracy', 0):.2f}%"
+                                ]
+                            })
+                            st.dataframe(metrics_df, use_container_width=True)
+            else:
+                # Single model mode - use existing code
+                model_type = metrics.get('Model', '')
+                
+                # Get predictions and actual values from metrics if available
+                y_true = metrics.get('y_true', None)
+                y_pred = metrics.get('y_pred', None)
+                
+                if y_true is not None and y_pred is not None:
+                    # Common visualizations for all models
+                    st.markdown("#### Actual vs Predicted Values")
+                    fig_scatter = create_scatter_plot(y_true, y_pred)
+                    st.plotly_chart(fig_scatter, use_container_width=True)
+                    
+                    st.markdown("#### Residual Plot")
+                    fig_residual = create_residual_plot(y_true, y_pred)
+                    st.plotly_chart(fig_residual, use_container_width=True)
+                    
+                    # Model-specific visualizations
+                    if model_type in ['Random Forest', 'XGBoost', 'LightGBM', 'CatBoost']:
+                        st.markdown("#### Tree-based Model Visualizations")
+                        if 'feature_importance_detailed' in metrics:
+                            fig_importance = create_detailed_importance_plot(
+                                metrics['feature_importance_detailed']
+                            )
+                            st.plotly_chart(fig_importance, use_container_width=True)
+                    
+                    elif model_type in ['Linear Regression', 'Ridge', 'Lasso', 'ElasticNet']:
+                        st.markdown("#### Linear Model Visualizations")
+                        if 'coefficients' in metrics:
+                            fig_coef = create_coefficient_plot(metrics['coefficients'])
+                            st.plotly_chart(fig_coef, use_container_width=True)
+                    
+                    elif model_type == 'K Neighbors Regressor':
+                        st.markdown("#### K-Neighbors Visualizations")
+                        if 'neighbor_distances' in metrics:
+                            fig_dist = create_neighbor_distance_plot(
+                                metrics['neighbor_distances']
+                            )
+                            st.plotly_chart(fig_dist, use_container_width=True)
+                    
+                    elif model_type == 'Support Vector Regression':
+                        st.markdown("#### SVR Visualizations")
+                        if 'support_vectors' in metrics:
+                            fig_sv = create_support_vector_plot(
+                                metrics['support_vectors']
+                            )
+                            st.plotly_chart(fig_sv, use_container_width=True)
+                    
+                    # Display metrics for single model
+                    st.markdown("#### Model Metrics")
+                    metrics_df = pd.DataFrame({
+                        'Metric': ['MAE', 'RMSE', 'R²', 'MAPE', 'Directional Accuracy'],
+                        'Value': [
+                            f"{metrics.get('MAE', 0):.4f}",
+                            f"{metrics.get('RMSE', 0):.4f}",
+                            f"{metrics.get('R2', 0):.4f}",
+                            f"{metrics.get('MAPE', 0):.2f}%",
+                            f"{metrics.get('DirectionalAccuracy', 0):.2f}%"
+                        ]
+                    })
+                    st.dataframe(metrics_df, use_container_width=True)
+
+def create_scatter_plot(y_true, y_pred):
+    """Create scatter plot of actual vs predicted values using plotly"""
+    # Convert lists to numpy arrays
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=y_true,
+        y=y_pred,
+        mode='markers',
+        name='Predictions',
+        marker=dict(
+            size=8,
+            color='blue',
+            opacity=0.6
+        )
+    ))
+    
+    # Add perfect prediction line
+    min_val = min(min(y_true), min(y_pred))
+    max_val = max(max(y_true), max(y_pred))
+    fig.add_trace(go.Scatter(
+        x=[min_val, max_val],
+        y=[min_val, max_val],
+        mode='lines',
+        name='Perfect Prediction',
+        line=dict(color='red', dash='dash')
+    ))
+    
+    fig.update_layout(
+        title='Actual vs Predicted Values',
+        xaxis_title='Actual Values',
+        yaxis_title='Predicted Values',
+        showlegend=True
+    )
+    
+    return fig
+
+def create_residual_plot(y_true, y_pred):
+    """Create residual plot using plotly"""
+    # Convert lists to numpy arrays
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    
+    residuals = y_true - y_pred
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=y_pred,
+        y=residuals,
+        mode='markers',
+        name='Residuals',
+        marker=dict(
+            size=8,
+            color='blue',
+            opacity=0.6
+        )
+    ))
+    
+    # Add zero line
+    fig.add_hline(y=0, line_dash="dash", line_color="red")
+    
+    fig.update_layout(
+        title='Residual Plot',
+        xaxis_title='Predicted Values',
+        yaxis_title='Residuals',
+        showlegend=True
+    )
+    
+    return fig
+
+def create_detailed_importance_plot(importance_data):
+    """Create detailed feature importance plot for tree-based models"""
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=importance_data['importance'],
+        y=importance_data['feature'],
+        orientation='h'
+    ))
+    
+    fig.update_layout(
+        title='Feature Importance (Detailed)',
+        xaxis_title='Importance',
+        yaxis_title='Feature',
+        height=max(400, len(importance_data['feature']) * 20)
+    )
+    
+    return fig
+
+def create_coefficient_plot(coefficients):
+    """Create coefficient plot for linear models"""
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=coefficients['coefficient'],
+        y=coefficients['feature'],
+        orientation='h'
+    ))
+    
+    fig.update_layout(
+        title='Model Coefficients',
+        xaxis_title='Coefficient Value',
+        yaxis_title='Feature',
+        height=max(400, len(coefficients['feature']) * 20)
+    )
+    
+    return fig
+
+def create_neighbor_distance_plot(distances):
+    """Create neighbor distance plot for KNN"""
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=distances,
+        nbinsx=30,
+        name='Distance Distribution'
+    ))
+    
+    fig.update_layout(
+        title='Neighbor Distance Distribution',
+        xaxis_title='Distance',
+        yaxis_title='Count'
+    )
+    
+    return fig
+
+def create_support_vector_plot(sv_data):
+    """Create support vector visualization for SVR"""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=sv_data['x'],
+        y=sv_data['y'],
+        mode='markers',
+        name='Support Vectors',
+        marker=dict(
+            size=10,
+            color='red',
+            symbol='circle-open'
+        )
+    ))
+    
+    fig.update_layout(
+        title='Support Vectors',
+        xaxis_title='Feature Space Dimension 1',
+        yaxis_title='Feature Space Dimension 2'
+    )
+    
+    return fig
 
 def get_equivalent_command(table_names: List[str], target_col: str, feature_cols: List[str], 
                          prediction_horizon: int, model_name: str) -> str:

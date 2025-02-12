@@ -297,6 +297,39 @@ class PyCaretModelTrainer:
                         'DirectionalAccuracy': float(dir_acc)
                     }
                     
+                    # Add model-specific metrics and data
+                    if name in ['Random Forest', 'XGBoost', 'LightGBM', 'CatBoost']:
+                        if hasattr(model, 'feature_importances_'):
+                            current_metrics['feature_importance_detailed'] = {
+                                'feature': list(X.columns),
+                                'importance': model.feature_importances_.tolist()
+                            }
+                    
+                    elif name in ['Linear Regression', 'Ridge', 'Lasso', 'ElasticNet']:
+                        if hasattr(model, 'coef_'):
+                            current_metrics['coefficients'] = {
+                                'feature': list(X.columns),
+                                'coefficient': model.coef_.tolist()
+                            }
+                    
+                    elif name == 'K Neighbors Regressor':
+                        # Calculate distances to nearest neighbors
+                        distances, _ = model.kneighbors(X_test_scaled)
+                        current_metrics['neighbor_distances'] = distances.flatten().tolist()
+                    
+                    elif name == 'Support Vector Regression':
+                        if hasattr(model, 'support_vectors_'):
+                            # Get first two components for visualization
+                            sv_transformed = model.support_vectors_[:, :2] if model.support_vectors_.shape[1] > 1 else np.column_stack((model.support_vectors_, np.zeros_like(model.support_vectors_)))
+                            current_metrics['support_vectors'] = {
+                                'x': sv_transformed[:, 0].tolist(),
+                                'y': sv_transformed[:, 1].tolist()
+                            }
+                    
+                    # Store actual and predicted values for visualization
+                    current_metrics['y_true'] = y_test.tolist()
+                    current_metrics['y_pred'] = y_pred.tolist()
+                    
                     # Store metrics for all models
                     all_metrics[name] = current_metrics
                     
@@ -319,30 +352,9 @@ class PyCaretModelTrainer:
             metrics = {
                 'Model': best_name,
                 'Features': list(X.columns),
-                'AllModels': {
-                    name: {k: float(v) for k, v in model_metrics.items()}
-                    for name, model_metrics in all_metrics.items()
-                },  # Convert all numeric values to native Python floats
-                **{k: float(v) for k, v in best_metrics.items()}  # Convert best metrics to native Python floats
+                'AllModels': all_metrics,  # Now includes model-specific visualizations
+                **best_metrics  # Include all metrics from best model
             }
-            
-            # Try to get feature importance if available
-            try:
-                if hasattr(best_model, 'feature_importances_'):
-                    importances = best_model.feature_importances_
-                elif hasattr(best_model, 'coef_'):
-                    importances = np.abs(best_model.coef_)
-                else:
-                    importances = None
-                
-                if importances is not None:
-                    feature_importance = {
-                        feature: float(importance)  # Convert to native Python float
-                        for feature, importance in zip(X.columns, importances)
-                    }
-                    metrics['FeatureImportance'] = feature_importance
-            except Exception as e:
-                logging.warning(f"Could not calculate feature importance: {str(e)}")
             
             # Save scaler with the model
             final_model = {
@@ -450,22 +462,38 @@ class PyCaretModelTrainer:
             with mlflow.start_run(run_name=model_name or "pycaret_model"):
                 # Log metrics for all models
                 for model_name, model_metrics in metrics['AllModels'].items():
-                    for metric_name, value in model_metrics.items():
-                        mlflow.log_metric(f"{model_name}_{metric_name}", value)
+                    # Only log numeric metrics
+                    numeric_metrics = {
+                        k: v for k, v in model_metrics.items() 
+                        if isinstance(v, (int, float)) and not isinstance(v, bool)
+                    }
+                    for metric_name, value in numeric_metrics.items():
+                        try:
+                            mlflow.log_metric(f"{model_name}_{metric_name}", float(value))
+                        except (TypeError, ValueError) as e:
+                            logging.warning(f"Could not log metric {metric_name} with value {value}: {str(e)}")
                 
                 # Log best model metrics separately
-                mlflow.log_metrics({
-                    "best_MAE": metrics["MAE"],
-                    "best_RMSE": metrics["RMSE"],
-                    "best_R2": metrics["R2"],
-                    "best_MAPE": metrics["MAPE"],
-                    "best_DirectionalAccuracy": metrics["DirectionalAccuracy"]
-                })
+                best_metrics = {
+                    "best_MAE": metrics.get("MAE"),
+                    "best_RMSE": metrics.get("RMSE"),
+                    "best_R2": metrics.get("R2"),
+                    "best_MAPE": metrics.get("MAPE"),
+                    "best_DirectionalAccuracy": metrics.get("DirectionalAccuracy")
+                }
+                
+                # Log only valid numeric metrics
+                for metric_name, value in best_metrics.items():
+                    if value is not None and isinstance(value, (int, float)) and not isinstance(value, bool):
+                        try:
+                            mlflow.log_metric(metric_name, float(value))
+                        except (TypeError, ValueError) as e:
+                            logging.warning(f"Could not log metric {metric_name} with value {value}: {str(e)}")
                 
                 # Log parameters
-                mlflow_params = {
-                    "best_model_type": metrics["Model"],
-                    "feature_columns": ", ".join(metrics["Features"]),
+                params_to_log = {
+                    "best_model_type": metrics.get("Model", ""),
+                    "feature_columns": ", ".join(metrics.get("Features", [])),
                     "target_column": target_col,
                     "prediction_horizon": prediction_horizon,
                     "train_test_split": 0.2,
@@ -473,15 +501,17 @@ class PyCaretModelTrainer:
                     "scaling": "StandardScaler"
                 }
                 
-                # Add feature importance if available
+                # Log feature importance if available
                 if "FeatureImportance" in metrics:
                     for feature, importance in metrics["FeatureImportance"].items():
-                        mlflow_params[f"importance_{feature}"] = importance
+                        if isinstance(importance, (int, float)):
+                            params_to_log[f"importance_{feature}"] = float(importance)
                 
-                mlflow.log_params(mlflow_params)
+                mlflow.log_params(params_to_log)
                 
                 # Log model artifacts
-                mlflow.sklearn.log_model(metrics["Model"], "model")
+                if "model" in metrics:
+                    mlflow.sklearn.log_model(metrics["model"], "model")
                 
         except Exception as e:
             logging.warning(f"Error logging to MLflow: {str(e)}")

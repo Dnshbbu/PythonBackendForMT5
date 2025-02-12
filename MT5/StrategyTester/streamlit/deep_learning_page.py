@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
 import sqlite3
 import tensorflow as tf
@@ -274,6 +274,18 @@ def get_dl_equivalent_command(table_names: List[str], target_col: str, feature_c
     
     return f"{base_cmd} {tables_arg} {target_arg} {features_arg} {sequence_arg} {layers_arg} {batch_arg} {epochs_arg} {lr_arg} {model_arg}".strip()
 
+def generate_model_name(model_type: str, training_type: str, timestamp: Optional[str] = None) -> str:
+    """Generate consistent model name
+    
+    Args:
+        model_type: Type of model (e.g., 'xgboost', 'decision_tree')
+        training_type: Type of training ('single', 'multi', 'incremental', 'base')
+        timestamp: Optional timestamp, will generate if None
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"dl-{model_type}_{training_type}_{timestamp}"
+
 def deep_learning_page():
     """Streamlit page for deep learning models"""
     # Initialize session state
@@ -446,10 +458,11 @@ def deep_learning_page():
             epochs = st.number_input("Epochs", 10, 1000, 100)
             learning_rate = st.number_input("Learning Rate", 0.0001, 0.01, 0.001, format="%.4f")
             
-            # Model name
-            model_name = st.text_input(
-                "Model Name",
-                value=f"lstm_model_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            # Model name - auto-generated based on model type and timestamp
+            model_name = generate_model_name(
+                model_type="lstm",
+                training_type="single",
+                timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
             )
             
             # Add this before the Training button

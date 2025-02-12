@@ -18,6 +18,19 @@ from train_pycaret_utils import (
     get_equivalent_command,
     TrainingInterrupt
 )
+from typing import Optional
+
+def generate_model_name(model_type: str, training_type: str, timestamp: Optional[str] = None) -> str:
+    """Generate consistent model name
+    
+    Args:
+        model_type: Type of model (e.g., 'xgboost', 'decision_tree')
+        training_type: Type of training ('single', 'multi', 'incremental', 'base')
+        timestamp: Optional timestamp, will generate if None
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"pycaret-{model_type}_{training_type}_{timestamp}"
 
 def train_pycaret_models_pagev2():
     """Streamlit page for training PyCaret models"""
@@ -230,10 +243,12 @@ def train_pycaret_models_pagev2():
             )
             
             # Model name
-            model_name = st.text_input(
-                "Model Name",
-                value=f"pycaret_model_{datetime.now().strftime('%Y%m%d_%H%M')}",
-                help="Name for the trained model"
+            if use_automl:
+                model_type = "automl"
+            model_name = generate_model_name(
+                model_type=model_type,
+                training_type="single",
+                timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
             )
 
             # Display equivalent command

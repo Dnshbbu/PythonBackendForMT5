@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import os
 import sqlite3
 from statsmodels.tsa.statespace.sarimax import SARIMAX
@@ -430,6 +430,18 @@ def display_ts_evaluation_status():
         status_text = st.empty()
         return progress_bar, status_text
 
+def generate_model_name(model_type: str, training_type: str, timestamp: Optional[str] = None) -> str:
+    """Generate consistent model name
+    
+    Args:
+        model_type: Type of model (e.g., 'xgboost', 'decision_tree')
+        training_type: Type of training ('single', 'multi', 'incremental', 'base')
+        timestamp: Optional timestamp, will generate if None
+    """
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"ts-{model_type}_{training_type}_{timestamp}"
+
 def time_series_page():
     """Streamlit page for time series models"""
     # Initialize session state
@@ -609,10 +621,11 @@ def time_series_page():
                     0.01, 10.0, 10.0
                 )
             
-            # Model name
-            model_name = st.text_input(
-                "Model Name",
-                value=f"{model_type.lower()}_model_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            # Model name - auto-generated based on model type and timestamp
+            model_name = generate_model_name(
+                model_type=model_type.lower(),
+                training_type="single",
+                timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
             )
             
             # Display equivalent command

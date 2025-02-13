@@ -14,6 +14,9 @@ from db_info import get_table_names, get_numeric_columns
 from feature_config import get_feature_groups, get_all_features
 import itertools
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from statsmodels.tsa.vector_ar.var_model import VAR
+from statsmodels.tsa.stattools import adfuller
+from sklearn.preprocessing import StandardScaler
 
 class TrainingInterrupt(Exception):
     """Custom exception for interrupting the training process"""
@@ -108,52 +111,89 @@ def display_ts_metrics(metrics: Dict, model_type: str, right_col):
         st.markdown("### 🏆 Model Performance")
         st.markdown("---")
         
-        # Create three columns for metrics
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric(
-                "Model Type",
-                model_type,
-                delta=None,
-                help="The trained model type"
-            )
-            st.metric(
-                "MAE",
-                f"{metrics.get('mae', 0):.4f}",
-                delta=None,
-                help="Mean Absolute Error"
-            )
-        
-        with col2:
-            st.metric(
-                "RMSE",
-                f"{metrics.get('rmse', 0):.4f}",
-                delta=None,
-                help="Root Mean Square Error"
-            )
-            st.metric(
-                "R²",
-                f"{metrics.get('r2', 0):.4f}",
-                delta=None,
-                help="R-squared score"
-            )
-        
-        with col3:
-            if 'aic' in metrics:
+        if model_type == 'VAR':
+            # For VAR models, show metrics for each variable
+            st.markdown("#### Overall Model Information")
+            col1, col2 = st.columns(2)
+            col1.metric("Model Type", model_type)
+            col1.metric("Number of Variables", len([k for k in metrics.keys() if k.endswith('_mae')]))
+            col2.metric("Model Order", metrics.get('order', 'N/A'))
+            col2.metric("Number of Observations", metrics.get('n_observations', 'N/A'))
+            
+            # Show metrics for each variable
+            st.markdown("#### Variable-wise Metrics")
+            st.markdown("---")
+            
+            # Create a container for variable metrics
+            var_metrics_container = st.container()
+            
+            with var_metrics_container:
+                for col in [k.replace('_mae', '') for k in metrics.keys() if k.endswith('_mae')]:
+                    st.markdown(f"**Metrics for {col}**")
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric(
+                        "MAE",
+                        f"{metrics.get(f'{col}_mae', 0):.4f}",
+                        help="Mean Absolute Error"
+                    )
+                    col2.metric(
+                        "RMSE",
+                        f"{metrics.get(f'{col}_rmse', 0):.4f}",
+                        help="Root Mean Square Error"
+                    )
+                    col3.metric(
+                        "R²",
+                        f"{metrics.get(f'{col}_r2', 0):.4f}",
+                        help="R-squared score"
+                    )
+                    st.markdown("---")
+        else:
+            # Original metrics display for other models
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
                 st.metric(
-                    "AIC",
-                    f"{metrics.get('aic', 0):.4f}",
+                    "Model Type",
+                    model_type,
                     delta=None,
-                    help="Akaike Information Criterion"
+                    help="The trained model type"
                 )
-            if 'bic' in metrics:
                 st.metric(
-                    "BIC",
-                    f"{metrics.get('bic', 0):.4f}",
+                    "MAE",
+                    f"{metrics.get('mae', 0):.4f}",
                     delta=None,
-                    help="Bayesian Information Criterion"
+                    help="Mean Absolute Error"
                 )
+            
+            with col2:
+                st.metric(
+                    "RMSE",
+                    f"{metrics.get('rmse', 0):.4f}",
+                    delta=None,
+                    help="Root Mean Square Error"
+                )
+                st.metric(
+                    "R²",
+                    f"{metrics.get('r2', 0):.4f}",
+                    delta=None,
+                    help="R-squared score"
+                )
+            
+            with col3:
+                if 'aic' in metrics:
+                    st.metric(
+                        "AIC",
+                        f"{metrics.get('aic', 0):.4f}",
+                        delta=None,
+                        help="Akaike Information Criterion"
+                    )
+                if 'bic' in metrics:
+                    st.metric(
+                        "BIC",
+                        f"{metrics.get('bic', 0):.4f}",
+                        delta=None,
+                        help="Bayesian Information Criterion"
+                    )
 
 def get_available_tables_ts(db_path: str) -> List[Dict]:
     """Get list of available tables from the database with detailed information"""
@@ -380,6 +420,174 @@ def train_prophet(data: pd.DataFrame, features: List[str] = None) -> Dict:
     
     return model, metrics
 
+def check_stationarity(series):
+    """Check if a time series is stationary using ADF test"""
+    result = adfuller(series.dropna())
+    return result[1] < 0.05  # Return True if p-value < 0.05 (stationary)
+
+def make_stationary(series):
+    """Make a time series stationary through differencing"""
+    diff_series = series.copy()
+    n_diff = 0
+    
+    while not check_stationarity(diff_series) and n_diff < 2:
+        diff_series = diff_series.diff().dropna()
+        n_diff += 1
+    
+    return diff_series, n_diff
+
+def check_constant_series(series):
+    """Check if a series is constant (has no variation)"""
+    return series.nunique() <= 1
+
+def train_var(data: pd.DataFrame, maxlags: int = 5) -> Dict:
+    """Train VAR model with improved preprocessing
+    
+    Args:
+        data: DataFrame with all variables to include in VAR
+        maxlags: Maximum number of lags to consider
+    
+    Returns:
+        Tuple of (model, metrics)
+    """
+    logging.info("Starting VAR model training with preprocessing...")
+    
+    # Filter numeric columns only
+    numeric_data = data.select_dtypes(include=[np.number]).copy()
+    
+    if len(numeric_data.columns) < 2:
+        raise ValueError("VAR model requires at least 2 numeric variables")
+    
+    # Remove constant columns
+    constant_cols = []
+    for col in numeric_data.columns:
+        if check_constant_series(numeric_data[col]):
+            constant_cols.append(col)
+            logging.warning(f"Removing constant column: {col}")
+    
+    if constant_cols:
+        numeric_data = numeric_data.drop(columns=constant_cols)
+    
+    if len(numeric_data.columns) < 2:
+        raise ValueError("Not enough non-constant variables for VAR model (minimum 2 required)")
+    
+    logging.info(f"Using numeric columns: {numeric_data.columns.tolist()}")
+    
+    # Check for multicollinearity
+    corr_matrix = numeric_data.corr()
+    for i in range(len(corr_matrix.columns)):
+        for j in range(i+1, len(corr_matrix.columns)):
+            if abs(corr_matrix.iloc[i,j]) > 0.95:
+                logging.warning(f"High correlation detected between {corr_matrix.columns[i]} and {corr_matrix.columns[j]}")
+    
+    # Make data stationary
+    stationary_data = pd.DataFrame()
+    diff_orders = {}
+    
+    for column in numeric_data.columns:
+        series = numeric_data[column]
+        # Ensure series is numeric and handle any remaining non-numeric values
+        series = pd.to_numeric(series, errors='coerce')
+        series = series.dropna()
+        
+        # Check for sufficient variation
+        if series.std() < 1e-8:  # Very small variation
+            logging.warning(f"Column {column} has very low variation, adding small noise")
+            series = series + np.random.normal(0, 1e-8, len(series))
+        
+        try:
+            stationary_series, n_diff = make_stationary(series)
+            stationary_data[column] = stationary_series
+            diff_orders[column] = n_diff
+            logging.info(f"Column {column} required {n_diff} differences to become stationary")
+        except Exception as e:
+            logging.warning(f"Error making {column} stationary: {str(e)}. Adding noise and retrying...")
+            # Add small noise and try again
+            noisy_series = series + np.random.normal(0, series.std() * 0.01, len(series))
+            stationary_series, n_diff = make_stationary(noisy_series)
+            stationary_data[column] = stationary_series
+            diff_orders[column] = n_diff
+    
+    # Drop NaN values created by differencing
+    stationary_data = stationary_data.dropna()
+    
+    if len(stationary_data) < 10:
+        raise ValueError("Not enough data points after making series stationary")
+    
+    # Standardize the data
+    scaler = StandardScaler()
+    scaled_data = pd.DataFrame(
+        scaler.fit_transform(stationary_data),
+        index=stationary_data.index,
+        columns=stationary_data.columns
+    )
+    
+    try:
+        # Fit VAR model
+        model = VAR(scaled_data)
+        
+        # Select order based on AIC with error handling
+        try:
+            order = model.select_order(maxlags=maxlags)
+            best_order = order.aic.argmin() + 1
+        except Exception as e:
+            logging.warning(f"Error in order selection: {str(e)}. Using default order of 1")
+            best_order = 1
+        
+        logging.info(f"Selected VAR order: {best_order}")
+        
+        # Fit model with selected order
+        results = model.fit(best_order)
+        
+        # Transform predictions back to original scale
+        predictions = pd.DataFrame(
+            scaler.inverse_transform(results.fittedvalues),
+            index=results.fittedvalues.index,
+            columns=results.fittedvalues.columns
+        )
+        
+        # Reverse differencing to get predictions in original scale
+        for column in predictions.columns:
+            for _ in range(diff_orders[column]):
+                predictions[column] = predictions[column].cumsum()
+                predictions[column] = numeric_data[column].iloc[0] + predictions[column]
+        
+        # Calculate metrics for each variable
+        metrics = {}
+        for col in numeric_data.columns:
+            # Calculate metrics only on overlapping indices
+            valid_idx = predictions.index.intersection(numeric_data.index)
+            metrics[f'{col}_mae'] = mean_absolute_error(
+                numeric_data[col].loc[valid_idx], 
+                predictions[col].loc[valid_idx]
+            )
+            metrics[f'{col}_rmse'] = np.sqrt(mean_squared_error(
+                numeric_data[col].loc[valid_idx], 
+                predictions[col].loc[valid_idx]
+            ))
+            metrics[f'{col}_r2'] = r2_score(
+                numeric_data[col].loc[valid_idx], 
+                predictions[col].loc[valid_idx]
+            )
+        
+        # Add model information to metrics
+        metrics.update({
+            'order': best_order,
+            'diff_orders': diff_orders,
+            'n_observations': len(numeric_data)
+        })
+        
+        # Store the preprocessing objects for later use
+        results.scaler = scaler
+        results.diff_orders = diff_orders
+        results.predictions = predictions
+        
+        return results, metrics
+        
+    except Exception as e:
+        logging.error(f"Error in VAR model training: {str(e)}")
+        raise
+
 def get_ts_equivalent_command(
     table_names: List[str], 
     target_col: str,
@@ -424,6 +632,11 @@ def get_ts_equivalent_command(
         params_list.extend([
             f"--changepoint-prior-scale {model_params.get('changepoint_prior_scale', 0.05)}",
             f"--seasonality-prior-scale {model_params.get('seasonality_prior_scale', 10.0)}"
+        ])
+    
+    elif model_type == 'VAR':
+        params_list.extend([
+            f"--maxlags {model_params.get('maxlags', 5)}"
         ])
     
     params_str = " ".join(params_list)
@@ -714,10 +927,11 @@ def time_series_page():
             st.markdown("#### 🤖 Model Selection")
             model_type = st.selectbox(
                 "Select Model Type",
-                options=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet'],
+                options=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR'],
                 help="Choose the type of time series model"
             )
             
+            # Model Configuration
             if model_type == 'Auto ARIMA':
                 with st.expander("Auto ARIMA Configuration", expanded=True):
                     max_p = st.number_input('Maximum P (AR order)', 1, 10, 5)
@@ -758,6 +972,22 @@ def time_series_page():
                     0.01, 10.0, 10.0
                 )
             
+            elif model_type == 'VAR':
+                with st.expander("VAR Configuration", expanded=True):
+                    maxlags = st.number_input('Maximum Lags', 1, 20, 5)
+                    
+                    # For VAR, we need at least 2 variables
+                    if len(selected_features) < 1:
+                        st.warning("VAR model requires at least one additional numeric variable besides the target. Please select more numeric features.")
+                        st.stop()
+                    
+                    # Show selected variables for VAR
+                    st.write("Variables included in VAR model:")
+                    st.write([target_col] + selected_features)
+                    
+                    if len(selected_features) > 10:
+                        st.warning("Large number of variables selected. This may impact model performance and training time.")
+            
             # Model name - auto-generated based on model type and timestamp
             model_name = generate_model_name(
                 model_type=model_type.lower(),
@@ -787,6 +1017,10 @@ def time_series_page():
                 model_params = {
                     'changepoint_prior_scale': changepoint_prior_scale,
                     'seasonality_prior_scale': seasonality_prior_scale
+                }
+            elif model_type == 'VAR':
+                model_params = {
+                    'maxlags': maxlags
                 }
             
             cmd = get_ts_equivalent_command(
@@ -843,6 +1077,15 @@ def time_series_page():
                             logging.info(f"Loading data from {len(st.session_state['ts_selected_tables'])} tables")
                             df = combine_tables_data(db_path, st.session_state['ts_selected_tables'])
                             
+                            # After loading data, if it's VAR model, verify numeric columns
+                            if model_type == 'VAR':
+                                numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+                                selected_numeric_features = [f for f in selected_features if f in numeric_cols]
+                                if len(selected_numeric_features) < 1:
+                                    st.error("No numeric features selected. VAR model requires numeric features.")
+                                    st.stop()
+                                logging.info(f"Selected numeric features for VAR: {selected_numeric_features}")
+                            
                             # Check for stop
                             if check_ts_stop_clicked():
                                 raise TrainingInterrupt("Training stopped by user")
@@ -876,6 +1119,22 @@ def time_series_page():
                                         if feature != target_col:
                                             prophet_df[feature] = features[feature]
                                 model, metrics = train_prophet(prophet_df, selected_features)
+                            elif model_type == 'VAR':
+                                # Prepare data for VAR - combine target and features, ensure numeric only
+                                var_columns = [target_col] + selected_features
+                                var_data = data[var_columns].select_dtypes(include=[np.number])
+                                
+                                # Check for constant columns
+                                constant_cols = [col for col in var_data.columns if check_constant_series(var_data[col])]
+                                if constant_cols:
+                                    st.warning(f"The following columns are constant and will be removed: {', '.join(constant_cols)}")
+                                    var_data = var_data.drop(columns=constant_cols)
+                                    if len(var_data.columns) < 2:
+                                        st.error("Not enough non-constant variables for VAR model (minimum 2 required)")
+                                        st.stop()
+                                
+                                # Train VAR model
+                                model, metrics = train_var(var_data, maxlags=maxlags)
                             else:
                                 # For ARIMA models, use the shifted target
                                 series = future_target
@@ -952,6 +1211,50 @@ def time_series_page():
                                                 model.predict(prophet_df)
                                             )
                                             st.pyplot(components_fig)
+                                        elif model_type == 'VAR':
+                                            # Plot actual vs predicted for each variable
+                                            for col in model.predictions.columns:
+                                                st.subheader(f"Actual vs Predicted - {col}")
+                                                
+                                                # Get the overlapping index range
+                                                valid_idx = model.predictions.index.intersection(var_data.index)
+                                                
+                                                # Create DataFrame with aligned data
+                                                results_df = pd.DataFrame(index=valid_idx)
+                                                results_df['Actual'] = var_data.loc[valid_idx, col]
+                                                results_df['Predicted'] = model.predictions.loc[valid_idx, col]
+                                                
+                                                # Drop any remaining NaN values
+                                                results_df = results_df.dropna()
+                                                
+                                                if len(results_df) > 0:
+                                                    # Create line chart
+                                                    st.line_chart(results_df)
+                                                    
+                                                    # Display some statistics
+                                                    mae = mean_absolute_error(results_df['Actual'], results_df['Predicted'])
+                                                    rmse = np.sqrt(mean_squared_error(results_df['Actual'], results_df['Predicted']))
+                                                    r2 = r2_score(results_df['Actual'], results_df['Predicted'])
+                                                    
+                                                    col1, col2, col3 = st.columns(3)
+                                                    col1.metric("MAE", f"{mae:.4f}")
+                                                    col2.metric("RMSE", f"{rmse:.4f}")
+                                                    col3.metric("R²", f"{r2:.4f}")
+                                                else:
+                                                    st.warning(f"No valid data available for {col}")
+                                            
+                                            # Display model summary
+                                            st.subheader("VAR Model Summary")
+                                            st.text(model.summary())
+                                            
+                                            # Display additional model information
+                                            st.subheader("Model Information")
+                                            st.write({
+                                                "Number of variables": len(model.predictions.columns),
+                                                "Model order": metrics.get('order', 'N/A'),
+                                                "Number of observations": metrics.get('n_observations', 'N/A'),
+                                                "Differencing orders": metrics.get('diff_orders', {})
+                                            })
                                         else:
                                             # Plot actual vs predicted
                                             results_df = pd.DataFrame({

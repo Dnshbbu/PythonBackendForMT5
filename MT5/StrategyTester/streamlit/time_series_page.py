@@ -110,95 +110,93 @@ def display_ts_metrics(metrics: Dict, model_type: str, right_col):
     if not metrics:
         return
     
-    # Create main expander for metrics
-    with right_col.expander("🎯 Model Performance", expanded=True):
-        # Model Performance with enhanced visualization
-        st.markdown("### 🏆 Model Performance")
+    # Model Performance with enhanced visualization
+    st.markdown(f"#### 🎯 Model Performance - {model_type}")
+    st.markdown("---")
+    
+    if model_type == 'VAR':
+        # For VAR models, show metrics for each variable
+        st.markdown("#### Overall Model Information")
+        col1, col2 = st.columns(2)
+        col1.metric("Model Type", model_type)
+        col1.metric("Number of Variables", len([k for k in metrics.keys() if k.endswith('_mae')]))
+        col2.metric("Model Order", metrics.get('order', 'N/A'))
+        col2.metric("Number of Observations", metrics.get('n_observations', 'N/A'))
+        
+        # Show metrics for each variable
+        st.markdown("#### Variable-wise Metrics")
         st.markdown("---")
         
-        if model_type == 'VAR':
-            # For VAR models, show metrics for each variable
-            st.markdown("#### Overall Model Information")
-            col1, col2 = st.columns(2)
-            col1.metric("Model Type", model_type)
-            col1.metric("Number of Variables", len([k for k in metrics.keys() if k.endswith('_mae')]))
-            col2.metric("Model Order", metrics.get('order', 'N/A'))
-            col2.metric("Number of Observations", metrics.get('n_observations', 'N/A'))
-            
-            # Show metrics for each variable
-            st.markdown("#### Variable-wise Metrics")
-            st.markdown("---")
-            
-            # Create a container for variable metrics
-            var_metrics_container = st.container()
-            
-            with var_metrics_container:
-                for col in [k.replace('_mae', '') for k in metrics.keys() if k.endswith('_mae')]:
-                    st.markdown(f"**Metrics for {col}**")
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric(
-                        "MAE",
-                        f"{metrics.get(f'{col}_mae', 0):.4f}",
-                        help="Mean Absolute Error"
-                    )
-                    col2.metric(
-                        "RMSE",
-                        f"{metrics.get(f'{col}_rmse', 0):.4f}",
-                        help="Root Mean Square Error"
-                    )
-                    col3.metric(
-                        "R²",
-                        f"{metrics.get(f'{col}_r2', 0):.4f}",
-                        help="R-squared score"
-                    )
-                    st.markdown("---")
-        else:
-            # Original metrics display for other models
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric(
-                    "Model Type",
-                    model_type,
-                    delta=None,
-                    help="The trained model type"
-                )
-                st.metric(
+        # Create a container for variable metrics
+        var_metrics_container = st.container()
+        
+        with var_metrics_container:
+            for col in [k.replace('_mae', '') for k in metrics.keys() if k.endswith('_mae')]:
+                st.markdown(f"**Metrics for {col}**")
+                col1, col2, col3 = st.columns(3)
+                col1.metric(
                     "MAE",
-                    f"{metrics.get('mae', 0):.4f}",
-                    delta=None,
+                    f"{metrics.get(f'{col}_mae', 0):.4f}",
                     help="Mean Absolute Error"
                 )
-            
-            with col2:
-                st.metric(
+                col2.metric(
                     "RMSE",
-                    f"{metrics.get('rmse', 0):.4f}",
-                    delta=None,
+                    f"{metrics.get(f'{col}_rmse', 0):.4f}",
                     help="Root Mean Square Error"
                 )
-                st.metric(
+                col3.metric(
                     "R²",
-                    f"{metrics.get('r2', 0):.4f}",
-                    delta=None,
+                    f"{metrics.get(f'{col}_r2', 0):.4f}",
                     help="R-squared score"
                 )
-            
-            with col3:
-                if 'aic' in metrics:
-                    st.metric(
-                        "AIC",
-                        f"{metrics.get('aic', 0):.4f}",
-                        delta=None,
-                        help="Akaike Information Criterion"
-                    )
-                if 'bic' in metrics:
-                    st.metric(
-                        "BIC",
-                        f"{metrics.get('bic', 0):.4f}",
-                        delta=None,
-                        help="Bayesian Information Criterion"
-                    )
+                st.markdown("---")
+    else:
+        # Original metrics display for other models
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                "Model Type",
+                model_type,
+                delta=None,
+                help="The trained model type"
+            )
+            st.metric(
+                "MAE",
+                f"{metrics.get('mae', 0):.4f}",
+                delta=None,
+                help="Mean Absolute Error"
+            )
+        
+        with col2:
+            st.metric(
+                "RMSE",
+                f"{metrics.get('rmse', 0):.4f}",
+                delta=None,
+                help="Root Mean Square Error"
+            )
+            st.metric(
+                "R²",
+                f"{metrics.get('r2', 0):.4f}",
+                delta=None,
+                help="R-squared score"
+            )
+        
+        with col3:
+            if 'aic' in metrics:
+                st.metric(
+                    "AIC",
+                    f"{metrics.get('aic', 0):.4f}",
+                    delta=None,
+                    help="Akaike Information Criterion"
+                )
+            if 'bic' in metrics:
+                st.metric(
+                    "BIC",
+                    f"{metrics.get('bic', 0):.4f}",
+                    delta=None,
+                    help="Bayesian Information Criterion"
+                )
 
 def get_available_tables_ts(db_path: str) -> List[Dict]:
     """Get list of available tables from the database with detailed information"""
@@ -978,70 +976,172 @@ def time_series_page():
             
             # Model Selection
             st.markdown("#### 🤖 Model Selection")
-            model_type = st.selectbox(
-                "Select Model Type",
-                options=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR'],
-                help="Choose the type of time series model",
+            training_mode = st.selectbox(
+                "Training Mode",
+                options=["Single Model", "Multiple Models"],
                 key='model_type_selector',
                 on_change=on_model_type_change
             )
             
-            # Model Configuration
-            if model_type == 'Auto ARIMA':
-                with st.expander("Auto ARIMA Configuration", expanded=True):
-                    max_p = st.number_input('Maximum P (AR order)', 1, 10, 5)
-                    max_d = st.number_input('Maximum D (Difference order)', 1, 5, 2)
-                    max_q = st.number_input('Maximum Q (MA order)', 1, 10, 5)
-                    use_seasonal = st.checkbox('Include Seasonal Components', value=True)
-                    if use_seasonal:
-                        seasonal_period = st.number_input('Seasonal Period', 1, 100, 5)
-            
-            elif model_type == 'ARIMA':
-                p = st.number_input('P (AR order)', 0, 5, 1)
-                d = st.number_input('D (Difference order)', 0, 2, 1)
-                q = st.number_input('Q (MA order)', 0, 5, 1)
-                order = (p, d, q)
-            
-            elif model_type == 'SARIMA':
-                # Non-seasonal components
-                p = st.number_input('P (AR order)', 0, 5, 1)
-                d = st.number_input('D (Difference order)', 0, 2, 1)
-                q = st.number_input('Q (MA order)', 0, 5, 1)
+            if training_mode == "Multiple Models":
+                st.info("🤖 Select which models to include in training")
                 
-                # Seasonal components
-                P = st.number_input('Seasonal P', 0, 5, 1)
-                D = st.number_input('Seasonal D', 0, 2, 0)
-                Q = st.number_input('Seasonal Q', 0, 5, 1)
-                s = st.number_input('Seasonal Period', 1, 100, 5)
+                # Option to select all models
+                use_all_models = st.checkbox("Use All Available Models", value=True, 
+                                           help="Select this to use all available models")
                 
-                order = (p, d, q)
-                seasonal_order = (P, D, Q, s)
-            
-            elif model_type == 'Prophet':
-                changepoint_prior_scale = st.slider(
-                    'Changepoint Prior Scale',
-                    0.001, 0.5, 0.05
+                available_models = ['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR']
+                
+                # If not using all models, show multi-select
+                if not use_all_models:
+                    selected_models = st.multiselect(
+                        "Select Models to Include",
+                        options=available_models,
+                        default=['Auto ARIMA', 'Prophet'],
+                        help="Choose which models to include in the training process"
+                    )
+                    if not selected_models:
+                        st.warning("⚠️ Please select at least one model")
+                else:
+                    selected_models = available_models
+                
+                # Model Configuration for each selected model
+                model_configs = {}
+                for model_type in selected_models:
+                    with st.expander(f"{model_type} Configuration", expanded=False):
+                        if model_type == 'Auto ARIMA':
+                            max_p = st.number_input(f'{model_type} - Maximum P (AR order)', 1, 10, 5)
+                            max_d = st.number_input(f'{model_type} - Maximum D (Difference order)', 1, 5, 2)
+                            max_q = st.number_input(f'{model_type} - Maximum Q (MA order)', 1, 10, 5)
+                            use_seasonal = st.checkbox(f'{model_type} - Include Seasonal Components', value=True)
+                            seasonal_period = st.number_input(f'{model_type} - Seasonal Period', 1, 100, 5) if use_seasonal else None
+                            model_configs[model_type] = {
+                                'max_p': max_p,
+                                'max_d': max_d,
+                                'max_q': max_q,
+                                'use_seasonal': use_seasonal,
+                                'seasonal_period': seasonal_period
+                            }
+                        
+                        elif model_type == 'ARIMA':
+                            p = st.number_input(f'{model_type} - P (AR order)', 0, 5, 1)
+                            d = st.number_input(f'{model_type} - D (Difference order)', 0, 2, 1)
+                            q = st.number_input(f'{model_type} - Q (MA order)', 0, 5, 1)
+                            model_configs[model_type] = {
+                                'order': (p, d, q)
+                            }
+                        
+                        elif model_type == 'SARIMA':
+                            p = st.number_input(f'{model_type} - P (AR order)', 0, 5, 1)
+                            d = st.number_input(f'{model_type} - D (Difference order)', 0, 2, 1)
+                            q = st.number_input(f'{model_type} - Q (MA order)', 0, 5, 1)
+                            P = st.number_input(f'{model_type} - Seasonal P', 0, 5, 1)
+                            D = st.number_input(f'{model_type} - Seasonal D', 0, 2, 0)
+                            Q = st.number_input(f'{model_type} - Seasonal Q', 0, 5, 1)
+                            s = st.number_input(f'{model_type} - Seasonal Period', 1, 100, 5)
+                            model_configs[model_type] = {
+                                'order': (p, d, q),
+                                'seasonal_order': (P, D, Q, s)
+                            }
+                        
+                        elif model_type == 'Prophet':
+                            changepoint_prior_scale = st.slider(
+                                f'{model_type} - Changepoint Prior Scale',
+                                0.001, 0.5, 0.05
+                            )
+                            seasonality_prior_scale = st.slider(
+                                f'{model_type} - Seasonality Prior Scale',
+                                0.01, 10.0, 10.0
+                            )
+                            model_configs[model_type] = {
+                                'changepoint_prior_scale': changepoint_prior_scale,
+                                'seasonality_prior_scale': seasonality_prior_scale
+                            }
+                        
+                        elif model_type == 'VAR':
+                            maxlags = st.number_input(f'{model_type} - Maximum Lags', 1, 20, 5)
+                            model_configs[model_type] = {
+                                'maxlags': maxlags
+                            }
+                
+                model_type = "multiple"  # Set for model name generation
+            else:
+                model_type = st.selectbox(
+                    "Select Model Type",
+                    options=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR'],
+                    help="Choose the type of time series model",
+                    key='single_model_selector'
                 )
-                seasonality_prior_scale = st.slider(
-                    'Seasonality Prior Scale',
-                    0.01, 10.0, 10.0
-                )
-            
-            elif model_type == 'VAR':
-                with st.expander("VAR Configuration", expanded=True):
-                    maxlags = st.number_input('Maximum Lags', 1, 20, 5)
-                    
-                    # For VAR, we need at least 2 variables
-                    if len(selected_features) < 1:
-                        st.warning("VAR model requires at least one additional numeric variable besides the target. Please select more numeric features.")
-                        st.stop()
-                    
-                    # Show selected variables for VAR
-                    st.write("Variables included in VAR model:")
-                    st.write([target_col] + selected_features)
-                    
-                    if len(selected_features) > 10:
-                        st.warning("Large number of variables selected. This may impact model performance and training time.")
+                
+                # Model Configuration
+                if model_type == 'Auto ARIMA':
+                    with st.expander("Auto ARIMA Configuration", expanded=True):
+                        max_p = st.number_input('Maximum P (AR order)', 1, 10, 5)
+                        max_d = st.number_input('Maximum D (Difference order)', 1, 5, 2)
+                        max_q = st.number_input('Maximum Q (MA order)', 1, 10, 5)
+                        use_seasonal = st.checkbox('Include Seasonal Components', value=True)
+                        seasonal_period = st.number_input('Seasonal Period', 1, 100, 5) if use_seasonal else None
+                        model_configs = {
+                            model_type: {
+                                'max_p': max_p,
+                                'max_d': max_d,
+                                'max_q': max_q,
+                                'use_seasonal': use_seasonal,
+                                'seasonal_period': seasonal_period
+                            }
+                        }
+                
+                elif model_type == 'ARIMA':
+                    p = st.number_input('P (AR order)', 0, 5, 1)
+                    d = st.number_input('D (Difference order)', 0, 2, 1)
+                    q = st.number_input('Q (MA order)', 0, 5, 1)
+                    model_configs = {
+                        model_type: {
+                            'order': (p, d, q)
+                        }
+                    }
+                
+                elif model_type == 'SARIMA':
+                    p = st.number_input('P (AR order)', 0, 5, 1)
+                    d = st.number_input('D (Difference order)', 0, 2, 1)
+                    q = st.number_input('Q (MA order)', 0, 5, 1)
+                    P = st.number_input('Seasonal P', 0, 5, 1)
+                    D = st.number_input('Seasonal D', 0, 2, 0)
+                    Q = st.number_input('Seasonal Q', 0, 5, 1)
+                    s = st.number_input('Seasonal Period', 1, 100, 5)
+                    model_configs = {
+                        model_type: {
+                            'order': (p, d, q),
+                            'seasonal_order': (P, D, Q, s)
+                        }
+                    }
+                
+                elif model_type == 'Prophet':
+                    changepoint_prior_scale = st.slider(
+                        'Changepoint Prior Scale',
+                        0.001, 0.5, 0.05
+                    )
+                    seasonality_prior_scale = st.slider(
+                        'Seasonality Prior Scale',
+                        0.01, 10.0, 10.0
+                    )
+                    model_configs = {
+                        model_type: {
+                            'changepoint_prior_scale': changepoint_prior_scale,
+                            'seasonality_prior_scale': seasonality_prior_scale
+                        }
+                    }
+                
+                elif model_type == 'VAR':
+                    with st.expander("VAR Configuration", expanded=True):
+                        maxlags = st.number_input('Maximum Lags', 1, 20, 5)
+                        model_configs = {
+                            model_type: {
+                                'maxlags': maxlags
+                            }
+                        }
+                
+                selected_models = [model_type]
             
             # Model name - auto-generated based on model type and timestamp
             model_name = generate_model_name(
@@ -1065,18 +1165,11 @@ def time_series_page():
                 if use_seasonal:
                     model_params['seasonal_period'] = seasonal_period
             elif model_type in ['ARIMA', 'SARIMA']:
-                model_params['order'] = order
-                if model_type == 'SARIMA':
-                    model_params['seasonal_order'] = seasonal_order
+                model_params['order'] = model_configs[model_type]['order']
             elif model_type == 'Prophet':
-                model_params = {
-                    'changepoint_prior_scale': changepoint_prior_scale,
-                    'seasonality_prior_scale': seasonality_prior_scale
-                }
+                model_params = model_configs[model_type]
             elif model_type == 'VAR':
-                model_params = {
-                    'maxlags': maxlags
-                }
+                model_params = model_configs[model_type]
             
             cmd = get_ts_equivalent_command(
                 st.session_state['ts_selected_tables'],
@@ -1162,161 +1255,177 @@ def time_series_page():
                                 logging.info(f"Using features: {features.columns.tolist()}")
                                 logging.info(f"Number of lagged price features: {n_lags if use_lagged_features else 0}")
                             
-                            # For Prophet, we need to prepare data differently
-                            if model_type == 'Prophet':
-                                prophet_df = pd.DataFrame({
-                                    'ds': data.index,
-                                    'y': future_target  # Use shifted target for future prediction
-                                })
-                                # Add selected features as regressors
-                                if features is not None:
-                                    for feature in selected_features:
-                                        if feature != target_col:
-                                            prophet_df[feature] = features[feature]
-                                model, metrics = train_prophet(prophet_df, selected_features)
-                            elif model_type == 'VAR':
-                                # Prepare data for VAR - combine target and features, ensure numeric only
-                                var_columns = [target_col] + selected_features
-                                var_data = data[var_columns].select_dtypes(include=[np.number])
-                                
-                                # Check for constant columns
-                                constant_cols = [col for col in var_data.columns if check_constant_series(var_data[col])]
-                                if constant_cols:
-                                    st.warning(f"The following columns are constant and will be removed: {', '.join(constant_cols)}")
-                                    var_data = var_data.drop(columns=constant_cols)
-                                    if len(var_data.columns) < 2:
-                                        st.error("Not enough non-constant variables for VAR model (minimum 2 required)")
-                                        st.stop()
-                                
-                                # Train VAR model
-                                model, metrics = train_var(var_data, maxlags=maxlags)
-                            else:
-                                # For ARIMA models, use the shifted target
-                                series = future_target
-                                exog = features
-                                
-                                if model_type == 'Auto ARIMA':
-                                    model, metrics = auto_arima(
-                                        series,
-                                        max_p=max_p,
-                                        max_d=max_d,
-                                        max_q=max_q,
-                                        seasonal=use_seasonal,
-                                        m=seasonal_period if use_seasonal else 1,
-                                        progress_bar=evaluation_progress_bar,
-                                        status_text=evaluation_status
-                                    )
-                                elif model_type == 'ARIMA':
-                                    model, metrics = train_arima(series, order)
-                                elif model_type == 'SARIMA':
-                                    model, metrics = train_sarima(series, order, seasonal_order)
+                            # Dictionary to store all trained models and their metrics
+                            trained_models = {}
                             
-                            # Save model and metadata
-                            model_path = os.path.join(models_dir, model_name)
-                            os.makedirs(model_path, exist_ok=True)
-                            
-                            # Save model
-                            import joblib
-                            joblib.dump(model, os.path.join(model_path, 'model.pkl'))
-                            
-                            # Save metadata
-                            metadata = {
-                                'model_type': model_type,
-                                'target_column': target_col,
-                                'selected_features': selected_features,
-                                'metrics': {
-                                    key: float(value) if isinstance(value, (np.floating, np.integer)) 
-                                    else value for key, value in metrics.items()
-                                },
-                                'parameters': {
-                                    'order': order if model_type in ['ARIMA', 'SARIMA'] else None,
-                                    'seasonal_order': seasonal_order if model_type == 'SARIMA' else None,
-                                    'prophet_params': {
-                                        'changepoint_prior_scale': changepoint_prior_scale,
-                                        'seasonality_prior_scale': seasonality_prior_scale
-                                    } if model_type == 'Prophet' else None
+                            # Train each selected model
+                            for current_model in selected_models:
+                                if check_ts_stop_clicked():
+                                    raise TrainingInterrupt("Training stopped by user")
+                                
+                                logging.info(f"\nTraining {current_model} model...")
+                                
+                                # For Prophet, we need to prepare data differently
+                                if current_model == 'Prophet':
+                                    prophet_df = pd.DataFrame({
+                                        'ds': data.index,
+                                        'y': future_target
+                                    })
+                                    # Add selected features as regressors
+                                    if features is not None:
+                                        for feature in selected_features:
+                                            if feature != target_col:
+                                                prophet_df[feature] = features[feature]
+                                    model, metrics = train_prophet(prophet_df, selected_features)
+                                elif current_model == 'VAR':
+                                    # Prepare data for VAR - combine target and features
+                                    var_columns = [target_col] + selected_features
+                                    var_data = data[var_columns].select_dtypes(include=[np.number])
+                                    
+                                    # Check for constant columns
+                                    constant_cols = [col for col in var_data.columns if check_constant_series(var_data[col])]
+                                    if constant_cols:
+                                        logging.warning(f"Removing constant columns for VAR model: {', '.join(constant_cols)}")
+                                        var_data = var_data.drop(columns=constant_cols)
+                                        if len(var_data.columns) < 2:
+                                            logging.error("Not enough non-constant variables for VAR model")
+                                            continue
+                                    
+                                    # Train VAR model
+                                    model, metrics = train_var(var_data, maxlags=model_configs[current_model]['maxlags'])
+                                else:
+                                    # For ARIMA models, use the shifted target
+                                    series = future_target
+                                    exog = features
+                                    
+                                    if current_model == 'Auto ARIMA':
+                                        model, metrics = auto_arima(
+                                            series,
+                                            max_p=model_configs[current_model]['max_p'],
+                                            max_d=model_configs[current_model]['max_d'],
+                                            max_q=model_configs[current_model]['max_q'],
+                                            seasonal=model_configs[current_model]['use_seasonal'],
+                                            m=model_configs[current_model]['seasonal_period'] if model_configs[current_model]['use_seasonal'] else 1,
+                                            progress_bar=evaluation_progress_bar,
+                                            status_text=evaluation_status
+                                        )
+                                    elif current_model == 'ARIMA':
+                                        model, metrics = train_arima(series, model_configs[current_model]['order'])
+                                    elif current_model == 'SARIMA':
+                                        model, metrics = train_sarima(
+                                            series, 
+                                            model_configs[current_model]['order'],
+                                            model_configs[current_model]['seasonal_order']
+                                        )
+                                
+                                # Generate model name for this specific model
+                                current_model_name = generate_model_name(
+                                    model_type=current_model.lower(),
+                                    training_type="single",
+                                    timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
+                                )
+                                
+                                # Save model and metadata
+                                model_path = os.path.join(models_dir, current_model_name)
+                                os.makedirs(model_path, exist_ok=True)
+                                
+                                # Save model
+                                import joblib
+                                joblib.dump(model, os.path.join(model_path, 'model.pkl'))
+                                
+                                # Save metadata
+                                metadata = {
+                                    'model_type': current_model,
+                                    'target_column': target_col,
+                                    'selected_features': selected_features,
+                                    'metrics': {
+                                        key: float(value) if isinstance(value, (np.floating, np.integer)) 
+                                        else value for key, value in metrics.items()
+                                    },
+                                    'parameters': model_configs[current_model]
                                 }
-                            }
-                            
-                            import json
-                            with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
-                                json.dump(metadata, f, indent=4)
+                                
+                                import json
+                                with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
+                                    json.dump(metadata, f, indent=4)
+                                
+                                # Store model and metrics for display
+                                trained_models[current_model] = {
+                                    'model': model,
+                                    'metrics': metrics,
+                                    'path': model_path
+                                }
+                                
+                                logging.info(f"{current_model} model trained and saved to {model_path}")
                             
                             # Display success message only if not stopped
                             if not check_ts_stop_clicked():
-                                status_placeholder.success(f"✨ Model trained successfully and saved to {model_path}")
+                                status_placeholder.success("✨ All selected models trained successfully")
                                 # Clear the stop button
                                 stop_button_placeholder.empty()
                                 
+                                # Display metrics for all trained models
                                 with metrics_placeholder:
+                                    st.markdown("### 📊 Model Performance Comparison")
+                                    
                                     # Create tabs for different visualizations
                                     perf_tab, fit_tab = st.tabs(["📊 Model Performance", "📈 Model Fit"])
                                     
                                     # Model Performance Tab
                                     with perf_tab:
-                                        display_ts_metrics(metrics, model_type, st)
+                                        for model_name, model_info in trained_models.items():
+                                            st.markdown(f"### {model_name}")
+                                            display_ts_metrics(model_info['metrics'], model_name, st)
+                                            st.markdown("---")
                                     
                                     # Model Fit Tab
                                     with fit_tab:
-                                        if model_type == 'Prophet':
-                                            fig = model.plot(model.predict(prophet_df))
-                                            st.pyplot(fig)
+                                        for model_name, model_info in trained_models.items():
+                                            st.markdown(f"### {model_name} Fit")
+                                            if model_name == 'Prophet':
+                                                # Plot Prophet predictions
+                                                fig = model_info['model'].plot(model_info['model'].predict(prophet_df))
+                                                st.pyplot(fig)
+                                                
+                                                # Plot Prophet components
+                                                components_fig = model_info['model'].plot_components(
+                                                    model_info['model'].predict(prophet_df)
+                                                )
+                                                st.pyplot(components_fig)
                                             
-                                            components_fig = model.plot_components(
-                                                model.predict(prophet_df)
-                                            )
-                                            st.pyplot(components_fig)
-                                        elif model_type == 'VAR':
-                                            # Plot actual vs predicted for each variable
-                                            for col in model.predictions.columns:
-                                                st.subheader(f"Actual vs Predicted - {col}")
-                                                
-                                                # Get the overlapping index range
-                                                valid_idx = model.predictions.index.intersection(var_data.index)
-                                                
-                                                # Create DataFrame with aligned data
-                                                results_df = pd.DataFrame(index=valid_idx)
-                                                results_df['Actual'] = var_data.loc[valid_idx, col]
-                                                results_df['Predicted'] = model.predictions.loc[valid_idx, col]
-                                                
-                                                # Drop any remaining NaN values
-                                                results_df = results_df.dropna()
-                                                
-                                                if len(results_df) > 0:
-                                                    # Create line chart
-                                                    st.line_chart(results_df)
+                                            elif model_name == 'VAR':
+                                                # Plot VAR predictions for each variable
+                                                for col in model_info['model'].predictions.columns:
+                                                    st.subheader(f"Actual vs Predicted - {col}")
                                                     
-                                                    # Display some statistics
-                                                    mae = mean_absolute_error(results_df['Actual'], results_df['Predicted'])
-                                                    rmse = np.sqrt(mean_squared_error(results_df['Actual'], results_df['Predicted']))
-                                                    r2 = r2_score(results_df['Actual'], results_df['Predicted'])
+                                                    # Get overlapping index range
+                                                    valid_idx = model_info['model'].predictions.index.intersection(var_data.index)
                                                     
-                                                    col1, col2, col3 = st.columns(3)
-                                                    col1.metric("MAE", f"{mae:.4f}")
-                                                    col2.metric("RMSE", f"{rmse:.4f}")
-                                                    col3.metric("R²", f"{r2:.4f}")
-                                                else:
-                                                    st.warning(f"No valid data available for {col}")
+                                                    # Create DataFrame with aligned data
+                                                    results_df = pd.DataFrame(index=valid_idx)
+                                                    results_df['Actual'] = var_data.loc[valid_idx, col]
+                                                    results_df['Predicted'] = model_info['model'].predictions.loc[valid_idx, col]
+                                                    
+                                                    # Drop any remaining NaN values
+                                                    results_df = results_df.dropna()
+                                                    
+                                                    if len(results_df) > 0:
+                                                        st.line_chart(results_df)
+                                                    else:
+                                                        st.warning(f"No valid data available for {col}")
+                                                
+                                                # Display VAR model summary
+                                                st.subheader("VAR Model Summary")
+                                                st.text(model_info['model'].summary())
                                             
-                                            # Display model summary
-                                            st.subheader("VAR Model Summary")
-                                            st.text(model.summary())
-                                            
-                                            # Display additional model information
-                                            st.subheader("Model Information")
-                                            st.write({
-                                                "Number of variables": len(model.predictions.columns),
-                                                "Model order": metrics.get('order', 'N/A'),
-                                                "Number of observations": metrics.get('n_observations', 'N/A'),
-                                                "Differencing orders": metrics.get('diff_orders', {})
-                                            })
-                                        else:
-                                            # Plot actual vs predicted
-                                            results_df = pd.DataFrame({
-                                                'Actual': series,
-                                                'Predicted': model.predictions if model_type == 'Auto ARIMA' else model.fittedvalues
-                                            })
-                                            st.line_chart(results_df)
+                                            else:
+                                                # Plot ARIMA-type model predictions
+                                                results_df = pd.DataFrame({
+                                                    'Actual': series,
+                                                    'Predicted': model_info['model'].predictions if model_name == 'Auto ARIMA' else model_info['model'].fittedvalues
+                                                })
+                                                st.line_chart(results_df)
+                                            st.markdown("---")
                 
                     except TrainingInterrupt:
                         if 'ts_stop_message' in st.session_state and st.session_state['ts_stop_message']:

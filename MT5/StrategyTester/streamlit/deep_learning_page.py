@@ -534,6 +534,10 @@ def prepare_sequences_multi_table(data: pd.DataFrame, sequence_length: int, targ
     if not df['DateTime'].equals(df['DateTime'].sort_values()):
         raise ValueError("Data must be sorted by DateTime before preparing sequences")
     
+    # Log initial data information
+    logging.info(f"Initial data shape: {df.shape}")
+    logging.info(f"Time range: {df['DateTime'].min()} to {df['DateTime'].max()}")
+    
     # Add lagged price values as features
     for i in range(1, n_lags + 1):
         lag_col = f"{target_col}_lag_{i}"
@@ -545,36 +549,60 @@ def prepare_sequences_multi_table(data: pd.DataFrame, sequence_length: int, targ
     feature_cols.append(target_col)
     
     # Remove rows with NaN values from lagging
+    df_before = len(df)
     df = df.dropna()
+    df_after = len(df)
+    logging.info(f"Removed {df_before - df_after} rows with NaN values after adding lagged features")
     
     # Scale the data
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df[feature_cols + [target_col]])
     
     X, y = [], []
+    skipped_sequences = 0
+    total_sequences = 0
+    max_gap = pd.Timedelta(hours=4)  # Increased time gap threshold to 4 hours
+    
     # Process each table separately while maintaining temporal order
     for table_name in df['source_table'].unique():
         table_mask = df['source_table'] == table_name
         table_data = scaled_data[table_mask]
         table_dates = df.loc[table_mask, 'DateTime']
         
+        logging.info(f"\nProcessing table: {table_name}")
+        logging.info(f"Table data shape: {table_data.shape}")
+        logging.info(f"Table time range: {table_dates.min()} to {table_dates.max()}")
+        
         # Create sequences only within this table's data
         for i in range(len(table_data) - sequence_length):
+            total_sequences += 1
             # Verify temporal continuity
             date_sequence = table_dates.iloc[i:i + sequence_length + 1]
             time_diffs = date_sequence.diff().dropna()
             
-            # Check if the sequence is continuous (no large time gaps)
-            if all(time_diff.total_seconds() <= 3600 for time_diff in time_diffs):  # 1 hour threshold
+            # Check if the sequence is continuous (allow larger time gaps)
+            if all(time_diff <= max_gap for time_diff in time_diffs):
                 X.append(table_data[i:(i + sequence_length), :-1])
                 y.append(table_data[i + sequence_length, -1])
             else:
-                logging.debug(f"Skipping sequence in {table_name} due to time gap at {date_sequence.iloc[0]}")
+                skipped_sequences += 1
+                max_gap_in_sequence = max(time_diffs)
+                if total_sequences % 1000 == 0:  # Log only every 1000th sequence to avoid too much output
+                    logging.debug(f"Skipping sequence in {table_name} due to time gap of {max_gap_in_sequence} at {date_sequence.iloc[0]}")
     
     if not X:
+        logging.error("No valid sequences could be created. Details:")
+        logging.error(f"Total sequences attempted: {total_sequences}")
+        logging.error(f"Sequences skipped due to time gaps: {skipped_sequences}")
+        logging.error(f"Maximum allowed time gap: {max_gap}")
         raise ValueError("No valid sequences could be created after applying temporal consistency checks")
     
-    logging.info(f"Created {len(X)} valid sequences after temporal consistency checks")
+    logging.info(f"\nSequence creation summary:")
+    logging.info(f"Total sequences attempted: {total_sequences}")
+    logging.info(f"Valid sequences created: {len(X)}")
+    logging.info(f"Sequences skipped due to time gaps: {skipped_sequences}")
+    logging.info(f"Maximum allowed time gap: {max_gap}")
+    
     return np.array(X), np.array(y), scaler
 
 class DLProgressCallback(tf.keras.callbacks.Callback):
@@ -772,105 +800,273 @@ def deep_learning_page():
             # Model Configuration
             st.markdown("#### ⚙️ Model Configuration")
             
-            # Model type selection
-            model_type = st.selectbox(
-                "Select Model Type",
-                options=['lstm', 'gru', 'transformer', 'cnn_lstm', 'tcn'],
-                help="Choose the type of deep learning model",
+            # Model Selection
+            st.markdown("#### 🤖 Model Selection")
+            training_mode = st.selectbox(
+                "Training Mode",
+                options=["Single Model", "Multiple Models"],
                 key='dl_model_type_selector',
                 on_change=on_dl_model_type_change
             )
-
-            # Sequence length
-            sequence_length = st.number_input(
-                "Sequence Length",
-                min_value=5,
-                max_value=100,
-                value=20,
-                help="Number of time steps to use for prediction"
-            )
             
-            # Model-specific parameters
-            if model_type == 'cnn_lstm':
-                st.markdown("**CNN Parameters:**")
-                cnn_filters = st.number_input("CNN Filters", 32, 256, 64)
-                cnn_kernel_size = st.number_input("CNN Kernel Size", 2, 5, 3)
+            available_models = ['lstm', 'gru', 'transformer', 'cnn_lstm', 'tcn']
+            
+            if training_mode == "Multiple Models":
+                st.info("🤖 Select which models to include in training")
                 
-                st.markdown("**LSTM Layers:**")
-            elif model_type == 'transformer':
-                st.markdown("**Transformer Parameters:**")
-                num_heads = st.number_input("Number of Attention Heads", 1, 8, 4)
-                key_dim = st.number_input("Key Dimension", 16, 128, 64)
+                # Option to select all models
+                use_all_models = st.checkbox("Use All Available Models", value=True, 
+                                           help="Select this to use all available models")
                 
-                st.markdown("**Feed-Forward Layers:**")
-            elif model_type == 'tcn':
-                st.markdown("**TCN Parameters:**")
-                kernel_size = st.number_input("Kernel Size", 2, 5, 3)
-                dilation_base = st.number_input("Dilation Base", 2, 4, 2)
+                # If not using all models, show multi-select
+                if not use_all_models:
+                    selected_models = st.multiselect(
+                        "Select Models to Include",
+                        options=available_models,
+                        default=['lstm', 'gru'],
+                        help="Choose which models to include in the training process"
+                    )
+                    if not selected_models:
+                        st.warning("⚠️ Please select at least one model")
+                else:
+                    selected_models = available_models
                 
-                st.markdown("**Network Layers:**")
+                # Model Configuration for each selected model
+                model_configs = {}
+                for model_type in selected_models:
+                    st.markdown(f"### {model_type.upper()} Configuration")
+                    # Common parameters for all models
+                    num_layers = st.number_input(
+                        f"Number of Layers", 
+                        1, 5, 2,
+                        help="Number of layers in the model",
+                        key=f"num_layers_{model_type}"
+                    )
+                    
+                    layers = []
+                    st.markdown("#### Layer Configuration")
+                    for i in range(num_layers):
+                        st.markdown(f"##### Layer {i+1}")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            units = st.number_input(
+                                "Units",
+                                min_value=8,
+                                max_value=256,
+                                value=64,
+                                key=f"units_{model_type}_{i}"
+                            )
+                        with col2:
+                            dropout = st.slider(
+                                "Dropout",
+                                min_value=0.0,
+                                max_value=0.5,
+                                value=0.2,
+                                key=f"dropout_{model_type}_{i}"
+                            )
+                        layer_config = {
+                            'units': units,
+                            'dropout': dropout
+                        }
+                        
+                        # Model-specific parameters
+                        if model_type == 'transformer':
+                            col3, col4 = st.columns(2)
+                            with col3:
+                                num_heads = st.number_input(
+                                    "Number of Attention Heads",
+                                    1, 8, 4,
+                                    key=f"num_heads_{model_type}_{i}"
+                                )
+                            with col4:
+                                key_dim = st.number_input(
+                                    "Key Dimension",
+                                    16, 128, 64,
+                                    key=f"key_dim_{model_type}_{i}"
+                                )
+                            layer_config.update({
+                                'num_heads': num_heads,
+                                'key_dim': key_dim
+                            })
+                        elif model_type == 'cnn_lstm' and i == 0:
+                            col3, col4 = st.columns(2)
+                            with col3:
+                                cnn_filters = st.number_input(
+                                    "CNN Filters",
+                                    32, 256, 64,
+                                    key=f"filters_{model_type}_{i}"
+                                )
+                            with col4:
+                                cnn_kernel_size = st.number_input(
+                                    "CNN Kernel Size",
+                                    2, 5, 3,
+                                    key=f"kernel_size_{model_type}_{i}"
+                                )
+                            layer_config.update({
+                                'filters': cnn_filters,
+                                'kernel_size': cnn_kernel_size
+                            })
+                        elif model_type == 'tcn':
+                            col3, col4 = st.columns(2)
+                            with col3:
+                                kernel_size = st.number_input(
+                                    "Kernel Size",
+                                    2, 5, 3,
+                                    key=f"kernel_size_{model_type}_{i}"
+                                )
+                            with col4:
+                                dilation_base = st.number_input(
+                                    "Dilation Base",
+                                    2, 4, 2,
+                                    key=f"dilation_base_{model_type}_{i}"
+                                )
+                            layer_config.update({
+                                'kernel_size': kernel_size,
+                                'dilation_base': dilation_base
+                            })
+                        
+                        layers.append(layer_config)
+                        st.markdown("---")
+                    
+                    model_configs[model_type] = {
+                        'layers': layers,
+                        'learning_rate': st.number_input(
+                            "Learning Rate",
+                            0.0001, 0.01, 0.001,
+                            format="%.4f",
+                            key=f"lr_{model_type}_single"
+                        )
+                    }
+                    st.markdown("---")
+                
+                model_type = "multiple"  # Set for model name generation
             else:
-                st.markdown(f"**{model_type.upper()} Layers:**")
-            
-            num_layers = st.number_input(
-                "Number of Layers", 
-                1, 5, 2,
-                help="Number of layers in the model"
-            )
-            
-            layers = []
-            for i in range(num_layers):
-                with st.expander(f"Layer {i+1}"):
-                    units = st.number_input(
-                        "Units",
-                        min_value=8,
-                        max_value=256,
-                        value=64,
-                        key=f"units_{i}"
-                    )
-                    dropout = st.slider(
-                        "Dropout",
-                        min_value=0.0,
-                        max_value=0.5,
-                        value=0.2,
-                        key=f"dropout_{i}"
-                    )
+                # Single model selection
+                model_type = st.selectbox(
+                    "Select Model Type",
+                    options=available_models,
+                    help="Choose the type of deep learning model",
+                    key='single_model_selector'
+                )
+                
+                # Model Configuration
+                num_layers = st.number_input(
+                    "Number of Layers", 
+                    1, 5, 2,
+                    help="Number of layers in the model"
+                )
+                
+                layers = []
+                st.markdown("#### Layer Configuration")
+                for i in range(num_layers):
+                    st.markdown(f"##### Layer {i+1}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        units = st.number_input(
+                            "Units",
+                            min_value=8,
+                            max_value=256,
+                            value=64,
+                            key=f"units_{i}"
+                        )
+                    with col2:
+                        dropout = st.slider(
+                            "Dropout",
+                            min_value=0.0,
+                            max_value=0.5,
+                            value=0.2,
+                            key=f"dropout_{i}"
+                        )
                     layer_config = {
                         'units': units,
                         'dropout': dropout
                     }
                     
-                    # Add model-specific parameters
+                    # Model-specific parameters
                     if model_type == 'transformer':
+                        col3, col4 = st.columns(2)
+                        with col3:
+                            num_heads = st.number_input("Number of Attention Heads", 1, 8, 4)
+                        with col4:
+                            key_dim = st.number_input("Key Dimension", 16, 128, 64)
                         layer_config.update({
                             'num_heads': num_heads,
                             'key_dim': key_dim
                         })
                     elif model_type == 'cnn_lstm' and i == 0:
+                        col3, col4 = st.columns(2)
+                        with col3:
+                            cnn_filters = st.number_input("CNN Filters", 32, 256, 64)
+                        with col4:
+                            cnn_kernel_size = st.number_input("CNN Kernel Size", 2, 5, 3)
                         layer_config.update({
                             'filters': cnn_filters,
                             'kernel_size': cnn_kernel_size
                         })
                     elif model_type == 'tcn':
+                        col3, col4 = st.columns(2)
+                        with col3:
+                            kernel_size = st.number_input("Kernel Size", 2, 5, 3)
+                        with col4:
+                            dilation_base = st.number_input("Dilation Base", 2, 4, 2)
                         layer_config.update({
                             'kernel_size': kernel_size,
                             'dilation_base': dilation_base
                         })
                     
                     layers.append(layer_config)
+                    st.markdown("---")
+                
+                model_configs = {
+                    model_type: {
+                        'layers': layers,
+                        'learning_rate': st.number_input(
+                            "Learning Rate",
+                            0.0001, 0.01, 0.001,
+                            format="%.4f",
+                            key=f"lr_{model_type}_single"
+                        )
+                    }
+                }
+                
+                selected_models = [model_type]
+            
+            # Model name - auto-generated based on model type and timestamp
+            model_name = generate_model_name(
+                model_type=model_type,
+                training_type="multiple" if training_mode == "Multiple Models" else "single",
+                timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
+            )
+            
+            # Display equivalent command
+            st.markdown("##### 💻 Equivalent Command")
+            
+            # Add configuration for lagged features
+            st.markdown("#### 🕒 Price Features Configuration")
+            use_price_features = st.checkbox("Use Current and Previous Prices as Features", value=True,
+                                           help="Include current and previous price values to improve prediction")
+            if use_price_features:
+                n_lags = st.number_input("Number of Previous Prices to Use", 
+                                       min_value=1, max_value=10, value=3,
+                                       help="Number of previous price values to include as features")
+            else:
+                n_lags = 0
+            
+            # Add sequence length configuration
+            st.markdown("#### 🔄 Sequence Configuration")
+            sequence_length = st.number_input(
+                "Sequence Length",
+                min_value=5,
+                max_value=100,
+                value=20,
+                help="Number of time steps to use for each prediction sequence"
+            )
             
             # Training parameters
             st.markdown("**Training Parameters:**")
             batch_size = st.number_input("Batch Size", 16, 256, 32)
             epochs = st.number_input("Epochs", 10, 1000, 100)
             learning_rate = st.number_input("Learning Rate", 0.0001, 0.01, 0.001, format="%.4f")
-            
-            # Model name - auto-generated based on model type and timestamp
-            model_name = generate_model_name(
-                model_type=model_type,
-                training_type="single",
-                timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
-            )
             
             # Add this before the Training button
             # Display equivalent command
@@ -888,17 +1084,6 @@ def deep_learning_page():
                     model_name
                 )
                 st.code(cmd, language='bash')
-                
-                # Add configuration for lagged features before the training button
-                st.markdown("#### 🕒 Price Features Configuration")
-                use_price_features = st.checkbox("Use Current and Previous Prices as Features", value=True,
-                                               help="Include current and previous price values to improve prediction")
-                if use_price_features:
-                    n_lags = st.number_input("Number of Previous Prices to Use", 
-                                           min_value=1, max_value=10, value=3,
-                                           help="Number of previous price values to include as features")
-                else:
-                    n_lags = 0
                 
                 # Training button
                 if st.button("🚀 Train Model", type="primary"):
@@ -950,14 +1135,8 @@ def deep_learning_page():
                                 if check_dl_stop_clicked():
                                     raise DLTrainingInterrupt("Training stopped by user")
                                 
-                                # Create and train model
-                                logging.info(f"Creating {model_type.upper()} model...")
-                                model_creator = MODEL_CREATORS[model_type]
-                                model = model_creator(
-                                    input_shape=(sequence_length, total_features),
-                                    layers=layers,
-                                    learning_rate=learning_rate
-                                )
+                                # Train model with progress logging
+                                logging.info("Starting model training...")
                                 
                                 # Custom training callback to check for stop
                                 class StopTrainingCallback(tf.keras.callbacks.Callback):
@@ -966,8 +1145,6 @@ def deep_learning_page():
                                             self.model.stop_training = True
                                             raise DLTrainingInterrupt("Training stopped by user")
                                 
-                                # Train model with progress logging
-                                logging.info("Starting model training...")
                                 callbacks = [
                                     StopTrainingCallback(),
                                     DLProgressCallback(total_epochs=epochs)
@@ -976,20 +1153,49 @@ def deep_learning_page():
                                 # Clear previous logs before starting new training
                                 st.session_state['dl_training_logs'] = []
                                 
-                                history = model.fit(
-                                    X, y,
-                                    batch_size=batch_size,
-                                    epochs=epochs,
-                                    validation_split=0.2,
-                                    verbose=0,  # Set to 0 as we'll handle progress display
-                                    callbacks=callbacks
-                                )
+                                # Dictionary to store all trained models and their metrics
+                                trained_models = {}
                                 
-                                # Save model and results
-                                if not check_dl_stop_clicked():
-                                    # Save model
-                                    model_path = os.path.join(models_dir, model_name)
+                                # Train each selected model
+                                for current_model_type in selected_models:
+                                    if check_dl_stop_clicked():
+                                        raise DLTrainingInterrupt("Training stopped by user")
+                                    
+                                    logging.info(f"\nTraining {current_model_type.upper()} model...")
+                                    
+                                    # Get model configuration
+                                    current_config = model_configs[current_model_type]
+                                    
+                                    # Create model
+                                    model_creator = MODEL_CREATORS[current_model_type]
+                                    model = model_creator(
+                                        input_shape=(sequence_length, total_features),
+                                        layers=current_config['layers'],
+                                        learning_rate=current_config['learning_rate']
+                                    )
+                                    
+                                    # Train model
+                                    history = model.fit(
+                                        X, y,
+                                        batch_size=batch_size,
+                                        epochs=epochs,
+                                        validation_split=0.2,
+                                        verbose=0,
+                                        callbacks=callbacks
+                                    )
+                                    
+                                    # Generate model name for this specific model
+                                    current_model_name = generate_model_name(
+                                        model_type=current_model_type,
+                                        training_type="single",
+                                        timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
+                                    )
+                                    
+                                    # Save model and metadata
+                                    model_path = os.path.join(models_dir, current_model_name)
                                     os.makedirs(model_path, exist_ok=True)
+                                    
+                                    # Save model
                                     model.save(os.path.join(model_path, 'model.h5'))
                                     
                                     # Save scaler and metadata
@@ -1000,11 +1206,11 @@ def deep_learning_page():
                                         'features': selected_features,
                                         'target': target_col,
                                         'sequence_length': sequence_length,
-                                        'layers': layers,
+                                        'layers': current_config['layers'],
                                         'training_params': {
                                             'batch_size': batch_size,
                                             'epochs': epochs,
-                                            'learning_rate': learning_rate
+                                            'learning_rate': current_config['learning_rate']
                                         },
                                         'training_history': {
                                             'loss': float(history.history['loss'][-1]),
@@ -1018,56 +1224,78 @@ def deep_learning_page():
                                     with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
                                         json.dump(metadata, f, indent=4)
                                     
-                                    # Display results in right column
+                                    # Store model and metrics for display
+                                    trained_models[current_model_type] = {
+                                        'model': model,
+                                        'history': history.history,
+                                        'path': model_path
+                                    }
+                                    
+                                    logging.info(f"{current_model_type.upper()} model trained and saved to {model_path}")
+                                
+                                # Display success message only if not stopped
+                                if not check_dl_stop_clicked():
+                                    status_placeholder.success("✨ All selected models trained successfully")
+                                    # Clear the stop button
+                                    stop_button_placeholder.empty()
+                                    
+                                    # Display metrics for all trained models
                                     with metrics_placeholder:
-                                        st.success(f"✨ Model trained successfully and saved to {model_path}")
+                                        st.markdown("### 📊 Model Performance Comparison")
                                         
                                         # Create tabs for different visualizations
-                                        tab1, tab2 = st.tabs(["📈 Training Metrics", "📊 Training History"])
+                                        perf_tab, fit_tab = st.tabs(["📊 Model Performance", "📈 Model Fit"])
                                         
-                                        # Training Metrics Tab
-                                        with tab1:
-                                            st.markdown("#### Training Results")
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                st.metric(
-                                                    "Final Loss",
-                                                    f"{history.history['loss'][-1]:.4f}",
-                                                    help="Mean Squared Error loss on training data"
-                                                )
-                                                st.metric(
-                                                    "Final MAE",
-                                                    f"{history.history['mae'][-1]:.4f}",
-                                                    help="Mean Absolute Error on training data"
-                                                )
-                                            with col2:
-                                                st.metric(
-                                                    "Validation Loss",
-                                                    f"{history.history['val_loss'][-1]:.4f}",
-                                                    help="Mean Squared Error loss on validation data"
-                                                )
-                                                st.metric(
-                                                    "Validation MAE",
-                                                    f"{history.history['val_mae'][-1]:.4f}",
-                                                    help="Mean Absolute Error on validation data"
-                                                )
+                                        # Model Performance Tab
+                                        with perf_tab:
+                                            for model_name, model_info in trained_models.items():
+                                                st.markdown(f"### {model_name.upper()}")
+                                                col1, col2 = st.columns(2)
+                                                with col1:
+                                                    st.metric(
+                                                        "Final Loss",
+                                                        f"{model_info['history']['loss'][-1]:.4f}",
+                                                        help="Mean Squared Error loss on training data"
+                                                    )
+                                                    st.metric(
+                                                        "Final MAE",
+                                                        f"{model_info['history']['mae'][-1]:.4f}",
+                                                        help="Mean Absolute Error on training data"
+                                                    )
+                                                with col2:
+                                                    st.metric(
+                                                        "Validation Loss",
+                                                        f"{model_info['history']['val_loss'][-1]:.4f}",
+                                                        help="Mean Squared Error loss on validation data"
+                                                    )
+                                                    st.metric(
+                                                        "Validation MAE",
+                                                        f"{model_info['history']['val_mae'][-1]:.4f}",
+                                                        help="Mean Absolute Error on validation data"
+                                                    )
+                                                st.markdown("---")
                                         
-                                        # Training History Tab
-                                        with tab2:
-                                            st.markdown("#### Training History")
-                                            history_df = pd.DataFrame(history.history)
-                                            
-                                            # Plot loss curves
-                                            st.markdown("##### Loss Curves")
-                                            loss_df = history_df[['loss', 'val_loss']]
-                                            loss_df.columns = ['Training Loss', 'Validation Loss']
-                                            st.line_chart(loss_df)
-                                            
-                                            # Plot MAE curves
-                                            st.markdown("##### MAE Curves")
-                                            mae_df = history_df[['mae', 'val_mae']]
-                                            mae_df.columns = ['Training MAE', 'Validation MAE']
-                                            st.line_chart(mae_df)
+                                        # Model Fit Tab
+                                        with fit_tab:
+                                            for model_name, model_info in trained_models.items():
+                                                st.markdown(f"### {model_name.upper()} Fit")
+                                                
+                                                # Plot training history
+                                                history_df = pd.DataFrame(model_info['history'])
+                                                
+                                                # Plot loss curves
+                                                st.markdown("##### Loss Curves")
+                                                loss_df = history_df[['loss', 'val_loss']]
+                                                loss_df.columns = ['Training Loss', 'Validation Loss']
+                                                st.line_chart(loss_df)
+                                                
+                                                # Plot MAE curves
+                                                st.markdown("##### MAE Curves")
+                                                mae_df = history_df[['mae', 'val_mae']]
+                                                mae_df.columns = ['Training MAE', 'Validation MAE']
+                                                st.line_chart(mae_df)
+                                                
+                                                st.markdown("---")
                 
                             finally:
                                 # Clean up logging handler

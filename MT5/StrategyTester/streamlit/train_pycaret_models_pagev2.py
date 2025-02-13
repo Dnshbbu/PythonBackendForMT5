@@ -7,7 +7,6 @@ from feature_config import get_feature_groups, get_all_features
 import logging
 from datetime import datetime
 from train_pycaret_utils import (
-    initialize_session_state,
     check_stop_clicked,
     on_stop_click,
     setup_logging,
@@ -32,10 +31,74 @@ def generate_model_name(model_type: str, training_type: str, timestamp: Optional
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"pycaret-{model_type}_{training_type}_{timestamp}"
 
+def initialize_pycaret_session_state():
+    """Initialize session state variables for pycaret page"""
+    if 'selected_tables' not in st.session_state:
+        st.session_state['selected_tables'] = []
+    if 'table_selections' not in st.session_state:
+        st.session_state['table_selections'] = {}
+    if 'table_data' not in st.session_state:
+        st.session_state['table_data'] = []
+    if 'stop_clicked' not in st.session_state:
+        st.session_state['stop_clicked'] = False
+    if 'stop_message' not in st.session_state:
+        st.session_state['stop_message'] = None
+    if 'training_logs' not in st.session_state:
+        st.session_state['training_logs'] = []
+    if 'pycaret_previous_selection' not in st.session_state:
+        st.session_state['pycaret_previous_selection'] = {
+            'tables': [],
+            'model_type': None,
+            'training_mode': None
+        }
+
+def clear_pycaret_training_outputs():
+    """Clear all training outputs and logs"""
+    st.session_state['training_logs'] = []
+    st.session_state['stop_clicked'] = False
+    st.session_state['stop_message'] = None
+
+def on_pycaret_table_selection_change():
+    """Callback to handle table selection changes"""
+    edited_rows = st.session_state['table_editor']['edited_rows']
+    current_tables = []
+    
+    # Use table data from session state instead of table_df
+    table_data = pd.DataFrame(st.session_state['table_data'])
+    
+    for idx, changes in edited_rows.items():
+        if '🔍 Select' in changes:
+            table_name = table_data.iloc[idx]['Table Name']
+            st.session_state['table_selections'][table_name] = changes['🔍 Select']
+            if changes['🔍 Select']:
+                current_tables.append(table_name)
+    
+    # Update selected tables list
+    st.session_state['selected_tables'] = [
+        name for name, is_selected in st.session_state['table_selections'].items() 
+        if is_selected
+    ]
+    
+    # Clear outputs if table selection changed
+    if set(current_tables) != set(st.session_state['pycaret_previous_selection']['tables']):
+        clear_pycaret_training_outputs()
+        st.session_state['pycaret_previous_selection']['tables'] = current_tables.copy()
+
+def on_pycaret_model_change():
+    """Callback for model or training mode change"""
+    current_model = st.session_state.get('model_type_selector')
+    current_mode = st.session_state.get('training_mode_selector')
+    
+    if (current_model != st.session_state['pycaret_previous_selection']['model_type'] or
+        current_mode != st.session_state['pycaret_previous_selection']['training_mode']):
+        clear_pycaret_training_outputs()
+        st.session_state['pycaret_previous_selection']['model_type'] = current_model
+        st.session_state['pycaret_previous_selection']['training_mode'] = current_mode
+
 def train_pycaret_models_pagev2():
     """Streamlit page for training PyCaret models"""
     # Initialize session state
-    initialize_session_state()
+    initialize_pycaret_session_state()
     
     # Setup paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -214,10 +277,11 @@ def train_pycaret_models_pagev2():
 
             # Model Selection
             st.markdown("**Model Selection:**")
-            training_mode = st.radio(
+            training_mode = st.selectbox(
                 "Training Mode",
-                ["AutoML (Try all models)", "Single Model"],
-                help="Choose whether to try all models or train a specific one"
+                options=["Single Model", "AutoML (Try all models)"],
+                key='training_mode_selector',
+                on_change=on_pycaret_model_change
             )
             
             if training_mode == "AutoML (Try all models)":
@@ -250,7 +314,9 @@ def train_pycaret_models_pagev2():
                 model_type = st.selectbox(
                     "Select Model",
                     options=get_model_types(),
-                    help="Choose a specific model to train"
+                    help="Choose a specific model to train",
+                    key='model_type_selector',
+                    on_change=on_pycaret_model_change
                 )
                 
                 # Show model-specific parameters

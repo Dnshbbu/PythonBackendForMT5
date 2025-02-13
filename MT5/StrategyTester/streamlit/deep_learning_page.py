@@ -96,12 +96,23 @@ def initialize_dl_session_state():
         st.session_state['dl_table_selections'] = {}
     if 'dl_table_data' not in st.session_state:
         st.session_state['dl_table_data'] = []
-    if 'dl_training_logs' not in st.session_state:
-        st.session_state['dl_training_logs'] = []
     if 'dl_stop_clicked' not in st.session_state:
         st.session_state['dl_stop_clicked'] = False
     if 'dl_stop_message' not in st.session_state:
         st.session_state['dl_stop_message'] = None
+    if 'dl_training_logs' not in st.session_state:
+        st.session_state['dl_training_logs'] = []
+    if 'dl_previous_selection' not in st.session_state:
+        st.session_state['dl_previous_selection'] = {
+            'tables': [],
+            'model_type': None
+        }
+
+def clear_dl_training_outputs():
+    """Clear all training outputs and logs"""
+    st.session_state['dl_training_logs'] = []
+    st.session_state['dl_stop_clicked'] = False
+    st.session_state['dl_stop_message'] = None
 
 def get_dl_available_tables(db_path: str) -> List[Dict]:
     """Get list of available tables from the database with detailed information"""
@@ -162,18 +173,35 @@ def get_dl_available_tables(db_path: str) -> List[Dict]:
 def on_dl_table_selection_change():
     """Callback to handle table selection changes"""
     edited_rows = st.session_state['dl_table_editor']['edited_rows']
+    current_tables = []
+    
+    # Use table data from session state instead of table_df
     table_data = pd.DataFrame(st.session_state['dl_table_data'])
     
     for idx, changes in edited_rows.items():
         if '🔍 Select' in changes:
             table_name = table_data.iloc[idx]['Table Name']
             st.session_state['dl_table_selections'][table_name] = changes['🔍 Select']
+            if changes['🔍 Select']:
+                current_tables.append(table_name)
     
     # Update selected tables list
     st.session_state['dl_selected_tables'] = [
         name for name, is_selected in st.session_state['dl_table_selections'].items() 
         if is_selected
     ]
+    
+    # Clear outputs if table selection changed
+    if set(current_tables) != set(st.session_state['dl_previous_selection']['tables']):
+        clear_dl_training_outputs()
+        st.session_state['dl_previous_selection']['tables'] = current_tables.copy()
+
+def on_dl_model_type_change():
+    """Callback for model type change"""
+    current_model = st.session_state['dl_model_type_selector']
+    if current_model != st.session_state['dl_previous_selection']['model_type']:
+        clear_dl_training_outputs()
+        st.session_state['dl_previous_selection']['model_type'] = current_model
 
 def create_lstm_model(input_shape: tuple, layers: List[Dict], learning_rate: float = 0.001) -> Sequential:
     """Create an LSTM model with specified architecture"""
@@ -746,18 +774,11 @@ def deep_learning_page():
             
             # Model type selection
             model_type = st.selectbox(
-                "Select Model Architecture",
-                options=list(MODEL_CREATORS.keys()),
-                format_func=lambda x: x.replace('_', ' ').upper(),
-                help="""
-                Available models:
-                - LSTM: Long Short-Term Memory (standard)
-                - GRU: Gated Recurrent Unit (faster alternative to LSTM)
-                - CNN-LSTM: Combines CNN for feature extraction with LSTM
-                - Bidirectional LSTM: Processes sequences in both directions
-                - Transformer: Modern architecture with attention mechanism
-                - TCN: Temporal Convolutional Network
-                """
+                "Select Model Type",
+                options=['lstm', 'gru', 'transformer', 'cnn_lstm', 'tcn'],
+                help="Choose the type of deep learning model",
+                key='dl_model_type_selector',
+                on_change=on_dl_model_type_change
             )
 
             # Sequence length

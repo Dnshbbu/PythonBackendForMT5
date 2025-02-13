@@ -36,6 +36,11 @@ def initialize_ts_session_state():
         st.session_state['ts_stop_message'] = None
     if 'ts_training_logs' not in st.session_state:
         st.session_state['ts_training_logs'] = []
+    if 'ts_previous_selection' not in st.session_state:
+        st.session_state['ts_previous_selection'] = {
+            'tables': [],
+            'model_type': None
+        }
 
 def check_ts_stop_clicked():
     """Check if stop button was clicked"""
@@ -753,6 +758,45 @@ def combine_tables_data(db_path: str, table_names: List[str]) -> pd.DataFrame:
         logging.error(f"Error combining table data: {str(e)}")
         raise
 
+def clear_training_outputs():
+    """Clear all training outputs and logs"""
+    st.session_state['ts_training_logs'] = []
+    st.session_state['ts_stop_clicked'] = False
+    st.session_state['ts_stop_message'] = None
+
+def on_ts_table_selection_change():
+    """Callback to handle table selection changes"""
+    edited_rows = st.session_state['ts_table_editor']['edited_rows']
+    current_tables = []
+    
+    for idx, changes in edited_rows.items():
+        if '🔍 Select' in changes:
+            table_name = table_df.iloc[idx]['Table Name']
+            st.session_state['ts_table_selections'][table_name] = changes['🔍 Select']
+            if changes['🔍 Select']:
+                current_tables.append(table_name)
+    
+    # Update selected tables list
+    st.session_state['ts_selected_tables'] = [
+        name for name, is_selected in st.session_state['ts_table_selections'].items() 
+        if is_selected
+    ]
+    
+    # Clear outputs if table selection changed
+    if set(current_tables) != set(st.session_state['ts_previous_selection']['tables']):
+        clear_training_outputs()
+        st.session_state['ts_previous_selection']['tables'] = current_tables.copy()
+
+def on_model_type_change():
+    """Callback for model type change"""
+    # Get the current model type from session state
+    current_model = st.session_state['model_type_selector']
+    
+    # Clear outputs if model type changed
+    if current_model != st.session_state['ts_previous_selection']['model_type']:
+        clear_training_outputs()
+        st.session_state['ts_previous_selection']['model_type'] = current_model
+
 def time_series_page():
     """Streamlit page for time series models"""
     # Initialize session state
@@ -825,16 +869,25 @@ def time_series_page():
         def on_ts_table_selection_change():
             """Callback to handle table selection changes"""
             edited_rows = st.session_state['ts_table_editor']['edited_rows']
+            current_tables = []
+            
             for idx, changes in edited_rows.items():
                 if '🔍 Select' in changes:
                     table_name = table_df.iloc[idx]['Table Name']
                     st.session_state['ts_table_selections'][table_name] = changes['🔍 Select']
+                    if changes['🔍 Select']:
+                        current_tables.append(table_name)
             
             # Update selected tables list
             st.session_state['ts_selected_tables'] = [
                 name for name, is_selected in st.session_state['ts_table_selections'].items() 
                 if is_selected
             ]
+            
+            # Clear outputs if table selection changed
+            if set(current_tables) != set(st.session_state['ts_previous_selection']['tables']):
+                clear_training_outputs()
+                st.session_state['ts_previous_selection']['tables'] = current_tables.copy()
         
         # Create or use existing table data
         if not st.session_state['ts_table_data']:
@@ -928,7 +981,9 @@ def time_series_page():
             model_type = st.selectbox(
                 "Select Model Type",
                 options=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR'],
-                help="Choose the type of time series model"
+                help="Choose the type of time series model",
+                key='model_type_selector',
+                on_change=on_model_type_change
             )
             
             # Model Configuration

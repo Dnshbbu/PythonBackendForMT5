@@ -385,13 +385,13 @@ def time_series_page():
     # Initialize session state
     initialize_ts_session_state()
     
-    st.markdown("""
-        <h2 style='text-align: center;'>📈 Time Series Models</h2>
-        <p style='text-align: center; color: #666;'>
-            Train specialized time series models for prediction
-        </p>
-        <hr>
-    """, unsafe_allow_html=True)
+    # st.markdown("""
+    #     <h2 style='text-align: center;'>📈 Time Series Models</h2>
+    #     <p style='text-align: center; color: #666;'>
+    #         Train specialized time series models for prediction
+    #     </p>
+    #     <hr>
+    # """, unsafe_allow_html=True)
     
     # Setup paths
     current_dir = os.path.dirname(os.path.abspath(__file__))

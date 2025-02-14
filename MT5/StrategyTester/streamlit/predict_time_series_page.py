@@ -50,13 +50,13 @@ def display_model_info(model_info: dict):
 
 def predict_time_series_page():
     """Streamlit interface for time series predictions"""
-    st.markdown("""
-        <h2 style='text-align: center;'>📈 Time Series Predictions</h2>
-        <p style='text-align: center; color: #666;'>
-            Make predictions using trained time series models
-        </p>
-        <hr>
-    """, unsafe_allow_html=True)
+    # st.markdown("""
+    #     <h2 style='text-align: center;'>📈 Time Series Predictions</h2>
+    #     <p style='text-align: center; color: #666;'>
+    #         Make predictions using trained time series models
+    #     </p>
+    #     <hr>
+    # """, unsafe_allow_html=True)
     
     # Initialize session state
     initialize_ts_pred_session_state()

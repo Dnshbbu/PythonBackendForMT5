@@ -254,7 +254,7 @@ def load_model(model_path: str) -> Any:
         raise
 
 def get_model_info(model_path: str) -> Dict[str, Any]:
-    """Get model metadata and information.
+    """Get information about a trained model from its metadata file.
     
     Args:
         model_path: Path to the model directory
@@ -263,18 +263,17 @@ def get_model_info(model_path: str) -> Dict[str, Any]:
         Dictionary containing model information
     """
     try:
-        info_path = os.path.join(model_path, 'model_info.json')
-        if not os.path.exists(info_path):
-            raise FileNotFoundError(f"Model info file not found at {info_path}")
-        
-        with open(info_path, 'r') as f:
+        # Look for metadata.json instead of model_info.json
+        info_file = os.path.join(model_path, 'metadata.json')
+        if not os.path.exists(info_file):
+            raise FileNotFoundError(f"Model metadata file not found at {info_file}")
+            
+        with open(info_file, 'r') as f:
             model_info = json.load(f)
-        
+            
         return model_info
-    
     except Exception as e:
-        logging.error(f"Error reading model info from {model_path}: {str(e)}")
-        raise
+        raise Exception(f"Error loading model metadata: {str(e)}")
 
 def prepare_data_for_prediction(
     data: pd.DataFrame,

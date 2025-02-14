@@ -1,3 +1,9 @@
+#  Frequent mistakes you do and you should keep in mind to avoid these.
+1. I am using PowerShell in Windows machine. You have to wait for some time after executing the Powershell commands to view the terminal output. You are frequently moving on without waiting for the output.
+2. <to follow>
+
+
+
 # Instructions/Rules to follow
 1. You need to execute the scripts ONLY from this path "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
 2. Before making changes, go through the entire file and understand if there are any other changes have to done for the same issue as this will reduce multiple iterations. 

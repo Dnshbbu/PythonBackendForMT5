@@ -17,6 +17,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.tsa.stattools import adfuller
 from sklearn.preprocessing import StandardScaler
+from time_series_trainer import (
+    auto_arima, train_arima, train_sarima, train_prophet, train_var,
+    prepare_time_series_data, combine_tables_data, save_model,
+    check_constant_series
+)
 
 class TrainingInterrupt(Exception):
     """Custom exception for interrupting the training process"""
@@ -252,345 +257,6 @@ def setup_logging():
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
-def evaluate_arima_model(data: pd.Series, order: tuple) -> Dict:
-    """Evaluate an ARIMA model with given parameters"""
-    try:
-        model = ARIMA(data, order=order)
-        results = model.fit()
-        predictions = results.fittedvalues
-        
-        metrics = {
-            'aic': results.aic,
-            'bic': results.bic,
-            'mae': mean_absolute_error(data[1:], predictions[1:]),
-            'rmse': np.sqrt(mean_squared_error(data[1:], predictions[1:])),
-            'r2': r2_score(data[1:], predictions[1:])
-        }
-        return order, results, metrics
-    except:
-        return order, None, None
-
-def auto_arima(data: pd.Series, 
-               max_p: int = 5, 
-               max_d: int = 2, 
-               max_q: int = 5,
-               seasonal: bool = True,
-               m: int = 5,
-               progress_bar=None,
-               status_text=None) -> Tuple[object, Dict]:
-    """
-    Implement auto ARIMA using statsmodels with grid search
-    
-    Args:
-        data: Time series data
-        max_p: Maximum AR order
-        max_d: Maximum difference order
-        max_q: Maximum MA order
-        seasonal: Whether to include seasonal components
-        m: Seasonal period
-        progress_bar: Streamlit progress bar placeholder
-        status_text: Streamlit status text placeholder
-        
-    Returns:
-        Tuple of (best model, metrics)
-    """
-    best_score = float('inf')
-    best_model = None
-    best_metrics = None
-    best_order = None
-    best_predictions = None
-    
-    # Create parameter grid
-    p = range(0, max_p + 1)
-    d = range(0, max_d + 1)
-    q = range(0, max_q + 1)
-    
-    parameters = list(itertools.product(p, d, q))
-    
-    # Use ThreadPoolExecutor for parallel processing
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []
-        for order in parameters:
-            futures.append(
-                executor.submit(evaluate_arima_model, data, order)
-            )
-        
-        total = len(parameters)
-        completed = 0
-        
-        # Collect results
-        for future in as_completed(futures):
-            completed += 1
-            progress = completed / total
-            if progress_bar is not None:
-                progress_bar.progress(progress)
-            if status_text is not None:
-                status_text.text(f"Evaluating ARIMA models: {completed}/{total}")
-            
-            order, results, metrics = future.result()
-            if results is not None and metrics is not None:
-                # Use AIC as the criterion
-                score = metrics['aic']
-                if score < best_score:
-                    best_score = score
-                    best_model = results
-                    best_metrics = metrics
-                    best_order = order
-                    best_predictions = results.fittedvalues
-    
-    # Clear progress indicators
-    if progress_bar is not None:
-        progress_bar.empty()
-    if status_text is not None:
-        status_text.empty()
-    
-    if best_model is None:
-        raise ValueError("Could not find a suitable ARIMA model")
-    
-    st.info(f"Best ARIMA order found: {best_order}")
-    
-    # Store predictions for plotting but not in metrics
-    best_model.predictions = best_predictions
-    return best_model, best_metrics
-
-def train_arima(data: pd.Series, order: tuple) -> Dict:
-    """Train ARIMA model"""
-    model = ARIMA(data, order=order)
-    results = model.fit()
-    
-    # Make in-sample predictions
-    predictions = results.fittedvalues
-    
-    # Calculate metrics
-    metrics = {
-        'aic': results.aic,
-        'bic': results.bic,
-        'mae': mean_absolute_error(data[1:], predictions[1:]),
-        'rmse': np.sqrt(mean_squared_error(data[1:], predictions[1:])),
-        'r2': r2_score(data[1:], predictions[1:])
-    }
-    
-    return results, metrics
-
-def train_sarima(data: pd.Series, order: tuple, seasonal_order: tuple) -> Dict:
-    """Train SARIMA model"""
-    model = SARIMAX(data, order=order, seasonal_order=seasonal_order)
-    results = model.fit()
-    
-    # Make in-sample predictions
-    predictions = results.fittedvalues
-    
-    # Calculate metrics
-    metrics = {
-        'aic': results.aic,
-        'bic': results.bic,
-        'mae': mean_absolute_error(data[1:], predictions[1:]),
-        'rmse': np.sqrt(mean_squared_error(data[1:], predictions[1:])),
-        'r2': r2_score(data[1:], predictions[1:])
-    }
-    
-    return results, metrics
-
-def train_prophet(data: pd.DataFrame, features: List[str] = None) -> Dict:
-    """Train Prophet model with optional additional regressors"""
-    model = Prophet(
-        daily_seasonality=True,
-        weekly_seasonality=True,
-        yearly_seasonality=True
-    )
-    
-    # Add additional regressors if features are provided
-    if features:
-        for feature in features:
-            model.add_regressor(feature)
-    
-    model.fit(data)
-    
-    # Make in-sample predictions
-    future = model.make_future_dataframe(periods=0)
-    if features:
-        for feature in features:
-            future[feature] = data[feature].values
-    
-    predictions = model.predict(future)
-    
-    # Calculate metrics
-    metrics = {
-        'mae': mean_absolute_error(data['y'], predictions['yhat']),
-        'rmse': np.sqrt(mean_squared_error(data['y'], predictions['yhat'])),
-        'r2': r2_score(data['y'], predictions['yhat'])
-    }
-    
-    return model, metrics
-
-def check_stationarity(series):
-    """Check if a time series is stationary using ADF test"""
-    result = adfuller(series.dropna())
-    return result[1] < 0.05  # Return True if p-value < 0.05 (stationary)
-
-def make_stationary(series):
-    """Make a time series stationary through differencing"""
-    diff_series = series.copy()
-    n_diff = 0
-    
-    while not check_stationarity(diff_series) and n_diff < 2:
-        diff_series = diff_series.diff().dropna()
-        n_diff += 1
-    
-    return diff_series, n_diff
-
-def check_constant_series(series):
-    """Check if a series is constant (has no variation)"""
-    return series.nunique() <= 1
-
-def train_var(data: pd.DataFrame, maxlags: int = 5) -> Dict:
-    """Train VAR model with improved preprocessing
-    
-    Args:
-        data: DataFrame with all variables to include in VAR
-        maxlags: Maximum number of lags to consider
-    
-    Returns:
-        Tuple of (model, metrics)
-    """
-    logging.info("Starting VAR model training with preprocessing...")
-    
-    # Filter numeric columns only
-    numeric_data = data.select_dtypes(include=[np.number]).copy()
-    
-    if len(numeric_data.columns) < 2:
-        raise ValueError("VAR model requires at least 2 numeric variables")
-    
-    # Remove constant columns
-    constant_cols = []
-    for col in numeric_data.columns:
-        if check_constant_series(numeric_data[col]):
-            constant_cols.append(col)
-            logging.warning(f"Removing constant column: {col}")
-    
-    if constant_cols:
-        numeric_data = numeric_data.drop(columns=constant_cols)
-    
-    if len(numeric_data.columns) < 2:
-        raise ValueError("Not enough non-constant variables for VAR model (minimum 2 required)")
-    
-    logging.info(f"Using numeric columns: {numeric_data.columns.tolist()}")
-    
-    # Check for multicollinearity
-    corr_matrix = numeric_data.corr()
-    for i in range(len(corr_matrix.columns)):
-        for j in range(i+1, len(corr_matrix.columns)):
-            if abs(corr_matrix.iloc[i,j]) > 0.95:
-                logging.warning(f"High correlation detected between {corr_matrix.columns[i]} and {corr_matrix.columns[j]}")
-    
-    # Make data stationary
-    stationary_data = pd.DataFrame()
-    diff_orders = {}
-    
-    for column in numeric_data.columns:
-        series = numeric_data[column]
-        # Ensure series is numeric and handle any remaining non-numeric values
-        series = pd.to_numeric(series, errors='coerce')
-        series = series.dropna()
-        
-        # Check for sufficient variation
-        if series.std() < 1e-8:  # Very small variation
-            logging.warning(f"Column {column} has very low variation, adding small noise")
-            series = series + np.random.normal(0, 1e-8, len(series))
-        
-        try:
-            stationary_series, n_diff = make_stationary(series)
-            stationary_data[column] = stationary_series
-            diff_orders[column] = n_diff
-            logging.info(f"Column {column} required {n_diff} differences to become stationary")
-        except Exception as e:
-            logging.warning(f"Error making {column} stationary: {str(e)}. Adding noise and retrying...")
-            # Add small noise and try again
-            noisy_series = series + np.random.normal(0, series.std() * 0.01, len(series))
-            stationary_series, n_diff = make_stationary(noisy_series)
-            stationary_data[column] = stationary_series
-            diff_orders[column] = n_diff
-    
-    # Drop NaN values created by differencing
-    stationary_data = stationary_data.dropna()
-    
-    if len(stationary_data) < 10:
-        raise ValueError("Not enough data points after making series stationary")
-    
-    # Standardize the data
-    scaler = StandardScaler()
-    scaled_data = pd.DataFrame(
-        scaler.fit_transform(stationary_data),
-        index=stationary_data.index,
-        columns=stationary_data.columns
-    )
-    
-    try:
-        # Fit VAR model
-        model = VAR(scaled_data)
-        
-        # Select order based on AIC with error handling
-        try:
-            order = model.select_order(maxlags=maxlags)
-            best_order = order.aic.argmin() + 1
-        except Exception as e:
-            logging.warning(f"Error in order selection: {str(e)}. Using default order of 1")
-            best_order = 1
-        
-        logging.info(f"Selected VAR order: {best_order}")
-        
-        # Fit model with selected order
-        results = model.fit(best_order)
-        
-        # Transform predictions back to original scale
-        predictions = pd.DataFrame(
-            scaler.inverse_transform(results.fittedvalues),
-            index=results.fittedvalues.index,
-            columns=results.fittedvalues.columns
-        )
-        
-        # Reverse differencing to get predictions in original scale
-        for column in predictions.columns:
-            for _ in range(diff_orders[column]):
-                predictions[column] = predictions[column].cumsum()
-                predictions[column] = numeric_data[column].iloc[0] + predictions[column]
-        
-        # Calculate metrics for each variable
-        metrics = {}
-        for col in numeric_data.columns:
-            # Calculate metrics only on overlapping indices
-            valid_idx = predictions.index.intersection(numeric_data.index)
-            metrics[f'{col}_mae'] = mean_absolute_error(
-                numeric_data[col].loc[valid_idx], 
-                predictions[col].loc[valid_idx]
-            )
-            metrics[f'{col}_rmse'] = np.sqrt(mean_squared_error(
-                numeric_data[col].loc[valid_idx], 
-                predictions[col].loc[valid_idx]
-            ))
-            metrics[f'{col}_r2'] = r2_score(
-                numeric_data[col].loc[valid_idx], 
-                predictions[col].loc[valid_idx]
-            )
-        
-        # Add model information to metrics
-        metrics.update({
-            'order': best_order,
-            'diff_orders': diff_orders,
-            'n_observations': len(numeric_data)
-        })
-        
-        # Store the preprocessing objects for later use
-        results.scaler = scaler
-        results.diff_orders = diff_orders
-        results.predictions = predictions
-        
-        return results, metrics
-        
-    except Exception as e:
-        logging.error(f"Error in VAR model training: {str(e)}")
-        raise
-
 def get_ts_equivalent_command(
     table_names: List[str], 
     target_col: str,
@@ -671,91 +337,6 @@ def generate_model_name(model_type: str, training_type: str, timestamp: Optional
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"ts-{model_type}_{training_type}_{timestamp}"
 
-def prepare_time_series_data(df: pd.DataFrame, target_col: str, selected_features: List[str], prediction_horizon: int = 1, n_lags: int = 3):
-    """Prepare time series data for training to predict future prices
-    
-    Args:
-        df: Input DataFrame
-        target_col: Target column name (e.g., 'Price')
-        selected_features: List of feature columns
-        prediction_horizon: Number of steps ahead to predict (default: 1 for next row)
-        n_lags: Number of previous price values to include as features (default: 3)
-        
-    Returns:
-        Tuple of (features DataFrame, target Series) with target shifted for future prediction
-    """
-    # Create a copy to avoid modifying original data
-    data = df.copy()
-    
-    # Add lagged price values as features
-    for i in range(1, n_lags + 1):
-        lag_col = f"{target_col}_lag_{i}"
-        data[lag_col] = data[target_col].shift(i)
-        if selected_features is not None:
-            selected_features.append(lag_col)
-    
-    # Shift target column up by prediction_horizon to align current features with future target
-    future_target = data[target_col].shift(-prediction_horizon)
-    
-    # Remove rows with NaN values due to lags at the beginning and prediction_horizon at the end
-    data = data[n_lags:-prediction_horizon]
-    future_target = future_target[n_lags:-prediction_horizon]
-    
-    # For Prophet, we need a specific format
-    if selected_features:
-        features = data[selected_features]
-    else:
-        features = None
-        
-    return data, future_target, features
-
-def combine_tables_data(db_path: str, table_names: List[str]) -> pd.DataFrame:
-    """Combine data from multiple tables into a single DataFrame
-    
-    Args:
-        db_path: Path to the SQLite database
-        table_names: List of table names to combine
-        
-    Returns:
-        Combined DataFrame with data from all tables
-    """
-    combined_data = []
-    
-    try:
-        conn = sqlite3.connect(db_path)
-        
-        for table_name in table_names:
-            # Load data from each table
-            df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
-            
-            # Add table name as a source column
-            df['DataSource'] = table_name
-            
-            # Convert date and time to datetime
-            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
-            
-            combined_data.append(df)
-            
-            logging.info(f"Loaded {len(df)} rows from {table_name}")
-        
-        conn.close()
-        
-        # Combine all dataframes
-        if not combined_data:
-            raise ValueError("No data loaded from tables")
-            
-        combined_df = pd.concat(combined_data, axis=0, ignore_index=True)
-        
-        # Sort by DateTime
-        combined_df = combined_df.sort_values('DateTime')
-        
-        logging.info(f"Combined data shape: {combined_df.shape}")
-        return combined_df
-        
-    except Exception as e:
-        logging.error(f"Error combining table data: {str(e)}")
-        raise
-
 def clear_training_outputs():
     """Clear all training outputs and logs"""
     st.session_state['ts_training_logs'] = []
@@ -767,9 +348,13 @@ def on_ts_table_selection_change():
     edited_rows = st.session_state['ts_table_editor']['edited_rows']
     current_tables = []
     
+    # Get the table data from session state
+    table_data = st.session_state['ts_table_data']
+    
     for idx, changes in edited_rows.items():
         if '🔍 Select' in changes:
-            table_name = table_df.iloc[idx]['Table Name']
+            # Use the table data from session state instead of table_df
+            table_name = table_data[idx]['Table Name']
             st.session_state['ts_table_selections'][table_name] = changes['🔍 Select']
             if changes['🔍 Select']:
                 current_tables.append(table_name)
@@ -830,6 +415,12 @@ def time_series_page():
             # Model Evaluation Status (always at top)
             evaluation_progress_bar, evaluation_status = display_ts_evaluation_status()
             
+            # Define progress callback here where we have access to the progress elements
+            def progress_callback(progress, message):
+                """Callback function to update progress bar and status"""
+                evaluation_progress_bar.progress(progress)
+                evaluation_status.text(message)
+            
             # Status message placeholder
             status_placeholder = st.empty()
             
@@ -863,29 +454,6 @@ def time_series_page():
         if not available_tables:
             st.warning("No strategy tables found in the database.")
             return
-        
-        def on_ts_table_selection_change():
-            """Callback to handle table selection changes"""
-            edited_rows = st.session_state['ts_table_editor']['edited_rows']
-            current_tables = []
-            
-            for idx, changes in edited_rows.items():
-                if '🔍 Select' in changes:
-                    table_name = table_df.iloc[idx]['Table Name']
-                    st.session_state['ts_table_selections'][table_name] = changes['🔍 Select']
-                    if changes['🔍 Select']:
-                        current_tables.append(table_name)
-            
-            # Update selected tables list
-            st.session_state['ts_selected_tables'] = [
-                name for name, is_selected in st.session_state['ts_table_selections'].items() 
-                if is_selected
-            ]
-            
-            # Clear outputs if table selection changed
-            if set(current_tables) != set(st.session_state['ts_previous_selection']['tables']):
-                clear_training_outputs()
-                st.session_state['ts_previous_selection']['tables'] = current_tables.copy()
         
         # Create or use existing table data
         if not st.session_state['ts_table_data']:
@@ -1306,8 +874,7 @@ def time_series_page():
                                             max_q=model_configs[current_model]['max_q'],
                                             seasonal=model_configs[current_model]['use_seasonal'],
                                             m=model_configs[current_model]['seasonal_period'] if model_configs[current_model]['use_seasonal'] else 1,
-                                            progress_bar=evaluation_progress_bar,
-                                            status_text=evaluation_status
+                                            progress_callback=progress_callback
                                         )
                                     elif current_model == 'ARIMA':
                                         model, metrics = train_arima(series, model_configs[current_model]['order'])
@@ -1330,24 +897,7 @@ def time_series_page():
                                 os.makedirs(model_path, exist_ok=True)
                                 
                                 # Save model
-                                import joblib
-                                joblib.dump(model, os.path.join(model_path, 'model.pkl'))
-                                
-                                # Save metadata
-                                metadata = {
-                                    'model_type': current_model,
-                                    'target_column': target_col,
-                                    'selected_features': selected_features,
-                                    'metrics': {
-                                        key: float(value) if isinstance(value, (np.floating, np.integer)) 
-                                        else value for key, value in metrics.items()
-                                    },
-                                    'parameters': model_configs[current_model]
-                                }
-                                
-                                import json
-                                with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
-                                    json.dump(metadata, f, indent=4)
+                                save_model(model, model_path, model_configs[current_model])
                                 
                                 # Store model and metrics for display
                                 trained_models[current_model] = {

@@ -10,6 +10,7 @@ ml_venv6/
 ml_conda/
 MT5/reports/
 MT5/StrategyTester/streamlit/models/
+MT5/StrategyTester/streamlit/predictions/
 MT5/StrategyTester/streamlit/mlflow_artifacts/
 MT5/StrategyTester/streamlit/mlruns/
 

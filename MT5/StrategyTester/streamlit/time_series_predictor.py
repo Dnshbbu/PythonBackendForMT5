@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Union, Tuple, Any
 import os
 import joblib
 import json
@@ -220,4 +220,198 @@ class TimeSeriesPredictor:
             logging.error(f"Missing features: {missing_features}")
             return False
         
-        return True 
+        return True
+
+def load_model(model_path: str) -> Any:
+    """Load a trained time series model from the given path.
+    
+    Args:
+        model_path: Path to the model directory
+        
+    Returns:
+        The loaded model object
+    """
+    try:
+        # Get model info to determine model type
+        model_info = get_model_info(model_path)
+        model_type = model_info.get('model_type', '').lower()
+        
+        # Load the appropriate model based on type
+        if model_type == 'prophet':
+            with open(os.path.join(model_path, 'model.json'), 'r') as f:
+                model = Prophet.from_json(f.read())
+        elif model_type in ['arima', 'sarima', 'auto arima']:
+            model = joblib.load(os.path.join(model_path, 'model.joblib'))
+        elif model_type == 'var':
+            model = joblib.load(os.path.join(model_path, 'model.joblib'))
+        else:
+            raise ValueError(f"Unsupported model type: {model_type}")
+        
+        return model
+    
+    except Exception as e:
+        logging.error(f"Error loading model from {model_path}: {str(e)}")
+        raise
+
+def get_model_info(model_path: str) -> Dict[str, Any]:
+    """Get model metadata and information.
+    
+    Args:
+        model_path: Path to the model directory
+        
+    Returns:
+        Dictionary containing model information
+    """
+    try:
+        info_path = os.path.join(model_path, 'model_info.json')
+        if not os.path.exists(info_path):
+            raise FileNotFoundError(f"Model info file not found at {info_path}")
+        
+        with open(info_path, 'r') as f:
+            model_info = json.load(f)
+        
+        return model_info
+    
+    except Exception as e:
+        logging.error(f"Error reading model info from {model_path}: {str(e)}")
+        raise
+
+def prepare_data_for_prediction(
+    data: pd.DataFrame,
+    model_info: Dict[str, Any]
+) -> Union[pd.DataFrame, pd.Series]:
+    """Prepare input data for prediction based on model requirements.
+    
+    Args:
+        data: Input DataFrame containing features
+        model_info: Model information dictionary
+        
+    Returns:
+        Prepared data ready for prediction
+    """
+    try:
+        model_type = model_info.get('model_type', '').lower()
+        
+        # Handle different model types
+        if model_type == 'prophet':
+            # Prophet requires 'ds' column for dates
+            pred_data = pd.DataFrame()
+            pred_data['ds'] = pd.to_datetime(data['DateTime'] if 'DateTime' in data.columns 
+                                           else data['Date'] + ' ' + data['Time'])
+            
+            # Add regressor columns if any
+            features = model_info.get('features', [])
+            for feature in features:
+                if feature in data.columns:
+                    pred_data[feature] = data[feature]
+            
+            return pred_data
+        
+        elif model_type == 'var':
+            # VAR models need all features in the correct order
+            features = model_info.get('features', [])
+            if not features:
+                raise ValueError("No features specified in model info for VAR model")
+            
+            # Select and order columns according to training features
+            pred_data = data[features].copy()
+            
+            # Handle any necessary preprocessing (e.g., scaling)
+            if model_info.get('preprocessing', {}).get('scaling', False):
+                scaler_path = os.path.join(os.path.dirname(model_info['model_path']), 'scaler.joblib')
+                if os.path.exists(scaler_path):
+                    scaler = joblib.load(scaler_path)
+                    pred_data = pd.DataFrame(
+                        scaler.transform(pred_data),
+                        columns=pred_data.columns,
+                        index=pred_data.index
+                    )
+            
+            return pred_data
+        
+        else:  # ARIMA, SARIMA, Auto ARIMA
+            # These models typically need just the target series
+            target_col = model_info.get('target_column')
+            if not target_col:
+                raise ValueError("No target column specified in model info")
+            
+            if target_col not in data.columns:
+                raise ValueError(f"Target column {target_col} not found in input data")
+            
+            return data[target_col]
+    
+    except Exception as e:
+        logging.error(f"Error preparing data for prediction: {str(e)}")
+        raise
+
+def make_predictions(
+    model: Any,
+    prepared_data: Union[pd.DataFrame, pd.Series]
+) -> np.ndarray:
+    """Generate predictions using the loaded model.
+    
+    Args:
+        model: Loaded model object
+        prepared_data: Prepared input data
+        
+    Returns:
+        Array of predictions
+    """
+    try:
+        if isinstance(model, Prophet):
+            # Prophet prediction
+            forecast = model.predict(prepared_data)
+            return forecast['yhat'].values
+        
+        elif isinstance(model, VAR):
+            # VAR prediction
+            predictions = model.forecast(prepared_data.values, steps=1)
+            return predictions
+        
+        elif isinstance(model, (SARIMAX)):
+            # ARIMA/SARIMA prediction
+            predictions = model.forecast(steps=len(prepared_data))
+            return predictions
+        
+        else:
+            raise ValueError(f"Unsupported model type: {type(model)}")
+    
+    except Exception as e:
+        logging.error(f"Error making predictions: {str(e)}")
+        raise
+
+def save_predictions(
+    predictions: np.ndarray,
+    original_data: pd.DataFrame,
+    output_path: str,
+    model_info: Dict[str, Any]
+) -> str:
+    """Save predictions along with original data.
+    
+    Args:
+        predictions: Array of predictions
+        original_data: Original input DataFrame
+        output_path: Path to save the predictions
+        model_info: Model information dictionary
+        
+    Returns:
+        Path to the saved predictions file
+    """
+    try:
+        # Create results DataFrame
+        results = original_data.copy()
+        target_col = model_info.get('target_column', 'target')
+        results[f'Predicted_{target_col}'] = predictions
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'predictions_{timestamp}.csv'
+        filepath = os.path.join(output_path, filename)
+        
+        # Save to CSV
+        results.to_csv(filepath, index=False)
+        return filepath
+    
+    except Exception as e:
+        logging.error(f"Error saving predictions: {str(e)}")
+        raise 

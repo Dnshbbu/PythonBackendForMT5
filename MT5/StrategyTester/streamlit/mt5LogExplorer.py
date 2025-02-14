@@ -21,6 +21,7 @@ from meta_model_predictor_page import meta_model_predictor_page
 from deep_learning_page import deep_learning_page
 from time_series_page import time_series_page
 from train_pycaret_models_pagev2 import train_pycaret_models_pagev2
+from predict_time_series_page import predict_time_series_page
 
 
 
@@ -197,6 +198,27 @@ def model_management_page():
     with tabs[3]:
         meta_model_predictor_page()
 
+def time_series_management_page():
+    """Page containing all time series model-related functionality in tabs"""
+    st.markdown("""
+        <h2 style='text-align: center; color: #1E88E5; margin: 0; padding: 0;'>Time Series Model Management</h2>
+        <hr style='margin: 0.5em 0 1em 0;'>
+    """, unsafe_allow_html=True)
+    
+    # Create tabs for different time series functionalities
+    tabs = st.tabs([
+        "📈 Time Series Training",
+        "🔮 Time Series Predictions"
+    ])
+    
+    # Time Series Training Tab
+    with tabs[0]:
+        time_series_page()
+    
+    # Time Series Predictions Tab
+    with tabs[1]:
+        predict_time_series_page()
+
 def main():
     st.set_page_config(
         page_title="MT5 Analysis Tools",
@@ -207,9 +229,9 @@ def main():
     # Page navigation
     pages = {
         "Model Management": model_management_page,
+        "📈 Time Series Models": time_series_management_page,
         "🤖 PyCaret AutoML": train_pycaret_models_pagev2,
         "🧠 Deep Learning Models": deep_learning_page,
-        "📈 Time Series Models": time_series_page,
         "Log Explorer": log_explorer,
         "Scripts": scripts,
         "ZMQ Server Control": server_control_page,

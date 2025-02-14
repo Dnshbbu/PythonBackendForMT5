@@ -788,7 +788,7 @@ def time_series_page():
                     # Get the command to execute
                     cmd = get_ts_equivalent_command(
                         st.session_state['ts_selected_tables'],
-                        target_col,
+                                target_col, 
                         selected_features,
                         model_type,
                         model_name,

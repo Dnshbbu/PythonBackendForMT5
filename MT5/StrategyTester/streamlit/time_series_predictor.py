@@ -26,6 +26,7 @@ class TimeSeriesPredictor:
         self.target = None
         self.features = None
         self.n_lags = None
+        self.forecast_horizon = 10  # Assuming a default forecast_horizon
         self._load_model()
     
     def _load_model(self):
@@ -78,40 +79,47 @@ class TimeSeriesPredictor:
         
         return df
     
-    def predict(self, data: pd.DataFrame) -> Tuple[np.ndarray, Dict]:
+    def predict(self, prepared_data: pd.DataFrame) -> Tuple[np.ndarray, Dict]:
         """Make predictions using the loaded model
         
         Args:
-            data: DataFrame containing required features
+            prepared_data: DataFrame containing prepared data for prediction
             
         Returns:
-            Tuple of (predictions, prediction_info)
+            Tuple containing:
+                - numpy array of predictions
+                - dictionary containing prediction info (confidence intervals, etc.)
         """
         try:
-            prepared_data = self.prepare_data(data)
-            
             if self.model_type == 'Prophet':
-                # Prepare Prophet data
-                prophet_df = pd.DataFrame({
-                    'ds': prepared_data.index,
-                    'y': prepared_data[self.target]
-                })
+                # Prepare data for Prophet
+                prophet_df = pd.DataFrame()
+                prophet_df['ds'] = prepared_data.index
                 
                 # Add regressors
                 for feature in self.features:
                     if feature != self.target:
                         prophet_df[feature] = prepared_data[feature]
                 
+                # Create future dataframe for multiple predictions
+                future_dates = pd.date_range(start=prophet_df['ds'].iloc[-1], periods=self.forecast_horizon + 1, freq=prepared_data.index.freq)[1:]
+                future_df = pd.DataFrame({'ds': future_dates})
+                
+                # Add regressor values for future dates (use last known values)
+                for feature in self.features:
+                    if feature != self.target:
+                        future_df[feature] = prepared_data[feature].iloc[-1]
+                
                 # Make prediction
-                forecast = self.model.predict(prophet_df)
-                predictions = forecast['yhat'].values[-1:]  # Get only the last prediction
+                forecast = self.model.predict(future_df)
+                predictions = forecast['yhat'].values  # Get all predictions
                 prediction_info = {
-                    'lower_bound': forecast['yhat_lower'].values[-1:],
-                    'upper_bound': forecast['yhat_upper'].values[-1:],
+                    'lower_bound': forecast['yhat_lower'].values,
+                    'upper_bound': forecast['yhat_upper'].values,
                     'components': {
-                        'trend': forecast['trend'].values[-1:],
-                        'weekly': forecast['weekly'].values[-1:] if 'weekly' in forecast else None,
-                        'yearly': forecast['yearly'].values[-1:] if 'yearly' in forecast else None
+                        'trend': forecast['trend'].values,
+                        'weekly': forecast['weekly'].values if 'weekly' in forecast else None,
+                        'yearly': forecast['yearly'].values if 'yearly' in forecast else None
                     }
                 }
             
@@ -134,8 +142,8 @@ class TimeSeriesPredictor:
                 # Get the last observation for prediction
                 last_obs = scaled_data[-1:]
                 
-                # Make prediction
-                predictions = self.model.forecast(last_obs, steps=1)
+                # Make prediction for multiple steps
+                predictions = self.model.forecast(last_obs, steps=self.forecast_horizon)
                 
                 # Inverse transform the predictions
                 predictions = scaler.inverse_transform(predictions)
@@ -151,7 +159,7 @@ class TimeSeriesPredictor:
                 
                 # Get confidence intervals (if available)
                 try:
-                    forecast_obj = self.model.get_forecast(last_obs)
+                    forecast_obj = self.model.get_forecast(last_obs, steps=self.forecast_horizon)
                     confidence_intervals = forecast_obj.conf_int()
                     prediction_info = {
                         'lower_bound': scaler.inverse_transform(confidence_intervals[:, 0])[:, 0],
@@ -169,17 +177,17 @@ class TimeSeriesPredictor:
                 # Get feature values
                 feature_data = prepared_data[self.features].values
                 
-                # Make prediction
-                forecast = self.model.forecast(steps=1)
-                predictions = np.array([forecast])  # Convert to numpy array and ensure it's 1D
+                # Make prediction for multiple steps
+                forecast = self.model.forecast(steps=self.forecast_horizon)
+                predictions = np.array(forecast)  # Convert to numpy array
                 
                 # Get confidence intervals
-                forecast_obj = self.model.get_forecast(steps=1)
+                forecast_obj = self.model.get_forecast(steps=self.forecast_horizon)
                 confidence_intervals = forecast_obj.conf_int()
                 
                 prediction_info = {
-                    'lower_bound': np.array([confidence_intervals.iloc[0, 0]]),  # Get first value for lower bound
-                    'upper_bound': np.array([confidence_intervals.iloc[0, 1]])   # Get first value for upper bound
+                    'lower_bound': np.array(confidence_intervals.iloc[:, 0]),
+                    'upper_bound': np.array(confidence_intervals.iloc[:, 1])
                 }
             
             else:

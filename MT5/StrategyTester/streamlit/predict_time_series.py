@@ -7,6 +7,9 @@ from datetime import datetime
 from time_series_predictor import TimeSeriesPredictor
 from typing import List, Dict
 
+# Constants
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'trading_data.db')
+
 def setup_logging():
     """Configure logging settings"""
     logging.basicConfig(
@@ -91,6 +94,8 @@ def parse_args():
                       help='Output format for predictions (default: csv)')
     parser.add_argument('--show-metrics', action='store_true',
                       help='Show model metrics')
+    parser.add_argument('--forecast-horizon', type=int, default=1,
+                      help='Number of future time points to predict (default: 1)')
     
     return parser.parse_args()
 
@@ -98,90 +103,79 @@ def format_predictions(data: pd.DataFrame, predictions: List[float], prediction_
     """Format predictions into a DataFrame
     
     Args:
-        data: Original data
-        predictions: Model predictions
-        prediction_info: Additional prediction information
+        data: Original data used for prediction
+        predictions: List of predicted values
+        prediction_info: Dictionary containing prediction info
+        
+    Returns:
+        DataFrame containing predictions and confidence intervals
     """
-    results = pd.DataFrame()
-    results['DateTime'] = data.index
-    results['Actual'] = data['Price']
+    # Create future dates based on the last date in the data
+    freq = pd.infer_freq(data.index)
+    if freq is None:
+        freq = 'T'  # Default to minutes if frequency cannot be inferred
+    future_dates = pd.date_range(start=data.index[-1], periods=len(predictions) + 1, freq=freq)[1:]
     
-    # Handle single prediction (for the last point)
-    if len(predictions) == 1:
-        results['Predicted'] = None
-        results.iloc[-1, results.columns.get_loc('Predicted')] = predictions[0]
-    else:
-        results['Predicted'] = predictions
+    # Create predictions DataFrame
+    predictions_df = pd.DataFrame({
+        'DateTime': future_dates,
+        'Actual': [None] * len(predictions),  # No actual values for future predictions
+        'Predicted': predictions,
+        'Lower_Bound': prediction_info.get('lower_bound', [None] * len(predictions)),
+        'Upper_Bound': prediction_info.get('upper_bound', [None] * len(predictions))
+    })
     
-    # Handle confidence intervals
-    if prediction_info.get('lower_bound') is not None:
-        if len(prediction_info['lower_bound']) == 1:
-            results['Lower_Bound'] = None
-            results.iloc[-1, results.columns.get_loc('Lower_Bound')] = prediction_info['lower_bound'][0]
-        else:
-            results['Lower_Bound'] = prediction_info['lower_bound']
-    
-    if prediction_info.get('upper_bound') is not None:
-        if len(prediction_info['upper_bound']) == 1:
-            results['Upper_Bound'] = None
-            results.iloc[-1, results.columns.get_loc('Upper_Bound')] = prediction_info['upper_bound'][0]
-        else:
-            results['Upper_Bound'] = prediction_info['upper_bound']
-    
-    return results
+    predictions_df.set_index('DateTime', inplace=True)
+    return predictions_df
 
 def main():
-    """Main function to run predictions"""
+    """Main function"""
     args = parse_args()
-    setup_logging()
     
     try:
-        # Setup paths
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
+        # Load data from database
+        data = load_data_from_db(
+            DB_PATH,
+            args.table,
+            start_date=args.start_date,
+            end_date=args.end_date
+        )
         
-        if not args.output_path:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_name = os.path.basename(args.model_path)
-            args.output_path = f"predictions_{model_name}_{timestamp}.{args.output_format}"
-        
-        # Load model
+        # Initialize predictor
         predictor = TimeSeriesPredictor(args.model_path)
+        predictor.forecast_horizon = args.forecast_horizon  # Set the forecast horizon
         
         # Show model info if requested
         if args.show_metrics:
             model_info = predictor.get_model_info()
-            print("\nModel Information:")
-            print("-" * 50)
-            for key, value in model_info.items():
-                print(f"{key}: {value}")
-            print("-" * 50)
+            logging.info(f"Model type: {model_info['model_type']}")
+            logging.info(f"Target variable: {model_info['target']}")
+            logging.info(f"Features: {model_info['features']}")
+            logging.info(f"Number of lags: {model_info['n_lags']}")
+            
+            # Show metrics if available
+            if 'metrics' in model_info:
+                for metric, value in model_info['metrics'].items():
+                    logging.info(f"{metric}: {value:.4f}")
         
-        # Load data
-        logging.info(f"Loading data from table {args.table}")
-        data = load_data_from_db(
-            db_path,
-            args.table,
-            args.start_date,
-            args.end_date
-        )
+        # Prepare data and make predictions
+        prepared_data = predictor.prepare_data(data)
+        predictions, prediction_info = predictor.predict(prepared_data)
         
-        # Validate data
-        if not predictor.validate_data(data):
-            raise ValueError("Data validation failed")
+        # Format predictions
+        results = format_predictions(prepared_data, predictions, prediction_info)
         
-        # Make predictions
-        logging.info("Making predictions...")
-        predictions, prediction_info = predictor.predict(data)
+        # Generate output path if not provided
+        if not args.output_path:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            model_name = os.path.basename(args.model_path)
+            args.output_path = f'predictions_{model_name}_{timestamp}.{args.output_format}'
         
-        # Format and save predictions
-        results = format_predictions(data, predictions, prediction_info)
+        # Save predictions
         save_predictions(results, args.output_path, args.output_format)
         
-        logging.info("Prediction completed successfully")
-        
     except Exception as e:
-        logging.error(f"Error during prediction: {str(e)}", exc_info=True)
+        logging.error(f"Error: {str(e)}")
         raise
 
 if __name__ == "__main__":

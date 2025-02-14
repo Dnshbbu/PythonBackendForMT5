@@ -4,6 +4,7 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 import os
 import sqlite3
+import subprocess
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.arima.model import ARIMA
 from prophet import Prophet
@@ -784,224 +785,86 @@ def time_series_page():
                                 help="Click to stop the training process",
                                 type="secondary")
                     
-                    # Setup logging with Streamlit output
-                    streamlit_handler = setup_ts_logging(training_progress)
+                    # Get the command to execute
+                    cmd = get_ts_equivalent_command(
+                        st.session_state['ts_selected_tables'],
+                        target_col,
+                        selected_features,
+                        model_type,
+                        model_name,
+                        **model_params
+                    )
                     
-                    try:
-                        with st.spinner("Training model..."):
-                            # Load and combine data from all selected tables
-                            logging.info(f"Loading data from {len(st.session_state['ts_selected_tables'])} tables")
-                            df = combine_tables_data(db_path, st.session_state['ts_selected_tables'])
-                            
-                            # After loading data, if it's VAR model, verify numeric columns
-                            if model_type == 'VAR':
-                                numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-                                selected_numeric_features = [f for f in selected_features if f in numeric_cols]
-                                if len(selected_numeric_features) < 1:
-                                    st.error("No numeric features selected. VAR model requires numeric features.")
-                                    st.stop()
-                                logging.info(f"Selected numeric features for VAR: {selected_numeric_features}")
-                            
-                            # Check for stop
-                            if check_ts_stop_clicked():
-                                raise TrainingInterrupt("Training stopped by user")
-                            
-                            # Set DateTime as index
-                            df = df.set_index('DateTime')
-                            
-                            # Prepare data for future prediction
-                            data, future_target, features = prepare_time_series_data(
-                                df, 
-                                target_col, 
-                                selected_features.copy(),  # Create a copy to avoid modifying original list
-                                prediction_horizon=1,  # Predict next row's price
-                                n_lags=n_lags if use_lagged_features else 0
-                            )
-                            
-                            # Log the features being used
-                            if features is not None:
-                                logging.info(f"Using features: {features.columns.tolist()}")
-                                logging.info(f"Number of lagged price features: {n_lags if use_lagged_features else 0}")
-                            
-                            # Dictionary to store all trained models and their metrics
-                            trained_models = {}
-                            
-                            # Train each selected model
-                            for current_model in selected_models:
-                                if check_ts_stop_clicked():
-                                    raise TrainingInterrupt("Training stopped by user")
-                                
-                                logging.info(f"\nTraining {current_model} model...")
-                                
-                                # For Prophet, we need to prepare data differently
-                                if current_model == 'Prophet':
-                                    prophet_df = pd.DataFrame({
-                                        'ds': data.index,
-                                        'y': future_target
-                                    })
-                                    # Add selected features as regressors
-                                    if features is not None:
-                                        for feature in selected_features:
-                                            if feature != target_col:
-                                                prophet_df[feature] = features[feature]
-                                    model, metrics = train_prophet(prophet_df, selected_features)
-                                elif current_model == 'VAR':
-                                    # Prepare data for VAR - combine target and features
-                                    var_columns = [target_col] + selected_features
-                                    var_data = data[var_columns].select_dtypes(include=[np.number])
-                                    
-                                    # Check for constant columns
-                                    constant_cols = [col for col in var_data.columns if check_constant_series(var_data[col])]
-                                    if constant_cols:
-                                        logging.warning(f"Removing constant columns for VAR model: {', '.join(constant_cols)}")
-                                        var_data = var_data.drop(columns=constant_cols)
-                                        if len(var_data.columns) < 2:
-                                            logging.error("Not enough non-constant variables for VAR model")
-                                            continue
-                                    
-                                    # Train VAR model
-                                    model, metrics = train_var(var_data, maxlags=model_configs[current_model]['maxlags'])
-                                else:
-                                    # For ARIMA models, use the shifted target
-                                    series = future_target
-                                    exog = features
-                                    
-                                    if current_model == 'Auto ARIMA':
-                                        model, metrics = auto_arima(
-                                            series,
-                                            max_p=model_configs[current_model]['max_p'],
-                                            max_d=model_configs[current_model]['max_d'],
-                                            max_q=model_configs[current_model]['max_q'],
-                                            seasonal=model_configs[current_model]['use_seasonal'],
-                                            m=model_configs[current_model]['seasonal_period'] if model_configs[current_model]['use_seasonal'] else 1,
-                                            progress_callback=progress_callback
-                                        )
-                                    elif current_model == 'ARIMA':
-                                        model, metrics = train_arima(series, model_configs[current_model]['order'])
-                                    elif current_model == 'SARIMA':
-                                        model, metrics = train_sarima(
-                                            series, 
-                                            model_configs[current_model]['order'],
-                                            model_configs[current_model]['seasonal_order']
-                                        )
-                                
-                                # Generate model name for this specific model
-                                current_model_name = generate_model_name(
-                                    model_type=current_model.lower(),
-                                    training_type="single",
-                                    timestamp=datetime.now().strftime("%Y%m%d_%H%M%S")
-                                )
-                                
-                                # Save model and metadata
-                                model_path = os.path.join(models_dir, current_model_name)
-                                os.makedirs(model_path, exist_ok=True)
-                                
-                                # Save model
-                                save_model(model, model_path, model_configs[current_model])
-                                
-                                # Store model and metrics for display
-                                trained_models[current_model] = {
-                                    'model': model,
-                                    'metrics': metrics,
-                                    'path': model_path
-                                }
-                                
-                                logging.info(f"{current_model} model trained and saved to {model_path}")
-                            
-                            # Display success message only if not stopped
-                            if not check_ts_stop_clicked():
-                                status_placeholder.success("✨ All selected models trained successfully")
-                                # Clear the stop button
-                                stop_button_placeholder.empty()
-                                
-                                # Display metrics for all trained models
-                                with metrics_placeholder:
-                                    st.markdown("### 📊 Model Performance Comparison")
-                                    
-                                    # Create tabs for different visualizations
-                                    perf_tab, fit_tab = st.tabs(["📊 Model Performance", "📈 Model Fit"])
-                                    
-                                    # Model Performance Tab
-                                    with perf_tab:
-                                        for model_name, model_info in trained_models.items():
-                                            st.markdown(f"### {model_name}")
-                                            display_ts_metrics(model_info['metrics'], model_name, st)
-                                            st.markdown("---")
-                                    
-                                    # Model Fit Tab
-                                    with fit_tab:
-                                        for model_name, model_info in trained_models.items():
-                                            st.markdown(f"### {model_name} Fit")
-                                            if model_name == 'Prophet':
-                                                # Plot Prophet predictions
-                                                fig = model_info['model'].plot(model_info['model'].predict(prophet_df))
-                                                st.pyplot(fig)
-                                                
-                                                # Plot Prophet components
-                                                components_fig = model_info['model'].plot_components(
-                                                    model_info['model'].predict(prophet_df)
-                                                )
-                                                st.pyplot(components_fig)
-                                            
-                                            elif model_name == 'VAR':
-                                                # Plot VAR predictions for each variable
-                                                for col in model_info['model'].predictions.columns:
-                                                    st.subheader(f"Actual vs Predicted - {col}")
-                                                    
-                                                    # Get overlapping index range
-                                                    valid_idx = model_info['model'].predictions.index.intersection(var_data.index)
-                                                    
-                                                    # Create DataFrame with aligned data
-                                                    results_df = pd.DataFrame(index=valid_idx)
-                                                    results_df['Actual'] = var_data.loc[valid_idx, col]
-                                                    results_df['Predicted'] = model_info['model'].predictions.loc[valid_idx, col]
-                                                    
-                                                    # Drop any remaining NaN values
-                                                    results_df = results_df.dropna()
-                                                    
-                                                    if len(results_df) > 0:
-                                                        st.line_chart(results_df)
-                                                    else:
-                                                        st.warning(f"No valid data available for {col}")
-                                                
-                                                # Display VAR model summary
-                                                st.subheader("VAR Model Summary")
-                                                st.text(model_info['model'].summary())
-                                            
-                                            else:
-                                                # Plot ARIMA-type model predictions
-                                                results_df = pd.DataFrame({
-                                                    'Actual': series,
-                                                    'Predicted': model_info['model'].predictions if model_name == 'Auto ARIMA' else model_info['model'].fittedvalues
-                                                })
-                                                st.line_chart(results_df)
-                                            st.markdown("---")
-                
-                    except TrainingInterrupt:
-                        if 'ts_stop_message' in st.session_state and st.session_state['ts_stop_message']:
-                            status_placeholder.warning(st.session_state['ts_stop_message'])
-                        # Clear the stop button
-                        stop_button_placeholder.empty()
-                        # Clean up any partial training artifacts if needed
-                        if 'model_path' in locals():
-                            try:
-                                # Log cleanup attempt
-                                logging.info(f"Cleaning up partial training artifacts in {model_path}")
-                                # Add cleanup code here if needed
-                            except Exception as cleanup_error:
-                                logging.error(f"Error during cleanup: {str(cleanup_error)}")
-                    
-                    finally:
-                        # Clean up logging handler
-                        root_logger = logging.getLogger()
-                        root_logger.removeHandler(streamlit_handler)
-                        # Ensure stop button is removed in all cases
-                        stop_button_placeholder.empty()
+                    # Execute the command
+                    with st.spinner("Training model..."):
+                        # Change directory to streamlit folder
+                        os.chdir("C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit")
                         
+                        # Start the process
+                        process = subprocess.Popen(
+                            cmd,  # Use full command string
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            shell=True,  # Use shell=True to handle command string
+                            text=True,
+                            bufsize=1,
+                            universal_newlines=True
+                        )
+                        
+                        # Create a single container for output
+                        with training_progress:
+                            st.markdown("##### 📝 Training Progress")
+                            output_container = st.empty()
+                            output_text = []
+                        
+                        # Read output in real-time
+                        while True:
+                            line = process.stdout.readline()
+                            if not line and process.poll() is not None:
+                                break
+                                
+                            if line:
+                                output_text.append(line.strip())
+                                # Keep only last 1000 lines to prevent memory issues
+                                if len(output_text) > 1000:
+                                    output_text = output_text[-1000:]
+                                
+                                # Update the display with all output
+                                output_container.code('\n'.join(output_text))
+                                
+                                # Update progress bar if percentage is found
+                                if "%" in line:
+                                    try:
+                                        progress = float(line.split("%")[0].strip().split()[-1]) / 100
+                                        evaluation_progress_bar.progress(progress)
+                                        evaluation_status.text(line.strip())
+                                    except:
+                                        pass
+                            
+                            # Check for stop button
+                            if check_ts_stop_clicked():
+                                process.terminate()
+                                status_placeholder.warning("Training stopped by user")
+                                break
+                        
+                        # Wait for process to complete
+                        process.wait()
+                        
+                        # Check return code
+                        if process.returncode == 0:
+                            status_placeholder.success("✨ Training completed successfully")
+                            evaluation_progress_bar.progress(1.0)
+                            evaluation_status.text("Training completed successfully")
+                        else:
+                            status_placeholder.error("❌ Training failed")
+                            evaluation_status.text("Training failed")
+                            
                 except Exception as e:
-                    if not isinstance(e, TrainingInterrupt):
-                        status_placeholder.error(f"Error during training: {str(e)}")
-                        logging.error(f"Training error: {str(e)}", exc_info=True)
+                    status_placeholder.error(f"Error during training: {str(e)}")
+                    logging.error(f"Training error: {str(e)}", exc_info=True)
+                finally:
+                    # Ensure stop button is removed in all cases
+                    stop_button_placeholder.empty()
 
 if __name__ == "__main__":
     time_series_page() 

@@ -1,3 +1,7 @@
+# Important Paths
+- trading_data.db path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\logs\trading_data.db"
+- mlflow.db path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\mlflow.db"
+
 #  Frequent mistakes you do and you should keep in mind to avoid these.
 1. I am using PowerShell in Windows machine. You have to wait for some time after executing the Powershell commands to view the terminal output. You are frequently moving on without waiting for the output.
 2. When I ask you to replicate the code/layout, you should replicate the code but use different identifiers so that there is no conflict with the existing code.

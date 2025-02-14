@@ -131,38 +131,54 @@ def format_predictions(data: pd.DataFrame, predictions: List[float], prediction_
 def main():
     """Main function"""
     args = parse_args()
+    setup_logging()  # Ensure logging is set up
     
     try:
+        logging.info(f"Starting prediction process for table: {args.table}")
+        logging.info(f"Using model from: {args.model_path}")
+        
         # Load data from database
+        logging.info("Loading data from database...")
         data = load_data_from_db(
             DB_PATH,
             args.table,
             start_date=args.start_date,
             end_date=args.end_date
         )
+        logging.info(f"Loaded {len(data)} rows of data")
         
         # Initialize predictor
+        logging.info("Initializing predictor...")
         predictor = TimeSeriesPredictor(args.model_path)
-        predictor.forecast_horizon = args.forecast_horizon  # Set the forecast horizon
+        predictor.forecast_horizon = args.forecast_horizon
+        logging.info(f"Forecast horizon set to: {args.forecast_horizon}")
         
         # Show model info if requested
         if args.show_metrics:
+            logging.info("Model Information:")
             model_info = predictor.get_model_info()
             logging.info(f"Model type: {model_info['model_type']}")
             logging.info(f"Target variable: {model_info['target']}")
-            logging.info(f"Features: {model_info['features']}")
+            logging.info(f"Features: {', '.join(model_info['features'])}")
             logging.info(f"Number of lags: {model_info['n_lags']}")
             
             # Show metrics if available
             if 'metrics' in model_info:
+                logging.info("Model Metrics:")
                 for metric, value in model_info['metrics'].items():
                     logging.info(f"{metric}: {value:.4f}")
         
         # Prepare data and make predictions
+        logging.info("Preparing data for prediction...")
         prepared_data = predictor.prepare_data(data)
+        logging.info(f"Data prepared successfully. Shape: {prepared_data.shape}")
+        
+        logging.info("Making predictions...")
         predictions, prediction_info = predictor.predict(prepared_data)
+        logging.info(f"Generated {len(predictions)} predictions")
         
         # Format predictions
+        logging.info("Formatting predictions...")
         results = format_predictions(prepared_data, predictions, prediction_info)
         
         # Generate output path if not provided
@@ -172,10 +188,18 @@ def main():
             args.output_path = f'predictions_{model_name}_{timestamp}.{args.output_format}'
         
         # Save predictions
+        logging.info(f"Saving predictions in {args.output_format} format...")
         save_predictions(results, args.output_path, args.output_format)
         
+        # Log prediction summary
+        logging.info("\nPrediction Summary:")
+        logging.info(f"Total predictions: {len(predictions)}")
+        logging.info(f"Prediction range: {results.index[0]} to {results.index[-1]}")
+        logging.info(f"Output saved to: {args.output_path}")
+        logging.info("Prediction process completed successfully")
+        
     except Exception as e:
-        logging.error(f"Error: {str(e)}")
+        logging.error(f"Error during prediction: {str(e)}")
         raise
 
 if __name__ == "__main__":

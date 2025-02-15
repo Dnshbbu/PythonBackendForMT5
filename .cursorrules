@@ -63,8 +63,20 @@ Naming convention: {model_type}_{training_type}_{timestamp}
 
 ## Use the re-usable scripts to get the required information to execute your tasks.
 - get_table_schema.py : to get the schema of the table
+	Basic syntax: python get_table_schema.py <database_path> <table_name>
+	Example: python get_table_schema.py "logs\trading_data.db" "model_repository"
 - get_sample_data.py : to get the sample data from the table or to check the data in the table
-
+	Basic syntax: python get_sample_data.py <database_path> <table_name> [options]
+	Available options:
+		--columns: Comma-separated list of columns to retrieve
+		--limit: Number of rows to retrieve (default: 5)
+		--order-by: Column to order by (with optional ASC/DESC)
+		--where: WHERE clause for filtering data
+		--random: Get random samples instead of first N rows
+	Examples:
+		1. python get_sample_data.py "logs\trading_data.db" "historical_predictions" --order-by "datetime DESC" --limit 3
+		2. python get_sample_data.py "logs\trading_data.db" "historical_predictions" --where "model_name LIKE 'lstm%'" --random --limit 5
+		3. python get_sample_data.py "logs\trading_data.db" "historical_predictions" --columns "datetime,actual_price,predicted_price,error" --where "error < 0.05" --limit 5
 
 
 ##  Frequent mistakes you do and you should keep in mind to avoid these.

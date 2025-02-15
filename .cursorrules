@@ -1,15 +1,70 @@
-# Important Paths
-- trading_data.db path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\logs\trading_data.db"
-- mlflow.db path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\mlflow.db"
+# Requirements-  !!! Important!!!
 
-#  Frequent mistakes you do and you should keep in mind to avoid these.
+## trading_data.db 
+- path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\logs\trading_data.db"
+- This is the main database to get the data to do the predictions, store the predictions, store model information, store prediction metrics, etc.
+- Store the predictions in 'historical_predictions' table
+- Store the prediction metrics in 'historical_prediction_metrics' table
+- Store the model information in 'model_repository' table
+
+## mlflow.db 
+- path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\mlflow.db"
+- This is the database to integrate with MLflow.
+- Use 'trading_models' experiment to store the model information, prediction metrics, etc. In other words, use this experiment when training the model.
+- Use 'model_predictions' experiment to store the prediction runs. In other words, use this experiment when predicting the data.
+
+## Naming conventions
+- run_id : Unique id for each prediction run. 'run_name' in MLflow is same as 'run_id'
+Naming convention:    run_{current_time}
+	where 
+    - current_time is formatted as: YYYYMMDD_HHMMSS_fff
+	- YYYY: Year (4 digits)
+	- MM: Month (2 digits)
+	- DD: Day (2 digits)
+	- HH: Hour (2 digits)
+	- MM: Minutes (2 digits)
+	- SS: Seconds (2 digits)
+	- fff: First 3 digits of microseconds
+	For example, a run_id might look like: run_20250215_110148_123
+	
+- model_name : name of the model
+Naming convention: {model_type}_{training_type}_{timestamp}
+	where:
+	- model_type: Type of the model (e.g., 'xgboost', 'decision_tree', 'random_forest', 'lstm')
+	- training_type: One of four types:
+		- 'single': For models trained on a single table
+		- 'multi': For models trained on multiple tables simultaneously
+		- 'base': For the initial model in incremental training
+		- 'incremental': For models updated incrementally
+	- timestamp: Format is YYYYMMDD_HHMMSS
+		- YYYY: Year (4 digits)
+		- MM: Month (2 digits)
+		- DD: Day (2 digits)
+		- HH: Hour (2 digits)
+		- MM: Minutes (2 digits)
+		- SS: Seconds (2 digits)
+	Examples:
+	- lstm_single_20250215_110148
+	- xgboost_multi_20250215_110148
+
+
+## Use the re-usable scripts to get the required information to execute your tasks.
+- get_table_schema.py : to get the schema of the table
+- get_sample_data.py : to get the sample data from the table or to check the data in the table
+
+
+## Direction to execute the scripts:
+• Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
+• Wait for script output before proceeding
+
+##  Frequent mistakes you do and you should keep in mind to avoid these.
 1. I am using PowerShell in Windows machine. You have to wait for some time after executing the Powershell commands to view the terminal output. You are frequently moving on without waiting for the output.
 2. When I ask you to replicate the code/layout, you should replicate the code but use different identifiers so that there is no conflict with the existing code.
 3. Make sure to use the different unique identifiers for the components in the UI.
 4. Since I am using Powershell, using '&&' is not working. So, use ';' to run multiple commands in the same line.
 
 
-# Prefered Code Structure:
+## Prefered Code Structure:
 1. Core component (file to have all core logic)
 2. CLI interface (to handle core component via argparse)
 3. Streamlit UI interface ( page to handle core component similar to cli, but in a more user friendly)
@@ -30,11 +85,7 @@
 6. Always try to reuse the existing code. Create only if that is not possible.
 7. I am running MLflow like this 
 mlflow ui --backend-store-uri "sqlite:///mlflow.db"
-
-# Important
-1. If you need to query sqlite database, query via a simple python script rather than command line.
-2. I can provide you any access you want. For ex: if you want to query a database for schema or a sample data from a DB, ask me and you can use a simple python script to have the actual data without any assumptions.
-3. Always work on the basis of what is observed in the logs and actual data. 
+8. Always work on the basis of what is observed in the logs and actual data. 
 
 # General Guidelines
 - Write clean, readable, and well-structured code.

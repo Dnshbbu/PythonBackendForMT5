@@ -34,8 +34,8 @@ def parse_args():
     parser.add_argument('--model-type', required=True, 
                       choices=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR', 'multiple'],
                       help='Type of time series model to train')
-    parser.add_argument('--model-name', required=True,
-                      help='Name for the saved model')
+    parser.add_argument('--model-name', required=False,
+                      help='Optional name for the saved model. If not provided, will be auto-generated.')
     
     # Optional arguments for data preparation
     parser.add_argument('--n-lags', type=int, default=3,
@@ -122,10 +122,17 @@ def main():
         for model_type in models_to_train:
             try:
                 # Generate model name for each model
-                model_name = f"{args.model_name}_{model_type.lower()}"
-                run_name = f"{model_type}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                # Model name format: {model_type}_{training_type}_{timestamp}
+                # Convert model type to lowercase and remove spaces
+                model_type_clean = model_type.lower().replace(' ', '')
+                model_name = f"ts-{model_type_clean}_single_{timestamp}"
                 
-                with mlflow_manager.start_run(run_name=run_name):
+                # Run ID format: run_YYYYMMDD_HHMMSS_fff
+                current_time = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:19]  # Include milliseconds but truncate to 3 digits
+                run_id = f"run_{current_time}"
+                
+                with mlflow_manager.start_run(run_name=run_id):
                     logging.info(f"\nTraining {model_type} model...")
                     
                     # Log basic parameters

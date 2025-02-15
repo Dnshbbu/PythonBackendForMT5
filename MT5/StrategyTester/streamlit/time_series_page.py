@@ -263,7 +263,9 @@ def get_ts_equivalent_command(
     target_col: str,
     selected_features: List[str],
     model_type: str,
-    model_name: str,
+    n_lags: int = 3,
+    prediction_horizon: int = 1,
+    selected_models: List[str] = None,
     **model_params
 ) -> str:
     """Generate the equivalent command line command for time series models"""
@@ -272,10 +274,18 @@ def get_ts_equivalent_command(
     target_arg = f"--target {target_col}"
     features_arg = f"--features {' '.join(selected_features)}"
     model_type_arg = f"--model-type {model_type}"
-    model_name_arg = f"--model-name {model_name}"
+    
+    # Add n_lags and prediction_horizon
+    n_lags_arg = f"--n-lags {n_lags}"
+    prediction_horizon_arg = f"--prediction-horizon {prediction_horizon}"
     
     # Add model-specific parameters
     params_list = []
+    
+    # If in multiple model mode and models are selected, add them to command
+    if model_type == 'multiple' and selected_models:
+        params_list.append(f"--selected-models {' '.join(selected_models)}")
+    
     if model_type == 'Auto ARIMA':
         params_list.extend([
             f"--max-p {model_params.get('max_p', 5)}",
@@ -310,7 +320,7 @@ def get_ts_equivalent_command(
         ])
     
     params_str = " ".join(params_list)
-    return f"{base_cmd} {tables_arg} {target_arg} {features_arg} {model_type_arg} {model_name_arg} {params_str}".strip()
+    return f"{base_cmd} {tables_arg} {target_arg} {features_arg} {model_type_arg} {n_lags_arg} {prediction_horizon_arg} {params_str}".strip()
 
 def display_ts_evaluation_status():
     """Display model evaluation status"""
@@ -552,6 +562,23 @@ def time_series_page():
                 on_change=on_model_type_change
             )
             
+            # Add prediction horizon and n_lags configuration
+            st.markdown("#### 🎯 Prediction Configuration")
+            prediction_horizon = st.number_input(
+                "Prediction Horizon",
+                min_value=1,
+                max_value=10,
+                value=1,
+                help="Number of steps ahead to predict"
+            )
+            n_lags = st.number_input(
+                "Number of Lags",
+                min_value=1,
+                max_value=10,
+                value=3,
+                help="Number of lagged features to use"
+            )
+            
             if training_mode == "Multiple Models":
                 st.info("🤖 Select which models to include in training")
                 
@@ -671,13 +698,13 @@ def time_series_page():
                     }
                 
                 elif model_type == 'SARIMA':
-                    p = st.number_input('P (AR order)', 0, 5, 1)
-                    d = st.number_input('D (Difference order)', 0, 2, 1)
-                    q = st.number_input('Q (MA order)', 0, 5, 1)
-                    P = st.number_input('Seasonal P', 0, 5, 1)
-                    D = st.number_input('Seasonal D', 0, 2, 0)
-                    Q = st.number_input('Seasonal Q', 0, 5, 1)
-                    s = st.number_input('Seasonal Period', 1, 100, 5)
+                    p = st.number_input(f'{model_type} - P (AR order)', 0, 5, 1)
+                    d = st.number_input(f'{model_type} - D (Difference order)', 0, 2, 1)
+                    q = st.number_input(f'{model_type} - Q (MA order)', 0, 5, 1)
+                    P = st.number_input(f'{model_type} - Seasonal P', 0, 5, 1)
+                    D = st.number_input(f'{model_type} - Seasonal D', 0, 2, 0)
+                    Q = st.number_input(f'{model_type} - Seasonal Q', 0, 5, 1)
+                    s = st.number_input(f'{model_type} - Seasonal Period', 1, 100, 5)
                     model_configs = {
                         model_type: {
                             'order': (p, d, q),
@@ -687,11 +714,11 @@ def time_series_page():
                 
                 elif model_type == 'Prophet':
                     changepoint_prior_scale = st.slider(
-                        'Changepoint Prior Scale',
+                        f'{model_type} - Changepoint Prior Scale',
                         0.001, 0.5, 0.05
                     )
                     seasonality_prior_scale = st.slider(
-                        'Seasonality Prior Scale',
+                        f'{model_type} - Seasonality Prior Scale',
                         0.01, 10.0, 10.0
                     )
                     model_configs = {
@@ -740,14 +767,28 @@ def time_series_page():
             elif model_type == 'VAR':
                 model_params = model_configs[model_type]
             
-            cmd = get_ts_equivalent_command(
-                st.session_state['ts_selected_tables'],
-                target_col,
-                selected_features,
-                model_type,
-                model_name,
-                **model_params
-            )
+            # Get the command to execute
+            if training_mode == "Multiple Models":
+                cmd = get_ts_equivalent_command(
+                    st.session_state['ts_selected_tables'],
+                    target_col, 
+                    selected_features,
+                    "multiple",
+                    n_lags=n_lags,
+                    prediction_horizon=prediction_horizon,
+                    selected_models=selected_models,
+                    **model_configs.get(selected_models[0], {}) if selected_models else {}
+                )
+            else:
+                cmd = get_ts_equivalent_command(
+                    st.session_state['ts_selected_tables'],
+                    target_col, 
+                    selected_features,
+                    model_type,
+                    n_lags=n_lags,
+                    prediction_horizon=prediction_horizon,
+                    **model_params
+                )
             st.code(cmd, language='bash')
             
             # Add configuration for lagged features
@@ -762,7 +803,7 @@ def time_series_page():
                 n_lags = 0
             
             # Training button
-            if st.button("🚀 Train Model", type="primary"):
+            if st.button("🔄 Train Model", type="primary"):
                 try:
                     # Clear right side content and reset session state
                     st.session_state['ts_stop_clicked'] = False
@@ -784,16 +825,6 @@ def time_series_page():
                                 key="ts_stop_training",
                                 help="Click to stop the training process",
                                 type="secondary")
-                    
-                    # Get the command to execute
-                    cmd = get_ts_equivalent_command(
-                        st.session_state['ts_selected_tables'],
-                                target_col, 
-                        selected_features,
-                        model_type,
-                        model_name,
-                        **model_params
-                    )
                     
                     # Execute the command
                     with st.spinner("Training model..."):

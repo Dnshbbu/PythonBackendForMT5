@@ -43,6 +43,11 @@ def parse_args():
     parser.add_argument('--prediction-horizon', type=int, default=1,
                       help='Number of steps ahead to predict (default: 1)')
     
+    # Multiple model selection
+    parser.add_argument('--selected-models', nargs='+', required=False,
+                      choices=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR'],
+                      help='List of models to train when model-type is "multiple"')
+    
     # Model-specific arguments
     # Auto ARIMA
     parser.add_argument('--max-p', type=int, default=5,
@@ -117,8 +122,14 @@ def main():
         # Determine which models to train
         models_to_train = []
         if args.model_type == 'multiple':
-            # Train all available models
-            models_to_train = ['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR']
+            if args.selected_models:
+                # Use specified models
+                models_to_train = args.selected_models
+                logging.info(f"Training selected models: {', '.join(models_to_train)}")
+            else:
+                # Train all available models if none specified
+                models_to_train = ['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR']
+                logging.info("No models specified, training all available models")
         else:
             models_to_train = [args.model_type]
         

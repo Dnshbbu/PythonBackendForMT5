@@ -284,7 +284,9 @@ def get_ts_equivalent_command(
     
     # If in multiple model mode and models are selected, add them to command
     if model_type == 'multiple' and selected_models:
-        params_list.append(f"--selected-models {' '.join(selected_models)}")
+        # Quote model names that contain spaces
+        quoted_models = [f'"{model}"' if ' ' in model else model for model in selected_models]
+        params_list.append(f"--selected-models {' '.join(quoted_models)}")
     
     if model_type == 'Auto ARIMA':
         params_list.extend([

@@ -142,11 +142,11 @@ def main():
                     # Log basic parameters
                     mlflow_manager.log_params({
                         'model_type': model_type,
-                        'target_column': args.target,
+                        'target_col': args.target,
                         'feature_columns': args.features,
                         'n_lags': args.n_lags,
                         'prediction_horizon': args.prediction_horizon,
-                        'tables': args.tables
+                        'table_names': ','.join(args.tables)
                     })
                     
                     # Train model based on type

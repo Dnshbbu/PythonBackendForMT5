@@ -449,9 +449,13 @@ def main():
             mlflow.log_param("model_name", args.model_name)
             mlflow.log_param("table", args.table)
             mlflow.log_param("data_points", len(data))
+            mlflow.log_param("source_table", args.table)
             
             # Initialize predictor
             predictor = TimeSeriesPredictor(model_path)
+            
+            # Log target column from predictor metadata
+            mlflow.log_param("target_col", predictor.target if hasattr(predictor, 'target') else None)
             
             # Make predictions
             results_df, metrics = make_predictions(data, predictor)

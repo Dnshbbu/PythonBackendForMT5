@@ -314,12 +314,13 @@ def calculate_metrics(results_df: pd.DataFrame) -> Dict:
         logging.error(f"Error calculating metrics: {e}")
         raise
 
-def make_predictions(data: pd.DataFrame, predictor: TimeSeriesPredictor) -> Tuple[pd.DataFrame, Dict]:
+def make_predictions(data: pd.DataFrame, predictor: TimeSeriesPredictor, forecast_horizon: int = 1) -> Tuple[pd.DataFrame, Dict]:
     """Make predictions using the current row to predict next row's price
     
     Args:
         data: Input DataFrame
         predictor: TimeSeriesPredictor instance
+        forecast_horizon: Number of steps to forecast ahead (default: 1)
         
     Returns:
         Tuple of (predictions DataFrame, metrics dictionary)
@@ -335,31 +336,33 @@ def make_predictions(data: pd.DataFrame, predictor: TimeSeriesPredictor) -> Tupl
         logging.info("Making predictions...")
         predictions = []
         
+        # Create a copy of data and rename Price to Price_current
+        prediction_data = data.copy()
+        prediction_data['Price_current'] = prediction_data['Price']
+        
         if predictor.model_type in ['SARIMA', 'ARIMA']:
-            # For SARIMA/ARIMA models, do one-step-ahead predictions
+            # For SARIMA/ARIMA models, do multi-step-ahead predictions
             for i in range(len(data) - predictor.n_lags):
                 # Get the current window of data
-                current_window = data['Price'].values[i:i+predictor.n_lags]
+                current_window = prediction_data['Price'].values[i:i+predictor.n_lags]
                 
                 # For SARIMA/ARIMA models, we need to:
                 # 1. Apply the model to the current window
-                # 2. Make a one-step forecast
+                # 2. Make a forecast for the specified horizon
                 if hasattr(predictor.model, 'apply'):
                     # Apply model to current window and get forecast
                     model_fit = predictor.model.apply(current_window)
-                    forecast = model_fit.forecast(steps=1)
+                    forecast = model_fit.forecast(steps=forecast_horizon)
+                    predictions.append(forecast[0])  # Take first prediction for current step
                 else:
                     # If apply is not available, use the base model for prediction
-                    forecast = predictor.model.forecast(steps=1)
-                
-                # Extract prediction value
-                pred_value = forecast.iloc[0] if isinstance(forecast, (pd.Series, pd.DataFrame)) else forecast[0]
-                predictions.append(float(pred_value))
+                    forecast = predictor.model.forecast(steps=forecast_horizon)
+                    predictions.append(forecast[0])  # Take first prediction for current step
         else:
             # For other models, make predictions one at a time using sliding windows
-            for i in range(len(data) - predictor.n_lags):
+            for i in range(len(prediction_data) - predictor.n_lags):
                 # Get current window of features
-                current_window = predictor.prepare_data(data.iloc[i:i+predictor.n_lags+1])
+                current_window = predictor.prepare_data(prediction_data.iloc[i:i+predictor.n_lags+1])
                 
                 # Make prediction for this window
                 pred, _ = predictor.predict(current_window)
@@ -398,6 +401,8 @@ def parse_args():
                       help='Output format for predictions (default: csv)')
     parser.add_argument('--show-metrics', action='store_true',
                       help='Show model metrics')
+    parser.add_argument('--forecast-horizon', type=int, default=1,
+                      help='Number of steps to forecast ahead (default: 1)')
     
     return parser.parse_args()
 
@@ -458,7 +463,7 @@ def main():
             mlflow.log_param("target_col", predictor.target if hasattr(predictor, 'target') else None)
             
             # Make predictions
-            results_df, metrics = make_predictions(data, predictor)
+            results_df, metrics = make_predictions(data, predictor, args.forecast_horizon)
             
             # Log metrics to MLflow
             for metric_name, metric_value in metrics.items():

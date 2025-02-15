@@ -31,8 +31,7 @@ def get_available_runs(db_path: str) -> List[Dict[str, str]]:
             LEFT JOIN historical_prediction_metrics m 
             ON p.run_id = m.run_id
             GROUP BY p.run_id, p.source_table, p.model_name
-            HAVING MAX(m.timestamp) IS NOT NULL
-            ORDER BY MAX(m.timestamp) DESC
+            ORDER BY MAX(p.datetime) DESC
         """
         
         conn = sqlite3.connect(db_path)
@@ -209,7 +208,7 @@ class HistoricalPredictionsPage:
                 LEFT JOIN historical_prediction_metrics m 
                 ON p.run_id = m.run_id
                 GROUP BY p.run_id, p.source_table, p.model_name
-                ORDER BY p.datetime DESC
+                ORDER BY MAX(p.datetime) DESC
             """
             
             conn = sqlite3.connect(self.db_path)

@@ -1,5 +1,18 @@
 # Requirements-  !!! Important!!!
 
+## Direction to execute the scripts:
+- Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
+- You may already be in this path. If not, navigate to this path.
+- You must wait for script output before proceeding
+- If no output is visible, wait for 15 more seconds and check again.
+
+# Error fixing
+- Consider multiple possible causes before deciding on the solution. Do not jump to conclusions.
+- Explain the problem and the solution in a way that is easy to understand.
+- Always verify the fix.
+- Consider the context of the code.
+- If your previous attempt to fix a code didn't work, try to understand the reason and discuss with yourself, and try to fix it again systematically.
+
 ## trading_data.db 
 - path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\logs\trading_data.db"
 - This is the main database to get the data to do the predictions, store the predictions, store model information, store prediction metrics, etc.
@@ -53,11 +66,6 @@ Naming convention: {model_type}_{training_type}_{timestamp}
 - get_sample_data.py : to get the sample data from the table or to check the data in the table
 
 
-## Direction to execute the scripts:
-- Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
-- Wait for script output before proceeding
-- If no output is visible, wait for 15 more seconds and check again.
-
 
 ##  Frequent mistakes you do and you should keep in mind to avoid these.
 1. I am using PowerShell in Windows machine. You have to wait for some time after executing the Powershell commands to view the terminal output. You are frequently moving on without waiting for the output.
@@ -96,10 +104,6 @@ Naming convention: {model_type}_{training_type}_{timestamp}
 - Plan the next steps in detail
 
 
-# Error fixing
-- Consider multiple possible causes before deciding on the solution. Do not jump to conclusions.
-- Explain the problem and the solution in a way that is easy to understand.
-- Always verify the fix.
-- Consider the context of the code.
+
 
 

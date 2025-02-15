@@ -7,7 +7,7 @@ import numpy as np
 from datetime import datetime
 import logging
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from model_repository import ModelRepository
 
 class ModelComparison:
@@ -692,6 +692,51 @@ def initialize_mc_session_state():
         st.session_state['mc_model_data'] = []
     if 'mc_previous_selection' not in st.session_state:
         st.session_state['mc_previous_selection'] = None
+    # Add new filter state variables
+    if 'mc_filter_created_after' not in st.session_state:
+        st.session_state['mc_filter_created_after'] = None
+    if 'mc_filter_created_before' not in st.session_state:
+        st.session_state['mc_filter_created_before'] = None
+    if 'mc_filter_model_type' not in st.session_state:
+        st.session_state['mc_filter_model_type'] = 'All'
+    if 'mc_filter_min_accuracy' not in st.session_state:
+        st.session_state['mc_filter_min_accuracy'] = 0.0
+    if 'mc_filter_min_runs' not in st.session_state:
+        st.session_state['mc_filter_min_runs'] = None  # Changed from 0 to None
+
+def apply_model_filters(models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Apply filters to the models data."""
+    filtered_models = models.copy()
+    
+    # Filter by creation date
+    if st.session_state['mc_filter_created_after']:
+        filtered_models = [
+            model for model in filtered_models 
+            if pd.to_datetime(model['last_run']).date() >= st.session_state['mc_filter_created_after']
+        ]
+    
+    if st.session_state['mc_filter_created_before']:
+        filtered_models = [
+            model for model in filtered_models 
+            if pd.to_datetime(model['first_run']).date() <= st.session_state['mc_filter_created_before']
+        ]
+    
+    # Filter by model type
+    if st.session_state['mc_filter_model_type'] != 'All':
+        filtered_models = [
+            model for model in filtered_models 
+            if st.session_state['mc_filter_model_type'] in model['model_name']
+        ]
+    
+    # Filter by minimum number of runs - check if value exists and is greater than 0
+    min_runs = st.session_state['mc_filter_min_runs']
+    if min_runs is not None and min_runs > 0:
+        filtered_models = [
+            model for model in filtered_models 
+            if model['total_runs'] >= min_runs
+        ]
+    
+    return filtered_models
 
 def on_mc_model_selection_change():
     """Callback to handle model selection changes"""
@@ -846,13 +891,62 @@ def model_comparison_page():
     if 'show_details_sidebar' not in st.session_state:
         st.session_state.show_details_sidebar = False
 
-    # Left sidebar toggle button
+    # Left sidebar toggle button and filters
     with st.sidebar:
+        st.header("Analysis Controls")
         st.button(
             "Show Model Details",
             key="toggle_details",
             on_click=lambda: setattr(st.session_state, 'show_details_sidebar', 
                                    not st.session_state.show_details_sidebar)
+        )
+
+        # Add filtering controls in sidebar
+        st.subheader("Filter Models")
+        
+        # Date range filter
+        st.date_input(
+            "Active After",
+            value=None,
+            key="mc_filter_created_after",
+            help="Show models active after this date"
+        )
+        
+        st.date_input(
+            "Active Before",
+            value=None,
+            key="mc_filter_created_before",
+            help="Show models active before this date"
+        )
+        
+        # Initialize comparison and get models for type filter
+        db_path = "logs/trading_data.db"
+        comparison = ModelComparison(db_path)
+        models = comparison.get_available_models()
+        
+        # Model type filter
+        unique_model_types = set()
+        for model in models:
+            if model.get('model_name'):
+                model_type = model['model_name'].split('_')[0]
+                unique_model_types.add(model_type)
+        model_types = ['All'] + sorted(list(unique_model_types))
+        
+        st.selectbox(
+            "Model Type",
+            options=model_types,
+            key="mc_filter_model_type",
+            help="Filter by model type"
+        )
+        
+        # Minimum runs filter
+        min_runs = st.number_input(
+            "Minimum Number of Runs",
+            min_value=0,
+            value=0,
+            step=1,
+            key="mc_filter_min_runs",
+            help="Filter models by minimum number of prediction runs"
         )
 
     # Main content and details sidebar layout
@@ -863,50 +957,62 @@ def model_comparison_page():
         details_col = None
 
     with main_col:
-        # Existing page content
-        # st.markdown("""
-        #     <h2 style='text-align: left; color: #00ADB5; padding: 1rem 0;'>
-        #         Model Performance Comparison
-        #     </h2>
-        # """, unsafe_allow_html=True)
-
-        # Initialize comparison
-        db_path = "logs/trading_data.db"
-        comparison = ModelComparison(db_path)
-
-        # Get available models
-        models = comparison.get_available_models()
         if not models:
             st.warning("No model metrics available in the database.")
             return
 
-        # Create or use existing model data
-        if not st.session_state['mc_model_data']:
-            model_data = []
-            for model in models:
-                # Convert timestamps to datetime if they're strings and not None
-                first_run = pd.to_datetime(model['first_run']).strftime('%Y-%m-%d %H:%M') if model['first_run'] else 'N/A'
-                last_run = pd.to_datetime(model['last_run']).strftime('%Y-%m-%d %H:%M') if model['last_run'] else 'N/A'
-                
-                # Use the stored selection state or default to False
-                is_selected = st.session_state['mc_model_selections'].get(model['model_name'], False)
-                
-                model_data.append({
-                    '🔍 Select': is_selected,
-                    'Model Name': model['model_name'],
-                    'Source Table': model['source_table'],
-                    'Total Runs': model['total_runs'],
-                    'First Run': first_run,
-                    'Last Run': last_run
-                })
-            st.session_state['mc_model_data'] = model_data
+        # Apply filters
+        filtered_models = apply_model_filters(models)
         
-        model_df = pd.DataFrame(st.session_state['mc_model_data'])
+        if not filtered_models:
+            st.warning("No models match the current filters.")
+            return
+        
+        # Create or use existing model data
+        model_data = []
+        for model in filtered_models:
+            # Convert timestamps to datetime if they're strings and not None
+            first_run = pd.to_datetime(model['first_run']).strftime('%Y-%m-%d %H:%M') if model['first_run'] else 'N/A'
+            last_run = pd.to_datetime(model['last_run']).strftime('%Y-%m-%d %H:%M') if model['last_run'] else 'N/A'
+            
+            # Use the stored selection state or default to False
+            is_selected = st.session_state['mc_model_selections'].get(model['model_name'], False)
+            
+            model_data.append({
+                '🔍 Select': is_selected,
+                'Model Name': model['model_name'],
+                'Source Table': model['source_table'],
+                'Total Runs': model['total_runs'],
+                'First Run': first_run,
+                'Last Run': last_run
+            })
+        
+        st.session_state['mc_model_data'] = model_data
+        
+        # Display summary metrics
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(
+                f"""<div class="metric-card">
+                    <div class="metric-value">{len(filtered_models)}</div>
+                    <div class="metric-label">Available Models</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
+        with col2:
+            total_runs = sum(model['total_runs'] for model in filtered_models)
+            st.markdown(
+                f"""<div class="metric-card">
+                    <div class="metric-value">{total_runs:,}</div>
+                    <div class="metric-label">Total Prediction Runs</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
         
         # Display model information with checkboxes
         st.markdown("### 📊 Available Models")
         edited_df = st.data_editor(
-            model_df,
+            pd.DataFrame(model_data),
             hide_index=True,
             column_config={
                 '🔍 Select': st.column_config.CheckboxColumn(

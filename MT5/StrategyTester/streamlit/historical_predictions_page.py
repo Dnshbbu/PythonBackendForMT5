@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timedelta
 import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 # Import the required functions from model_comparison_page
 from model_comparison_page import display_model_details_section, ModelComparison
 
@@ -14,24 +14,40 @@ from model_comparison_page import display_model_details_section, ModelComparison
 ROWS_PER_PAGE = 1000
 CACHE_TTL = 3600  # Cache time to live in seconds
 
-@st.cache_data(ttl=CACHE_TTL)
 def get_available_runs(db_path: str) -> List[Dict[str, str]]:
     """Get list of available runs with metadata."""
     try:
         query = """
-            SELECT DISTINCT 
-                p.run_id,
-                p.source_table,
-                p.model_name,
-                MIN(p.datetime) as start_date,
-                MAX(p.datetime) as end_date,
-                COUNT(*) as prediction_count,
-                MAX(m.timestamp) as run_timestamp
-            FROM historical_predictions p
-            LEFT JOIN historical_prediction_metrics m 
-            ON p.run_id = m.run_id
-            GROUP BY p.run_id, p.source_table, p.model_name
-            ORDER BY MAX(p.datetime) DESC
+            WITH RunStats AS (
+                SELECT 
+                    run_id,
+                    source_table,
+                    model_name,
+                    MIN(datetime) as start_date,
+                    MAX(datetime) as end_date,
+                    COUNT(*) as prediction_count,
+                    MIN(created_at) as created_at
+                FROM historical_predictions
+                GROUP BY run_id, source_table, model_name
+            ),
+            MetricStats AS (
+                SELECT 
+                    run_id,
+                    MAX(timestamp) as last_metric_update,
+                    MAX(direction_accuracy) as latest_accuracy,
+                    MAX(max_correct_streak) as best_streak
+                FROM historical_prediction_metrics
+                GROUP BY run_id
+            )
+            SELECT 
+                r.*,
+                m.last_metric_update,
+                m.latest_accuracy,
+                m.best_streak,
+                ROUND(CAST(julianday('now') - julianday(r.created_at) AS REAL) * 24, 1) as hours_since_creation
+            FROM RunStats r
+            LEFT JOIN MetricStats m ON r.run_id = m.run_id
+            ORDER BY r.created_at DESC
         """
         
         conn = sqlite3.connect(db_path)
@@ -45,7 +61,6 @@ def get_available_runs(db_path: str) -> List[Dict[str, str]]:
         if conn:
             conn.close()
 
-@st.cache_data(ttl=CACHE_TTL)
 def load_predictions_page(db_path: str, run_id: str, page: int) -> pd.DataFrame:
     """Load predictions for a specific run with pagination."""
     offset = page * ROWS_PER_PAGE
@@ -77,7 +92,6 @@ def load_predictions_page(db_path: str, run_id: str, page: int) -> pd.DataFrame:
         if conn:
             conn.close()
 
-@st.cache_data(ttl=CACHE_TTL)
 def get_total_rows(db_path: str, run_id: str) -> int:
     """Get total number of rows for a run."""
     try:
@@ -95,7 +109,6 @@ def get_total_rows(db_path: str, run_id: str) -> int:
         if conn:
             conn.close()
 
-@st.cache_data(ttl=CACHE_TTL)
 def load_metrics(db_path: str, run_id: str) -> pd.DataFrame:
     """Load detailed metrics for a specific run."""
     query = """
@@ -118,7 +131,6 @@ def load_metrics(db_path: str, run_id: str) -> pd.DataFrame:
         if conn:
             conn.close()
 
-@st.cache_data(ttl=CACHE_TTL)
 def load_all_predictions(db_path: str, run_id: str) -> pd.DataFrame:
     """Load all predictions for a specific run."""
     query = """
@@ -548,6 +560,25 @@ def initialize_hp_session_state():
         st.session_state['hp_run_data'] = []
     if 'hp_previous_selection' not in st.session_state:
         st.session_state['hp_previous_selection'] = None
+    if 'hp_filter_created_after' not in st.session_state:
+        st.session_state['hp_filter_created_after'] = None
+    if 'hp_filter_created_before' not in st.session_state:
+        st.session_state['hp_filter_created_before'] = None
+    if 'hp_filter_model_type' not in st.session_state:
+        st.session_state['hp_filter_model_type'] = 'All'
+    if 'hp_filter_min_accuracy' not in st.session_state:
+        st.session_state['hp_filter_min_accuracy'] = 0.0
+
+def format_time_ago(hours: float) -> str:
+    """Format hours into a human-readable time ago string."""
+    if hours < 1:
+        minutes = int(hours * 60)
+        return f"{minutes}m ago"
+    elif hours < 24:
+        return f"{int(hours)}h ago"
+    else:
+        days = int(hours / 24)
+        return f"{days}d ago"
 
 def on_hp_run_selection_change():
     """Callback to handle run selection changes"""
@@ -570,6 +601,39 @@ def on_hp_run_selection_change():
                 st.session_state['hp_selected_run'] = run_id
             else:
                 st.session_state['hp_selected_run'] = None
+
+def apply_run_filters(runs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Apply filters to the runs data."""
+    filtered_runs = runs.copy()
+    
+    # Filter by creation date
+    if st.session_state['hp_filter_created_after']:
+        filtered_runs = [
+            run for run in filtered_runs 
+            if pd.to_datetime(run['created_at']) >= st.session_state['hp_filter_created_after']
+        ]
+    
+    if st.session_state['hp_filter_created_before']:
+        filtered_runs = [
+            run for run in filtered_runs 
+            if pd.to_datetime(run['created_at']) <= st.session_state['hp_filter_created_before']
+        ]
+    
+    # Filter by model type
+    if st.session_state['hp_filter_model_type'] != 'All':
+        filtered_runs = [
+            run for run in filtered_runs 
+            if st.session_state['hp_filter_model_type'] in run['model_name']
+        ]
+    
+    # Filter by minimum accuracy
+    if st.session_state['hp_filter_min_accuracy'] > 0:
+        filtered_runs = [
+            run for run in filtered_runs 
+            if run.get('latest_accuracy', 0) >= st.session_state['hp_filter_min_accuracy']
+        ]
+    
+    return filtered_runs
 
 def historical_predictions_page():
     """Main function for the historical predictions analysis page."""
@@ -623,6 +687,22 @@ def historical_predictions_page():
         .tooltip:hover .tooltiptext {
             visibility: visible;
             opacity: 1;
+        }
+        .metric-card {
+            background-color: #1E1E1E;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #333;
+            margin-bottom: 1rem;
+        }
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ADB5;
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #888;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -696,6 +776,51 @@ def historical_predictions_page():
                                    not st.session_state.show_details_sidebar)
         )
 
+        # Add filtering controls in sidebar
+        st.subheader("Filter Predictions")
+        
+        # Date range filter
+        st.date_input(
+            "Created After",
+            value=None,
+            key="hp_filter_created_after",
+            help="Show predictions created after this date"
+        )
+        
+        st.date_input(
+            "Created Before",
+            value=None,
+            key="hp_filter_created_before",
+            help="Show predictions created before this date"
+        )
+        
+        # Model type filter - Fixed the model type extraction
+        unique_model_types = set()
+        for run in runs:
+            if run.get('model_name'):
+                model_type = run['model_name'].split('_')[0]
+                unique_model_types.add(model_type)
+        model_types = ['All'] + sorted(list(unique_model_types))
+        
+        st.selectbox(
+            "Model Type",
+            options=model_types,
+            key="hp_filter_model_type",
+            help="Filter by model type"
+        )
+        
+        # Accuracy threshold - Fixed the format_func issue
+        accuracy_value = st.slider(
+            "Minimum Direction Accuracy",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.0,
+            step=0.05,
+            key="hp_filter_min_accuracy",
+            help="Filter by minimum direction accuracy"
+        )
+        st.write(f"Selected minimum accuracy: {accuracy_value:.0%}")
+
     # Main content and details sidebar layout
     if st.session_state.show_details_sidebar:
         main_col, details_col = st.columns([3, 1])
@@ -704,41 +829,75 @@ def historical_predictions_page():
         details_col = None
 
     with main_col:
-        # Create or use existing run data
-        if not st.session_state['hp_run_data']:
-            run_data = []
-            for run in runs:
-                # Convert timestamps to datetime if they're strings and not None
-                start_date = pd.to_datetime(run['start_date']).strftime('%Y-%m-%d %H:%M') if run['start_date'] else 'N/A'
-                end_date = pd.to_datetime(run['end_date']).strftime('%Y-%m-%d %H:%M') if run['end_date'] else 'N/A'
-                run_timestamp = pd.to_datetime(run['run_timestamp']).strftime('%Y-%m-%d %H:%M') if run['run_timestamp'] else 'N/A'
-                
-                # Use the stored selection state or default to False
-                is_selected = st.session_state['hp_run_selections'].get(run['run_id'], False)
-                
-                # Calculate metrics for display
-                metrics = load_metrics(db_path, run['run_id'])
-                latest_metrics = metrics.iloc[-1] if not metrics.empty else pd.Series()
-                
-                run_data.append({
-                    '🔍 Select': is_selected,
-                    'Run ID': run['run_id'],
-                    'Model Name': run['model_name'],
-                    'Source Table': run['source_table'],
-                    'Period': f"{start_date} to {end_date}",
-                    'Predictions': run['prediction_count'],
-                    'Run Time': run_timestamp,
-                    'MAE': format_metric_value('mae', latest_metrics.get('mean_absolute_error', 0)),
-                    'RMSE': format_metric_value('rmse', latest_metrics.get('root_mean_squared_error', 0)),
-                    'Direction Accuracy': format_metric_value('accuracy', latest_metrics.get('direction_accuracy', 0)),
-                    'Max Streak': format_metric_value('max_streak', latest_metrics.get('max_correct_streak', 0))
-                })
-            st.session_state['hp_run_data'] = run_data
+        # Apply filters
+        filtered_runs = apply_run_filters(runs)
         
-        run_df = pd.DataFrame(st.session_state['hp_run_data'])
+        if not filtered_runs:
+            st.warning("No predictions match the current filters.")
+            return
+        
+        # Create or use existing run data
+        run_data = []
+        for run in filtered_runs:
+            # Convert timestamps to datetime if they're strings and not None
+            start_date = pd.to_datetime(run['start_date']).strftime('%Y-%m-%d %H:%M') if run['start_date'] else 'N/A'
+            end_date = pd.to_datetime(run['end_date']).strftime('%Y-%m-%d %H:%M') if run['end_date'] else 'N/A'
+            created_at = pd.to_datetime(run['created_at'])
+            time_ago = format_time_ago(run['hours_since_creation'])
+            
+            # Use the stored selection state or default to False
+            is_selected = st.session_state['hp_run_selections'].get(run['run_id'], False)
+            
+            run_data.append({
+                '🔍 Select': is_selected,
+                'Run ID': run['run_id'],
+                'Model Name': run['model_name'],
+                'Source Table': run['source_table'],
+                'Period': f"{start_date} to {end_date}",
+                'Predictions': run['prediction_count'],
+                'Created': f"{created_at.strftime('%Y-%m-%d %H:%M')} ({time_ago})",
+                'Accuracy': format_metric_value('accuracy', run.get('latest_accuracy', 0)),
+                'Best Streak': format_metric_value('max_streak', run.get('best_streak', 0))
+            })
+        
+        st.session_state['hp_run_data'] = run_data
+        
+        # Display summary metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown(
+                f"""<div class="metric-card">
+                    <div class="metric-value">{len(filtered_runs)}</div>
+                    <div class="metric-label">Prediction Runs</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
+        with col2:
+            total_predictions = sum(run['prediction_count'] for run in filtered_runs)
+            st.markdown(
+                f"""<div class="metric-card">
+                    <div class="metric-value">{total_predictions:,}</div>
+                    <div class="metric-label">Total Predictions</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
+        with col3:
+            avg_accuracy = np.mean([
+                run.get('latest_accuracy', 0) 
+                for run in filtered_runs 
+                if run.get('latest_accuracy') is not None
+            ])
+            st.markdown(
+                f"""<div class="metric-card">
+                    <div class="metric-value">{avg_accuracy:.1%}</div>
+                    <div class="metric-label">Average Accuracy</div>
+                </div>""",
+                unsafe_allow_html=True
+            )
         
         # Display run information with checkboxes
         st.markdown("### 📊 Available Prediction Runs")
+        run_df = pd.DataFrame(run_data)
         edited_df = st.data_editor(
             run_df,
             hide_index=True,
@@ -769,25 +928,17 @@ def historical_predictions_page():
                     help="Number of predictions",
                     format="%d"
                 ),
-                'Run Time': st.column_config.TextColumn(
-                    "Run Time",
+                'Created': st.column_config.TextColumn(
+                    "Created",
                     help="When the predictions were generated"
                 ),
-                'MAE': st.column_config.TextColumn(
-                    "MAE",
-                    help="Mean Absolute Error"
-                ),
-                'RMSE': st.column_config.TextColumn(
-                    "RMSE",
-                    help="Root Mean Square Error"
-                ),
-                'Direction Accuracy': st.column_config.TextColumn(
+                'Accuracy': st.column_config.TextColumn(
                     "Dir. Acc",
                     help="Direction Accuracy"
                 ),
-                'Max Streak': st.column_config.TextColumn(
-                    "Max Streak",
-                    help="Maximum Correct Predictions Streak"
+                'Best Streak': st.column_config.TextColumn(
+                    "Best Streak",
+                    help="Best Correct Predictions Streak"
                 )
             },
             key='hp_run_editor',
@@ -877,24 +1028,95 @@ def historical_predictions_page():
             
             # Display metrics first if available
             if not metrics_df.empty:
-                with st.expander("Performance Metrics", expanded=False):
-                    st.subheader("Performance Metrics")
+                with st.expander("Performance Metrics", expanded=True):
+                    # Add custom CSS for compact metrics
+                    st.markdown("""
+                        <style>
+                        [data-testid="stMetricValue"] {
+                            font-size: 1.1rem !important;
+                        }
+                        [data-testid="stMetricLabel"] {
+                            font-size: 0.8rem !important;
+                        }
+                        [data-testid="stMetricDelta"] {
+                            font-size: 0.8rem !important;
+                        }
+                        [data-testid="stMarkdownContainer"] h4 {
+                            font-size: 0.9rem !important;
+                            margin: 0 !important;
+                            padding: 0.2rem 0 !important;
+                            color: #00ADB5 !important;
+                        }
+                        [data-testid="stHorizontalBlock"] {
+                            gap: 0.5rem !important;
+                        }
+                        [data-testid="stMetricContainer"] {
+                            padding: 0.2rem 0 !important;
+                            gap: 0.2rem !important;
+                        }
+                        </style>
+                    """, unsafe_allow_html=True)
                     
                     # Get the latest metrics
                     display_metrics = metrics_df.iloc[-1].copy()
                     
-                    # Exclude non-metric columns if they exist
+                    # Exclude non-metric columns
                     exclude_columns = ['run_id', 'timestamp', 'id']
-                    metric_columns = [col for col in display_metrics.index if col not in exclude_columns]
                     
-                    # Create metrics table with all available metrics
-                    metrics_dict = {
-                        format_column_name(col): [format_metric_value(col, display_metrics[col])]
-                        for col in metric_columns
+                    # Define metric categories
+                    categories = {
+                        'Accuracy Metrics': [
+                            'direction_accuracy',
+                            'up_prediction_accuracy',
+                            'down_prediction_accuracy',
+                            'first_quarter_accuracy',
+                            'last_quarter_accuracy'
+                        ],
+                        'Error Metrics': [
+                            'mean_absolute_error',
+                            'root_mean_squared_error',
+                            'mean_absolute_percentage_error',
+                            'r_squared',
+                            'error_skewness'
+                        ],
+                        'Streak Analysis': [
+                            'max_correct_streak',
+                            'avg_correct_streak',
+                            'total_correct_predictions',
+                            'total_predictions'
+                        ],
+                        'Market Analysis': [
+                            'price_volatility',
+                            'total_ups',
+                            'total_downs',
+                            'correct_ups',
+                            'correct_downs'
+                        ]
                     }
                     
-                    metrics_table = pd.DataFrame(metrics_dict)
-                    st.table(metrics_table)
+                    # Create columns for each category
+                    cols = st.columns(len(categories))
+                    
+                    # Display metrics by category
+                    for idx, (category, metrics) in enumerate(categories.items()):
+                        with cols[idx]:
+                            st.markdown(f"#### {category}")
+                            for metric in metrics:
+                                if metric in display_metrics.index and metric not in exclude_columns:
+                                    formatted_label = format_column_name(metric)
+                                    formatted_value = format_metric_value(metric, display_metrics[metric])
+                                    st.metric(
+                                        label=formatted_label,
+                                        value=formatted_value,
+                                        label_visibility="visible"
+                                    )
+                    
+                    # Add timestamp information at the bottom
+                    st.markdown("<hr style='margin: 0.5rem 0; border-color: #333;'>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<p style='color: #666; font-size: 0.7rem; text-align: right; margin: 0;'>Last Updated: {pd.to_datetime(display_metrics.name).strftime('%Y-%m-%d %H:%M:%S')}</p>",
+                        unsafe_allow_html=True
+                    )
             
             # Add plot controls
             with st.expander("Plot Settings", expanded=False):

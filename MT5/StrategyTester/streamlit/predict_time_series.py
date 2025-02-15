@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from time_series_predictor import TimeSeriesPredictor
 from typing import List, Dict
+from model_repository import ModelRepository
 
 # Constants
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'trading_data.db')
@@ -16,6 +17,21 @@ def setup_logging():
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
+
+def get_model_path_from_repository(model_name: str) -> str:
+    """Get model path from repository
+    
+    Args:
+        model_name: Name of the model
+        
+    Returns:
+        Path to the model directory
+    """
+    model_repo = ModelRepository(DB_PATH)
+    model_info = model_repo.get_model_info(model_name)
+    if not model_info or 'model_path' not in model_info:
+        raise ValueError(f"Model not found in repository: {model_name}")
+    return model_info['model_path']
 
 def load_data_from_db(db_path: str, table_name: str, start_date: str = None, end_date: str = None) -> pd.DataFrame:
     """Load data from SQLite database
@@ -78,8 +94,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Make predictions using trained time series models')
     
     # Required arguments
-    parser.add_argument('--model-path', required=True,
-                      help='Path to the trained model directory')
+    parser.add_argument('--model-name', required=True,
+                      help='Name of the trained model')
     parser.add_argument('--table', required=True,
                       help='Name of the table to use for prediction')
     
@@ -135,7 +151,11 @@ def main():
     
     try:
         logging.info(f"Starting prediction process for table: {args.table}")
-        logging.info(f"Using model from: {args.model_path}")
+        logging.info(f"Using model: {args.model_name}")
+        
+        # Get model path from repository
+        model_path = get_model_path_from_repository(args.model_name)
+        logging.info(f"Model path: {model_path}")
         
         # Load data from database
         logging.info("Loading data from database...")
@@ -149,7 +169,7 @@ def main():
         
         # Initialize predictor
         logging.info("Initializing predictor...")
-        predictor = TimeSeriesPredictor(args.model_path)
+        predictor = TimeSeriesPredictor(model_path)
         predictor.forecast_horizon = args.forecast_horizon
         logging.info(f"Forecast horizon set to: {args.forecast_horizon}")
         
@@ -184,8 +204,7 @@ def main():
         # Generate output path if not provided
         if not args.output_path:
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            model_name = os.path.basename(args.model_path)
-            args.output_path = f'predictions_{model_name}_{timestamp}.{args.output_format}'
+            args.output_path = f'predictions_{args.model_name}_{timestamp}.{args.output_format}'
         
         # Save predictions
         logging.info(f"Saving predictions in {args.output_format} format...")

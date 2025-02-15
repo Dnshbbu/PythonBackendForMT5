@@ -16,6 +16,7 @@ from statsmodels.tsa.stattools import adfuller
 from sklearn.preprocessing import StandardScaler
 import joblib
 import json
+from model_repository import ModelRepository
 
 def evaluate_arima_model(data: pd.Series, order: tuple) -> Dict:
     """Evaluate an ARIMA model with given parameters"""
@@ -293,10 +294,31 @@ def prepare_time_series_data(df: pd.DataFrame, target_col: str, selected_feature
     
     return data, future_target, features
 
-def save_model(model, model_path: str, metadata: Dict):
-    """Save model and its metadata"""
+def save_model(model, model_path: str, metadata: Dict) -> Tuple[str, Optional[str]]:
+    """Save model and its metadata
+    
+    Args:
+        model: The trained model to save
+        model_path: Path where to save the model
+        metadata: Dictionary containing model metadata
+        
+    Returns:
+        Tuple of (model_path, scaler_path)
+    """
     os.makedirs(model_path, exist_ok=True)
-    joblib.dump(model, os.path.join(model_path, 'model.pkl'))
+    
+    # Save model
+    model_file_path = os.path.join(model_path, 'model.pkl')
+    joblib.dump(model, model_file_path)
+    
+    # Save scaler if exists
+    scaler_path = None
+    if hasattr(model, 'scaler'):
+        scaler_path = os.path.join(model_path, 'scaler.pkl')
+        joblib.dump(model.scaler, scaler_path)
+    elif 'scaler' in metadata:
+        scaler_path = os.path.join(model_path, 'scaler.pkl')
+        joblib.dump(metadata['scaler'], scaler_path)
     
     # Convert numpy types to Python native types for JSON serialization
     def convert_to_native(obj):
@@ -310,12 +332,17 @@ def save_model(model, model_path: str, metadata: Dict):
             return {key: convert_to_native(value) for key, value in obj.items()}
         elif isinstance(obj, list):
             return [convert_to_native(item) for item in obj]
+        elif isinstance(obj, pd.Timestamp):
+            return obj.strftime('%Y-%m-%d %H:%M:%S')
         return obj
     
     cleaned_metadata = convert_to_native(metadata)
     
+    # Save metadata to file
     with open(os.path.join(model_path, 'metadata.json'), 'w') as f:
         json.dump(cleaned_metadata, f, indent=4)
+    
+    return model_file_path, scaler_path
 
 def combine_tables_data(db_path: str, table_names: List[str]) -> pd.DataFrame:
     """Combine data from multiple tables into a single DataFrame"""

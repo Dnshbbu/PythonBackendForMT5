@@ -26,6 +26,7 @@ class ModelRepository:
                     training_type TEXT,
                     prediction_horizon INTEGER,
                     features TEXT,  -- JSON array of feature names
+                    target TEXT,  -- Target variable name
                     feature_importance TEXT,  -- JSON object of feature importances
                     model_params TEXT,  -- JSON object of model parameters
                     metrics TEXT,  -- JSON object of model metrics
@@ -64,6 +65,7 @@ class ModelRepository:
                         training_type: str,
                         prediction_horizon: int,
                         features: List[str],
+                        target: str,
                         feature_importance: Dict,
                         model_params: Dict,
                         metrics: Dict,
@@ -109,6 +111,7 @@ class ModelRepository:
                 'training_type': training_type,
                 'prediction_horizon': prediction_horizon,
                 'features': json.dumps(features),
+                'target': target,
                 'feature_importance': json.dumps(feature_importance),
                 'model_params': json.dumps(model_params),
                 'metrics': json.dumps(metrics),
@@ -130,14 +133,14 @@ class ModelRepository:
             cursor.execute("""
                 INSERT OR REPLACE INTO model_repository (
                     model_name, model_type, training_type, prediction_horizon,
-                    features, feature_importance, model_params, metrics,
-                    training_tables, training_period_start, training_period_end,
+                    features, target, feature_importance, model_params,
+                    metrics, training_tables, training_period_start, training_period_end,
                     data_points, model_path, scaler_path, additional_metadata,
                     last_updated
                 ) VALUES (
                     :model_name, :model_type, :training_type, :prediction_horizon,
-                    :features, :feature_importance, :model_params, :metrics,
-                    :training_tables, :training_period_start, :training_period_end,
+                    :features, :target, :feature_importance, :model_params,
+                    :metrics, :training_tables, :training_period_start, :training_period_end,
                     :data_points, :model_path, :scaler_path, :additional_metadata,
                     :last_updated
                 )
@@ -216,6 +219,106 @@ class ModelRepository:
             
         except Exception as e:
             logging.error(f"Error retrieving meta model information: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close() 
+
+    def get_available_models(self) -> List[Dict]:
+        """
+        Get list of available models from the repository
+        
+        Returns:
+            List of dictionaries containing model information
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT model_name, model_type, training_type, prediction_horizon,
+                       features, target, metrics, data_points, model_path,
+                       created_at, is_active
+                FROM model_repository
+                WHERE is_active = 1
+                ORDER BY created_at DESC
+            """)
+            
+            results = cursor.fetchall()
+            models = []
+            
+            for row in results:
+                model_info = {
+                    'name': row[0],
+                    'type': row[1],
+                    'training_type': row[2],
+                    'prediction_horizon': row[3],
+                    'features': len(json.loads(row[4])) if row[4] else 1,
+                    'target': row[5],
+                    'metrics': json.loads(row[6]) if row[6] else {},
+                    'data_points': row[7],
+                    'model_path': row[8],
+                    'created': row[9],
+                    'is_active': bool(row[10])
+                }
+                models.append(model_info)
+            
+            return models
+            
+        except Exception as e:
+            logging.error(f"Error retrieving available models: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close() 
+
+    def get_model_info(self, model_name: str) -> Dict:
+        """
+        Get model information for any model type
+        
+        Args:
+            model_name: Name of the model
+            
+        Returns:
+            Dictionary containing model information
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT model_type, training_type, prediction_horizon,
+                       features, target, feature_importance, model_params,
+                       metrics, training_tables, training_period_start,
+                       training_period_end, data_points, model_path,
+                       scaler_path, additional_metadata
+                FROM model_repository
+                WHERE model_name = ? AND is_active = 1
+            """, (model_name,))
+            
+            result = cursor.fetchone()
+            if not result:
+                raise ValueError(f"Model not found: {model_name}")
+                
+            # Convert row to dictionary
+            columns = ['model_type', 'training_type', 'prediction_horizon',
+                      'features', 'target', 'feature_importance', 'model_params',
+                      'metrics', 'training_tables', 'training_period_start',
+                      'training_period_end', 'data_points', 'model_path',
+                      'scaler_path', 'additional_metadata']
+            
+            info = dict(zip(columns, result))
+            
+            # Parse JSON fields
+            for field in ['features', 'feature_importance', 'model_params',
+                         'metrics', 'training_tables', 'additional_metadata']:
+                if info[field]:
+                    info[field] = json.loads(info[field])
+            
+            return info
+            
+        except Exception as e:
+            logging.error(f"Error retrieving model information: {e}")
             raise
         finally:
             if conn:

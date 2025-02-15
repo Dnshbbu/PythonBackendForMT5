@@ -10,6 +10,8 @@ from time_series_trainer import (
 from mlflow_utils import MLflowManager
 import json
 import mlflow
+from model_repository import ModelRepository
+import numpy as np
 
 def setup_logging():
     """Configure logging settings"""
@@ -30,7 +32,7 @@ def parse_args():
     parser.add_argument('--features', nargs='+', required=True,
                       help='List of feature columns to use')
     parser.add_argument('--model-type', required=True, 
-                      choices=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR'],
+                      choices=['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR', 'multiple'],
                       help='Type of time series model to train')
     parser.add_argument('--model-name', required=True,
                       help='Name for the saved model')
@@ -88,176 +90,284 @@ def main():
         
         # Initialize MLflow tracking
         mlflow_manager = MLflowManager()
-        run_name = f"{args.model_type}_{args.model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-        with mlflow_manager.start_run(run_name=run_name):
-            # Log basic parameters
-            mlflow_manager.log_params({
-                'model_type': args.model_type,
-                'target_column': args.target,
-                'feature_columns': args.features,
-                'n_lags': args.n_lags,
-                'prediction_horizon': args.prediction_horizon,
-                'tables': args.tables
-            })
-            
-            # Load and combine data
-            logging.info(f"Loading data from {len(args.tables)} tables")
-            df = combine_tables_data(db_path, args.tables)
-            
-            # Set DateTime as index
-            df = df.set_index('DateTime')
-            
-            # Prepare data for training
-            data, future_target, features = prepare_time_series_data(
-                df,
-                args.target,
-                args.features,
-                prediction_horizon=args.prediction_horizon,
-                n_lags=args.n_lags
-            )
-            
-            logging.info(f"Using features: {features.columns.tolist() if features is not None else []}")
-            logging.info(f"Number of lagged features: {args.n_lags}")
-            
-            # Train model based on type
-            logging.info(f"Training {args.model_type} model...")
-            
-            if args.model_type == 'Prophet':
-                # Log Prophet-specific parameters
-                mlflow_manager.log_params({
-                    'changepoint_prior_scale': args.changepoint_prior_scale,
-                    'seasonality_prior_scale': args.seasonality_prior_scale
-                })
+        # Load and combine data
+        logging.info(f"Loading data from {len(args.tables)} tables")
+        df = combine_tables_data(db_path, args.tables)
+        
+        # Set DateTime as index
+        df = df.set_index('DateTime')
+        
+        # Prepare data for training
+        data, future_target, features = prepare_time_series_data(
+            df,
+            args.target,
+            args.features,
+            prediction_horizon=args.prediction_horizon,
+            n_lags=args.n_lags
+        )
+        
+        logging.info(f"Using features: {features.columns.tolist() if features is not None else []}")
+        logging.info(f"Number of lagged features: {args.n_lags}")
+        
+        # Determine which models to train
+        models_to_train = []
+        if args.model_type == 'multiple':
+            # Train all available models
+            models_to_train = ['Auto ARIMA', 'ARIMA', 'SARIMA', 'Prophet', 'VAR']
+        else:
+            models_to_train = [args.model_type]
+        
+        # Train each model
+        for model_type in models_to_train:
+            try:
+                # Generate model name for each model
+                model_name = f"{args.model_name}_{model_type.lower()}"
+                run_name = f"{model_type}_{model_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 
-                # Prepare Prophet data
-                prophet_df = pd.DataFrame({
-                    'ds': data.index,
-                    'y': future_target
-                })
-                if features is not None:
-                    for feature in args.features:
-                        if feature != args.target:
-                            prophet_df[feature] = features[feature]
-                
-                model, metrics = train_prophet(
-                    prophet_df,
-                    args.features
-                )
-                
-            elif args.model_type == 'VAR':
-                # Log VAR-specific parameters
-                mlflow_manager.log_params({
-                    'maxlags': args.maxlags
-                })
-                
-                # Prepare VAR data
-                var_columns = [args.target] + args.features
-                var_data = data[var_columns].select_dtypes(include=['float64', 'int64'])
-                model, metrics = train_var(var_data, maxlags=args.maxlags)
-                
-            elif args.model_type == 'Auto ARIMA':
-                # Log Auto ARIMA-specific parameters
-                mlflow_manager.log_params({
-                    'max_p': args.max_p,
-                    'max_d': args.max_d,
-                    'max_q': args.max_q,
-                    'seasonal': args.seasonal,
-                    'seasonal_period': args.seasonal_period
-                })
-                
-                model, metrics = auto_arima(
-                    future_target,
-                    max_p=args.max_p,
-                    max_d=args.max_d,
-                    max_q=args.max_q,
-                    seasonal=args.seasonal,
-                    m=args.seasonal_period if args.seasonal else 1
-                )
-                
-            elif args.model_type == 'ARIMA':
-                if not args.order:
-                    raise ValueError("ARIMA order (p,d,q) must be specified")
-                
-                # Log ARIMA-specific parameters
-                mlflow_manager.log_params({
-                    'order': args.order
-                })
-                
-                model, metrics = train_arima(future_target, tuple(args.order))
-                
-            elif args.model_type == 'SARIMA':
-                if not args.order or not args.seasonal_order:
-                    raise ValueError("Both order and seasonal_order must be specified for SARIMA")
-                
-                # Log SARIMA-specific parameters
-                mlflow_manager.log_params({
-                    'order': args.order,
-                    'seasonal_order': args.seasonal_order
-                })
-                
-                model, metrics = train_sarima(
-                    future_target,
-                    tuple(args.order),
-                    tuple(args.seasonal_order)
-                )
+                with mlflow_manager.start_run(run_name=run_name):
+                    logging.info(f"\nTraining {model_type} model...")
+                    
+                    # Log basic parameters
+                    mlflow_manager.log_params({
+                        'model_type': model_type,
+                        'target_column': args.target,
+                        'feature_columns': args.features,
+                        'n_lags': args.n_lags,
+                        'prediction_horizon': args.prediction_horizon,
+                        'tables': args.tables
+                    })
+                    
+                    # Train model based on type
+                    if model_type == 'Prophet':
+                        # Log Prophet-specific parameters
+                        mlflow_manager.log_params({
+                            'changepoint_prior_scale': args.changepoint_prior_scale,
+                            'seasonality_prior_scale': args.seasonality_prior_scale
+                        })
+                        
+                        # Prepare Prophet data
+                        prophet_df = pd.DataFrame({
+                            'ds': data.index,
+                            'y': future_target
+                        })
+                        if features is not None:
+                            for feature in args.features:
+                                if feature != args.target:
+                                    prophet_df[feature] = features[feature]
+                        
+                        model, metrics = train_prophet(
+                            prophet_df,
+                            args.features
+                        )
+                        
+                    elif model_type == 'VAR':
+                        # Log VAR-specific parameters
+                        mlflow_manager.log_params({
+                            'maxlags': args.maxlags
+                        })
+                        
+                        # Prepare VAR data
+                        var_columns = [args.target] + args.features
+                        var_data = data[var_columns].select_dtypes(include=['float64', 'int64'])
+                        model, metrics = train_var(var_data, maxlags=args.maxlags)
+                        
+                    elif model_type == 'Auto ARIMA':
+                        # Log Auto ARIMA-specific parameters
+                        mlflow_manager.log_params({
+                            'max_p': args.max_p,
+                            'max_d': args.max_d,
+                            'max_q': args.max_q,
+                            'seasonal': args.seasonal,
+                            'seasonal_period': args.seasonal_period
+                        })
+                        
+                        model, metrics = auto_arima(
+                            future_target,
+                            max_p=args.max_p,
+                            max_d=args.max_d,
+                            max_q=args.max_q,
+                            seasonal=args.seasonal,
+                            m=args.seasonal_period if args.seasonal else 1
+                        )
+                        
+                    elif model_type == 'ARIMA':
+                        if not args.order:
+                            args.order = (1, 1, 1)  # Default order for multiple model training
+                        
+                        # Log ARIMA-specific parameters
+                        mlflow_manager.log_params({
+                            'order': args.order
+                        })
+                        
+                        model, metrics = train_arima(future_target, tuple(args.order))
+                        
+                    elif model_type == 'SARIMA':
+                        if not args.order or not args.seasonal_order:
+                            args.order = (1, 1, 1)  # Default order
+                            args.seasonal_order = (1, 1, 1, 12)  # Default seasonal order
+                        
+                        # Log SARIMA-specific parameters
+                        mlflow_manager.log_params({
+                            'order': args.order,
+                            'seasonal_order': args.seasonal_order
+                        })
+                        
+                        model, metrics = train_sarima(
+                            future_target,
+                            tuple(args.order),
+                            tuple(args.seasonal_order)
+                        )
+                    
+                    # Log metrics
+                    mlflow_manager.log_metrics(metrics)
+                    
+                    # Save model and metadata
+                    model_path = os.path.join(models_dir, model_name)
+                    
+                    # Prepare metadata based on model type
+                    selected_features = args.features if features is None else features.columns.tolist()
+                    order = args.order if model_type in ['ARIMA', 'SARIMA'] else None
+                    seasonal_order = args.seasonal_order if model_type == 'SARIMA' else None
+                    
+                    # Prepare training period information
+                    training_period = {
+                        'start': data.index[0].strftime('%Y-%m-%d %H:%M:%S') if data is not None and len(data) > 0 else None,
+                        'end': data.index[-1].strftime('%Y-%m-%d %H:%M:%S') if data is not None and len(data) > 0 else None
+                    }
+                    
+                    # Prepare feature importance
+                    feature_importance = {}
+                    if model_type == 'VAR' and hasattr(model, 'coefs'):
+                        # For VAR models, calculate feature importance based on coefficient magnitudes
+                        feature_importance = {
+                            feature: float(np.abs(model.coefs[0]).mean()) 
+                            for feature in selected_features
+                        }
+                    else:
+                        feature_importance = {
+                            'ar_coefficients': [],
+                            'ma_coefficients': [],
+                            'seasonal_ar_coefficients': [],
+                            'seasonal_ma_coefficients': []
+                        }
+                    
+                    # Model parameters
+                    model_params = {
+                        'order': order,
+                        'seasonal_order': seasonal_order,
+                        'seasonal': True if seasonal_order else False,
+                        'seasonal_period': seasonal_order[3] if seasonal_order else None
+                    }
+                    
+                    # Add model-specific parameters
+                    if model_type == 'Auto ARIMA':
+                        model_params.update({
+                            'max_p': args.max_p,
+                            'max_d': args.max_d,
+                            'max_q': args.max_q,
+                            'seasonal': args.seasonal,
+                            'seasonal_period': args.seasonal_period
+                        })
+                    elif model_type == 'Prophet':
+                        model_params.update({
+                            'changepoint_prior_scale': args.changepoint_prior_scale,
+                            'seasonality_prior_scale': args.seasonality_prior_scale
+                        })
+                    elif model_type == 'VAR':
+                        model_params.update({
+                            'maxlags': args.maxlags,
+                            'ic': float(model.k_ar) if hasattr(model, 'k_ar') else None,
+                            'trend': model.trend if hasattr(model, 'trend') else None
+                        })
+                    
+                    # Additional metadata
+                    additional_metadata = {
+                        'stationarity_test': {
+                            'adf_statistic': None,
+                            'adf_pvalue': None
+                        },
+                        'model_specification': {
+                            'trend_specification': None,
+                            'has_seasonal': True if seasonal_order else False,
+                            'seasonal_period': seasonal_order[3] if seasonal_order else None
+                        },
+                        'estimation_details': {
+                            'nobs': len(data) if data is not None else 0,
+                            'df_model': len(selected_features),
+                            'df_resid': None
+                        }
+                    }
+                    
+                    if model_type == 'VAR':
+                        additional_metadata.update({
+                            'preprocessing': {
+                                'diff_orders': model.diff_orders if hasattr(model, 'diff_orders') else None,
+                                'has_scaler': hasattr(model, 'scaler')
+                            }
+                        })
+                    
+                    # Prepare complete metadata
+                    metadata = {
+                        'model_type': model_type,
+                        'training_type': 'single',
+                        'prediction_horizon': args.prediction_horizon,
+                        'features': selected_features,
+                        'target': args.target,
+                        'n_lags': args.n_lags,
+                        'order': order,
+                        'seasonal_order': seasonal_order,
+                        'seasonal': True if seasonal_order else False,
+                        'seasonal_period': seasonal_order[3] if seasonal_order else None,
+                        'table_names': args.tables,
+                        'data_points': len(data) if data is not None else 0,
+                        'training_period': training_period,
+                        'model_params': model_params,
+                        'metrics': metrics,
+                        'feature_importance': feature_importance,
+                        'additional_metadata': additional_metadata
+                    }
+                    
+                    # Save model and get model path
+                    model_file_path, scaler_path = save_model(model, model_path, metadata)
+                    
+                    # Initialize model repository
+                    model_repo = ModelRepository(db_path)
+                    
+                    # Store model information
+                    model_repo.store_model_info(
+                        model_name=model_name,
+                        model_type=model_type,
+                        training_type='single',
+                        prediction_horizon=args.prediction_horizon,
+                        features=selected_features,
+                        target=args.target,
+                        feature_importance=feature_importance,
+                        model_params=model_params,
+                        metrics=metrics,
+                        training_tables=args.tables,
+                        training_period=training_period,
+                        data_points=len(data) if data is not None else 0,
+                        model_path=model_path,
+                        scaler_path=scaler_path,
+                        additional_metadata=additional_metadata
+                    )
+                    
+                    logging.info(f"Model information stored in repository for {model_name}")
+                    logging.info(f"Model saved to {model_file_path}")
+                    if scaler_path:
+                        logging.info(f"Scaler saved to {scaler_path}")
             
-            # Log metrics
-            mlflow_manager.log_metrics(metrics)
-            
-            # Save model and metadata
-            model_path = os.path.join(models_dir, args.model_name)
-            
-            # Prepare metadata based on model type
-            metadata = {
-                'model_type': args.model_type,
-                'training_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'features': args.features,
-                'target': args.target,
-                'n_lags': args.n_lags,
-                'metrics': metrics,
-                'mlflow_run_id': mlflow.active_run().info.run_id if mlflow.active_run() else None
-            }
-            
-            # Add model-specific parameters to metadata
-            if args.model_type == 'Auto ARIMA':
-                metadata.update({
-                    'max_p': args.max_p,
-                    'max_d': args.max_d,
-                    'max_q': args.max_q,
-                    'seasonal': args.seasonal,
-                    'seasonal_period': args.seasonal_period
-                })
-            elif args.model_type in ['ARIMA', 'SARIMA']:
-                metadata['order'] = args.order
-                if args.model_type == 'SARIMA':
-                    metadata['seasonal_order'] = args.seasonal_order
-            elif args.model_type == 'Prophet':
-                metadata.update({
-                    'changepoint_prior_scale': args.changepoint_prior_scale,
-                    'seasonality_prior_scale': args.seasonality_prior_scale
-                })
-            elif args.model_type == 'VAR':
-                metadata['maxlags'] = args.maxlags
-            
-            # Save model locally
-            save_model(model, model_path, metadata)
-            logging.info(f"Model saved to {model_path}")
-            
-            # Log model to MLflow
-            mlflow_manager.log_model(model, args.model_name)
-            
-            # Log model metadata as artifact
-            metadata_path = f"{args.model_name}_metadata.json"
-            with open(metadata_path, 'w') as f:
-                json.dump(metadata, f, indent=4)
-            mlflow_manager.log_artifact(metadata_path)
-            os.remove(metadata_path)  # Clean up temporary file
-            
-            logging.info("Training completed successfully")
+            except Exception as e:
+                logging.error(f"Error training {model_type} model: {str(e)}")
+                logging.exception("Detailed traceback:")
+                continue  # Continue with next model even if one fails
+        
+        logging.info("Training completed successfully")
         
     except Exception as e:
-        logging.error(f"Error during training: {str(e)}", exc_info=True)
+        logging.error(f"Error during training: {str(e)}")
+        logging.exception("Detailed traceback:")
         raise
 
 if __name__ == "__main__":

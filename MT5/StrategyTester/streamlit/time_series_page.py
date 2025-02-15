@@ -852,9 +852,28 @@ def time_series_page():
                         
                         # Check return code
                         if process.returncode == 0:
-                            status_placeholder.success("✨ Training completed successfully")
-                            evaluation_progress_bar.progress(1.0)
-                            evaluation_status.text("Training completed successfully")
+                            if check_ts_stop_clicked():
+                                status_placeholder.warning("Training stopped by user")
+                            else:
+                                status_placeholder.success("✨ Training completed successfully")
+                                evaluation_progress_bar.progress(1.0)
+                                evaluation_status.text("Training completed successfully")
+                                
+                                # Display model paths if found in logs
+                                model_path = None
+                                scaler_path = None
+                                for line in output_text:
+                                    if "Model saved to" in line:
+                                        model_path = line.split("Model saved to")[-1].strip()
+                                    elif "Scaler saved to" in line:
+                                        scaler_path = line.split("Scaler saved to")[-1].strip()
+                                
+                                if model_path or scaler_path:
+                                    with st.expander("📁 Model Files", expanded=True):
+                                        if model_path:
+                                            st.markdown(f"**Model Path**: `{model_path}`")
+                                        if scaler_path:
+                                            st.markdown(f"**Scaler Path**: `{scaler_path}`")
                         else:
                             status_placeholder.error("❌ Training failed")
                             evaluation_status.text("Training failed")

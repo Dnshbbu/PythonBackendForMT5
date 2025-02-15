@@ -9,6 +9,7 @@ from datetime import datetime
 import logging
 from db_info import get_table_names, get_numeric_columns
 import json
+from model_repository import ModelRepository
 
 def initialize_predict_ts_session_state():
     """Initialize session state variables for prediction page"""
@@ -180,25 +181,34 @@ def get_model_info(model_path: str) -> Dict:
             ).strftime('%Y-%m-%d %H:%M:%S')
         }
 
-def get_available_models(models_dir: str) -> List[Dict]:
+def get_available_models(db_path: str) -> List[Dict]:
     """Get list of available trained models with detailed information"""
     try:
-        models = []
-        for model_name in os.listdir(models_dir):
-            model_path = os.path.join(models_dir, model_name)
-            if os.path.isdir(model_path):
-                # Get model info
-                info = get_model_info(model_path)
-                models.append({
-                    'name': model_name,
-                    'type': info['type'],
-                    'target': info['target'],
-                    'features': info['features'],
-                    'created': info['created']
-                })
-        return sorted(models, key=lambda x: x['created'], reverse=True)
+        # Initialize model repository
+        model_repo = ModelRepository(db_path)
+        
+        # Get available models from repository
+        models = model_repo.get_available_models()
+        
+        if not models:
+            st.warning("No trained models found in the repository.")
+            return []
+            
+        # Convert to format expected by UI
+        formatted_models = []
+        for model in models:
+            formatted_models.append({
+                'name': model['name'],
+                'type': model['type'],
+                'target': model['target'],
+                'features': model['features'],
+                'created': model['created']
+            })
+            
+        return sorted(formatted_models, key=lambda x: x['created'], reverse=True)
+        
     except Exception as e:
-        st.error(f"Error accessing models directory: {str(e)}")
+        st.error(f"Error accessing model repository: {str(e)}")
         return []
 
 def display_predict_ts_evaluation_status():
@@ -213,7 +223,7 @@ def display_predict_ts_evaluation_status():
         return progress_bar, status_text
 
 def get_predict_ts_equivalent_command(
-    model_path: str,
+    model_name: str,
     table_name: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
@@ -223,7 +233,7 @@ def get_predict_ts_equivalent_command(
 ) -> str:
     """Generate the equivalent command line command for time series prediction"""
     base_cmd = "python predict_time_series.py"
-    model_arg = f"--model-path {model_path}"
+    model_arg = f"--model-name {model_name}"
     table_arg = f"--table {table_name}"
     
     # Add optional arguments
@@ -252,7 +262,10 @@ def predict_time_series_page():
     # Setup paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(current_dir, 'logs', 'trading_data.db')
-    models_dir = os.path.join(current_dir, 'models', 'time_series')
+    model_repo_path = os.path.join(current_dir, 'logs', 'trading_data.db')  # Using the same DB for model repository
+    
+    # Initialize model repository
+    model_repo = ModelRepository(model_repo_path)
     
     # Create main left-right layout
     left_col, right_col = st.columns([1, 1], gap="large")
@@ -340,10 +353,10 @@ def predict_time_series_page():
             st.markdown("#### 🤖 Model Selection")
             
             # Get available models with detailed information
-            available_models = get_available_models(models_dir)
+            available_models = get_available_models(model_repo_path)
             
             if not available_models:
-                st.warning("No trained models found. Please train a model first.")
+                st.warning("No trained models found in the repository. Please train a model first.")
                 return
             
             # Create or use existing model data
@@ -453,7 +466,7 @@ def predict_time_series_page():
             # Display equivalent command
             st.markdown("##### 💻 Equivalent Command")
             cmd = get_predict_ts_equivalent_command(
-                os.path.join(models_dir, selected_model),
+                selected_model,
                 st.session_state['predict_ts_selected_tables'][0],
                 start_date.strftime("%Y-%m-%d") if start_date else None,
                 end_date.strftime("%Y-%m-%d") if end_date else None,

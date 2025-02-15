@@ -8,7 +8,6 @@
 	- General (refer: refer all sections)
 	- All others (refer: refer all sections)
 
-
 ## Direction to execute the scripts:
 - Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
 - You may already be in this path. If not, navigate to this path.
@@ -17,7 +16,6 @@
 
 
 # Project details
-
 ## trading_data.db 
 - path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\logs\trading_data.db"
 - This is the main database to get the data to do the predictions, store the predictions, store model information, store prediction metrics, etc.

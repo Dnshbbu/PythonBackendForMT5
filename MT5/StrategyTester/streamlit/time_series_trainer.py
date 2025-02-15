@@ -280,6 +280,13 @@ def prepare_time_series_data(df: pd.DataFrame, target_col: str, selected_feature
     """Prepare time series data for training"""
     data = df.copy()
     
+    # Add current price as a feature
+    current_price_feature = f"{target_col}_current"
+    data[current_price_feature] = data[target_col]
+    if selected_features is not None:
+        selected_features.append(current_price_feature)
+    
+    # Add lagged features
     for i in range(1, n_lags + 1):
         lag_col = f"{target_col}_lag_{i}"
         data[lag_col] = data[target_col].shift(i)

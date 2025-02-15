@@ -1,17 +1,22 @@
 # Requirements-  !!! Important!!!
 
+- Before doing anything, you should categorize the task into one of the following and follow the instructions accordingly:
+	- Fixing Errors (refer: Error fixing section)
+	- Execute a script (refer: Direction to execute the scripts section)
+	- Adding a new feature/component (refer: 'Prefered Code Structure' section)
+	- Answer a question (refer: refer all sections)
+	- General (refer: refer all sections)
+	- All others (refer: refer all sections)
+
+
 ## Direction to execute the scripts:
 - Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
 - You may already be in this path. If not, navigate to this path.
 - You must wait for script output before proceeding
 - If no output is visible, wait for 15 more seconds and check again.
 
-# Error fixing
-- Consider multiple possible causes before deciding on the solution. Do not jump to conclusions.
-- Explain the problem and the solution in a way that is easy to understand.
-- Always verify the fix.
-- Consider the context of the code.
-- If your previous attempt to fix a code didn't work, try to understand the reason and discuss with yourself, and try to fix it again systematically.
+
+# Project details
 
 ## trading_data.db 
 - path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\logs\trading_data.db"
@@ -87,13 +92,18 @@ Naming convention: {model_type}_{training_type}_{timestamp}
 5. If you must,since I am using Powershell, using '&&' is not working. So, use ';' to run multiple commands in the same line.
 
 
-## Prefered Code Structure:
+## Prefered Code Structure
 1. Core component (file to have all core logic)
 2. CLI interface (to handle core component via argparse)
 3. Streamlit UI interface ( page to handle core component similar to cli, but in a more user friendly)
 
 
-
+# Error fixing
+- Consider multiple possible causes before deciding on the solution. Do not jump to conclusions.
+- Explain the problem and the solution in a way that is easy to understand.
+- Always verify the fix.
+- Consider the context of the code.
+- If your previous attempt to fix a code didn't work, try to understand the reason and discuss with yourself, and try to fix it again systematically.
 
 
 # Instructions/Rules to follow

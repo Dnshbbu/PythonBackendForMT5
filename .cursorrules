@@ -8,13 +8,13 @@
 - Store the model information in 'model_repository' table
 
 ## mlflow.db 
-- path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\mlflow.db"
+- path = "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit\mlflow.db".
 - This is the database to integrate with MLflow.
 - Use 'trading_models' experiment to store the model information, prediction metrics, etc. In other words, use this experiment when training the model.
 - Use 'model_predictions' experiment to store the prediction runs. In other words, use this experiment when predicting the data.
 
 ## Naming conventions
-- run_id : Unique id for each prediction run. 'run_name' in MLflow is same as 'run_id'
+- run_id : Unique id for each prediction run. 'run_name' in MLflow is same as 'run_id' when predicting the data.
 Naming convention:    run_{current_time}
 	where 
     - current_time is formatted as: YYYYMMDD_HHMMSS_fff
@@ -27,7 +27,7 @@ Naming convention:    run_{current_time}
 	- fff: First 3 digits of microseconds
 	For example, a run_id might look like: run_20250215_110148_123
 	
-- model_name : name of the model
+- model_name : name of the model. 'run_name' in MLflow is same as 'model_name' when training the model.
 Naming convention: {model_type}_{training_type}_{timestamp}
 	where:
 	- model_type: Type of the model (e.g., 'xgboost', 'decision_tree', 'random_forest', 'lstm')
@@ -54,8 +54,10 @@ Naming convention: {model_type}_{training_type}_{timestamp}
 
 
 ## Direction to execute the scripts:
-• Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
-• Wait for script output before proceeding
+- Run from path: "C:\Users\StdUser\Desktop\MyProjects\Backtesting\MT5\StrategyTester\streamlit"
+- Wait for script output before proceeding
+- If no output is visible, wait for 15 more seconds and check again.
+
 
 ##  Frequent mistakes you do and you should keep in mind to avoid these.
 1. I am using PowerShell in Windows machine. You have to wait for some time after executing the Powershell commands to view the terminal output. You are frequently moving on without waiting for the output.
@@ -83,9 +85,7 @@ Naming convention: {model_type}_{training_type}_{timestamp}
     - Go through the entire code and revisit the plan and with the context, try to tackle it.
 5. If you need clarification, ask the user. DON'T ASSUME!
 6. Always try to reuse the existing code. Create only if that is not possible.
-7. I am running MLflow like this 
-mlflow ui --backend-store-uri "sqlite:///mlflow.db"
-8. Always work on the basis of what is observed in the logs and actual data. 
+7. Always work on the basis of what is observed in the logs and actual data. 
 
 # General Guidelines
 - Write clean, readable, and well-structured code.

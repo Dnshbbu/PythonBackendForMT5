@@ -88,7 +88,11 @@ def main():
         models_dir = os.path.join(current_dir, 'models', 'time_series')
         os.makedirs(models_dir, exist_ok=True)
         
-        # Initialize MLflow tracking
+        # Initialize MLflow tracking with absolute path
+        mlflow_db = "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\mlflow.db"
+        mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
+        
+        # Initialize MLflow manager
         mlflow_manager = MLflowManager()
         
         # Load and combine data
@@ -132,7 +136,7 @@ def main():
                 current_time = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:19]  # Include milliseconds but truncate to 3 digits
                 run_id = f"run_{current_time}"
                 
-                with mlflow_manager.start_run(run_name=run_id):
+                with mlflow_manager.start_run(run_name=model_name):
                     logging.info(f"\nTraining {model_type} model...")
                     
                     # Log basic parameters

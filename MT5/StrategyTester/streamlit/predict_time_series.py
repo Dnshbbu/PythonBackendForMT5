@@ -424,19 +424,18 @@ def main():
         )
         logging.info(f"Loaded {len(data)} rows of data")
         
-        # Set up MLflow
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        mlflow_db = os.path.join(current_dir, "mlflow.db")
+        # Set up MLflow with absolute path
+        mlflow_db = "C:\\Users\\StdUser\\Desktop\\MyProjects\\Backtesting\\MT5\\StrategyTester\\streamlit\\mlflow.db"
         mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
         
         # Set up MLflow experiment
-        experiment = mlflow.get_experiment_by_name("time_series_predictions")
+        experiment = mlflow.get_experiment_by_name("model_predictions")
         if experiment is None:
-            experiment_id = mlflow.create_experiment("time_series_predictions")
+            experiment_id = mlflow.create_experiment("model_predictions")
         else:
             experiment_id = experiment.experiment_id
         
-        mlflow.set_experiment("time_series_predictions")
+        mlflow.set_experiment("model_predictions")
         
         # Create run_id in the required format: run_YYYYMMDD_HHMMSS_fff
         current_time = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:19]  # Include milliseconds but truncate to 3 digits

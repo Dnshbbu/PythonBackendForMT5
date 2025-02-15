@@ -91,13 +91,24 @@ class ModelComparison:
             horizontal_spacing=0.15
         )
 
-        # Enhanced color palette with better contrast
-        colors = ['#00BFB3', '#FFA07A', '#7CB9E8']
+        # Enhanced color palette with distinct colors for multiple models
+        colors = [
+            '#00BFB3',  # Turquoise
+            '#FFA07A',  # Light Salmon
+            '#9370DB',  # Medium Purple
+            '#20B2AA',  # Light Sea Green
+            '#FF6B6B',  # Light Coral
+            '#4682B4',  # Steel Blue
+            '#FFB347',  # Light Orange
+            '#87CEEB',  # Sky Blue
+            '#98FB98',  # Pale Green
+            '#DDA0DD',  # Plum
+        ]  # Add more colors as needed
         
         for idx, model in enumerate(metrics_df['model_name'].unique()):
             model_data = metrics_df[metrics_df['model_name'] == model]
             display_name = model.split('_')[-1]
-            color = colors[idx % len(colors)]
+            color = colors[idx % len(colors)]  # Cycle through colors if more models than colors
 
             # Error Metrics - Improved scale and presentation
             error_metrics = ['MAE', 'RMSE', 'MAPE']
@@ -109,7 +120,7 @@ class ModelComparison:
             
             fig.add_trace(
                 go.Bar(
-                    name=display_name,
+                    name=str(model_data['model_name'].iloc[0]),  # Use full model name
                     x=error_metrics,
                     y=error_values,
                     marker_color=color,
@@ -118,7 +129,12 @@ class ModelComparison:
                     ),
                     text=[f"{v:.4f}" for v in error_values],
                     textposition='auto',
-                    textfont=dict(size=11)
+                    textfont=dict(size=11),
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Metric:</b> %{x}<br>" +
+                                "<b>Value:</b> %{y:.4f}<extra></extra>",
+                    showlegend=True,
+                    legendgroup=str(model_data['model_name'].iloc[0]),
                 ),
                 row=1, col=1
             )
@@ -136,7 +152,11 @@ class ModelComparison:
                     ),
                     text=[f"{model_data['avg_r2'].iloc[0]:.4f}"],
                     textposition='auto',
-                    textfont=dict(size=11)
+                    textfont=dict(size=11),
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>R² Score:</b> %{x:.4f}<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=2, col=1
             )
@@ -154,7 +174,11 @@ class ModelComparison:
                     ),
                     text=[f"{model_data['avg_direction_accuracy'].iloc[0] * 100:.2f}%"],
                     textposition='auto',
-                    textfont=dict(size=11)
+                    textfont=dict(size=11),
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Accuracy:</b> %{x:.2f}%<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=2, col=2
             )
@@ -179,6 +203,11 @@ class ModelComparison:
                         model_data['avg_down_accuracy'].iloc[0] * 100
                     ]],
                     textposition='auto',
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Type:</b> %{x}<br>" +
+                                "<b>Accuracy:</b> %{y:.1f}%<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=1, col=2
             )
@@ -198,6 +227,11 @@ class ModelComparison:
                         f"{model_data['avg_streak'].iloc[0]:.1f}"
                     ],
                     textposition='auto',
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Type:</b> %{x}<br>" +
+                                "<b>Value:</b> %{y:.1f}<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=3, col=1
             )
@@ -217,6 +251,11 @@ class ModelComparison:
                         f"{model_data['avg_last_quarter_accuracy'].iloc[0]:.4f}"
                     ],
                     textposition='auto',
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Period:</b> %{x}<br>" +
+                                "<b>Accuracy:</b> %{y:.4f}<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=3, col=1
             )
@@ -230,6 +269,11 @@ class ModelComparison:
                     marker_color=color,
                     text=[f"{model_data['avg_volatility'].iloc[0]:.4f}"],
                     textposition='auto',
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Type:</b> %{x}<br>" +
+                                "<b>Value:</b> %{y:.4f}<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=3, col=2
             )
@@ -243,6 +287,11 @@ class ModelComparison:
                     marker_color=color,
                     text=[f"{model_data['avg_error_skewness'].iloc[0]:.4f}"],
                     textposition='auto',
+                    hovertemplate="<b>Model:</b> " + str(model_data['model_name'].iloc[0]) + "<br>" +
+                                "<b>Type:</b> %{x}<br>" +
+                                "<b>Value:</b> %{y:.4f}<extra></extra>",
+                    showlegend=False,
+                    legendgroup=display_name,
                 ),
                 row=4, col=1
             )
@@ -252,22 +301,33 @@ class ModelComparison:
             height=1200,
             template="plotly_dark",
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(26,28,35,0.8)',  # Darker background for better contrast
             showlegend=True,
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
-                y=-0.15,
+                y=1.15,  # Move legend to top
                 xanchor="center",
                 x=0.5,
                 bgcolor='rgba(0,0,0,0.5)',
                 bordercolor='#333333',
-                borderwidth=1
+                borderwidth=1,
+                font=dict(size=10)  # Adjust font size for better fit
             ),
             font=dict(
                 family="Arial, sans-serif",
                 size=12,
                 color="#ffffff"
+            ),
+            hoverlabel=dict(
+                bgcolor='#1E1E1E',
+                bordercolor='#00ADB5',
+                font=dict(
+                    family="Arial",
+                    size=14,
+                    color='#FFFFFF'
+                ),
+                align='left'
             )
         )
 
@@ -288,17 +348,18 @@ class ModelComparison:
                 fig.update_xaxes(
                     showgrid=True,
                     gridwidth=1,
-                    gridcolor='rgba(128, 128, 128, 0.2)',
+                    gridcolor='rgba(255, 255, 255, 0.1)',  # Lighter grid color
                     showline=True,
                     linewidth=1,
                     linecolor='#333333',
                     row=row,
-                    col=col
+                    col=col,
+                    hoverformat='.4f'  # Format hover text to 4 decimal places
                 )
                 fig.update_yaxes(
                     showgrid=True,
                     gridwidth=1,
-                    gridcolor='rgba(128, 128, 128, 0.2)',
+                    gridcolor='rgba(255, 255, 255, 0.1)',  # Lighter grid color
                     showline=True,
                     linewidth=1,
                     linecolor='#333333',
@@ -548,8 +609,9 @@ def display_model_details_section(model_details: Dict):
                             color=['rgba(0, 173, 181, 0.8)'] * len(sorted_features),
                             line=dict(color='#00ADB5', width=1)
                         ),
-                        hovertemplate='<b>%{y}</b><br>' +
-                                    'Importance: %{x:.4f}<extra></extra>'
+                        hovertemplate='<b>Model:</b> ' + model_details['model_name'] + '<br>' +
+                                    '<b>Feature:</b> %{y}<br>' +
+                                    '<b>Importance:</b> %{x:.4f}<extra></extra>'
                     ))
                     
                     # Update layout with better styling
@@ -558,7 +620,7 @@ def display_model_details_section(model_details: Dict):
                         height=350,
                         margin=dict(l=20, r=20, t=30, b=20),
                         paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(26,28,35,0.5)',
+                        plot_bgcolor='rgba(26,28,35,0.8)',  # Darker background for better contrast
                         title=dict(
                             text='Feature Importance (Top 10)',
                             x=0.5,
@@ -584,9 +646,14 @@ def display_model_details_section(model_details: Dict):
                             tickfont=dict(size=11, color='#e0e0e0')
                         ),
                         hoverlabel=dict(
-                            bgcolor='#252830',
-                            font_size=12,
-                            font_family="Arial"
+                            bgcolor='#1E1E1E',
+                            bordercolor='#00ADB5',
+                            font=dict(
+                                family="Arial",
+                                size=14,
+                                color='#FFFFFF'
+                            ),
+                            align='left'
                         ),
                         bargap=0.2
                     )
@@ -615,7 +682,42 @@ def display_model_details_section(model_details: Dict):
         st.error(f"Error displaying model details: {str(e)}")
         logging.error(f"Error in display_model_details_section: {str(e)}")
 
+def initialize_mc_session_state():
+    """Initialize session state variables for model comparison page"""
+    if 'mc_selected_models' not in st.session_state:
+        st.session_state['mc_selected_models'] = []
+    if 'mc_model_selections' not in st.session_state:
+        st.session_state['mc_model_selections'] = {}
+    if 'mc_model_data' not in st.session_state:
+        st.session_state['mc_model_data'] = []
+    if 'mc_previous_selection' not in st.session_state:
+        st.session_state['mc_previous_selection'] = None
+
+def on_mc_model_selection_change():
+    """Callback to handle model selection changes"""
+    edited_rows = st.session_state['mc_model_editor']['edited_rows']
+    
+    # Get the model data from session state
+    model_data = st.session_state['mc_model_data']
+    current_models = []
+    
+    for idx, changes in edited_rows.items():
+        if '🔍 Select' in changes:
+            model_name = model_data[idx]['Model Name']
+            st.session_state['mc_model_selections'][model_name] = changes['🔍 Select']
+            if changes['🔍 Select']:
+                current_models.append(model_name)
+    
+    # Update selected models list
+    st.session_state['mc_selected_models'] = [
+        name for name, is_selected in st.session_state['mc_model_selections'].items() 
+        if is_selected
+    ]
+
 def model_comparison_page():
+    # Initialize session state
+    initialize_mc_session_state()
+    
     # Add additional CSS for sidebars and tooltip
     st.markdown("""
         <style>
@@ -778,35 +880,70 @@ def model_comparison_page():
             st.warning("No model metrics available in the database.")
             return
 
-        # Model Selection Section
-        st.markdown("<div class='section-header'>🤖 Select Models to Compare</div>", unsafe_allow_html=True)
+        # Create or use existing model data
+        if not st.session_state['mc_model_data']:
+            model_data = []
+            for model in models:
+                # Convert timestamps to datetime if they're strings and not None
+                first_run = pd.to_datetime(model['first_run']).strftime('%Y-%m-%d %H:%M') if model['first_run'] else 'N/A'
+                last_run = pd.to_datetime(model['last_run']).strftime('%Y-%m-%d %H:%M') if model['last_run'] else 'N/A'
+                
+                # Use the stored selection state or default to False
+                is_selected = st.session_state['mc_model_selections'].get(model['model_name'], False)
+                
+                model_data.append({
+                    '🔍 Select': is_selected,
+                    'Model Name': model['model_name'],
+                    'Source Table': model['source_table'],
+                    'Total Runs': model['total_runs'],
+                    'First Run': first_run,
+                    'Last Run': last_run
+                })
+            st.session_state['mc_model_data'] = model_data
         
-        # Create a mapping of display names to full model info
-        model_display_names = {
-            f"{m['model_name'].split('_')[-1]} ({m['source_table']})": m['model_name']
-            for m in models
-        }
-
-        # Multi-select for models
-        selected_display_names = st.multiselect(
-            "Choose models to compare:",
-            options=list(model_display_names.keys()),
-            default=[list(model_display_names.keys())[0]] if model_display_names else None,
-            key="model_selector"
+        model_df = pd.DataFrame(st.session_state['mc_model_data'])
+        
+        # Display model information with checkboxes
+        st.markdown("### 📊 Available Models")
+        edited_df = st.data_editor(
+            model_df,
+            hide_index=True,
+            column_config={
+                '🔍 Select': st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select models to compare",
+                    default=False
+                ),
+                'Model Name': st.column_config.TextColumn(
+                    "Model",
+                    help="Name of the model"
+                ),
+                'Source Table': st.column_config.TextColumn(
+                    "Data Source",
+                    help="Source table used for training"
+                ),
+                'Total Runs': st.column_config.NumberColumn(
+                    "Runs",
+                    help="Total number of prediction runs",
+                    format="%d"
+                ),
+                'First Run': st.column_config.TextColumn(
+                    "First Run",
+                    help="Time of first prediction run"
+                ),
+                'Last Run': st.column_config.TextColumn(
+                    "Last Run",
+                    help="Time of most recent prediction run"
+                )
+            },
+            key='mc_model_editor',
+            on_change=on_mc_model_selection_change
         )
 
-        # Convert selected display names to model names
-        selected_models = [model_display_names[display_name] for display_name in selected_display_names]
-
-        # Show selected model details in an expander
-        if selected_models:
-            with st.expander("📋 Selected Models Details", expanded=False):
-                for model in models:
-                    if model['model_name'] in selected_models:
-                        st.markdown(create_compact_model_card(model), unsafe_allow_html=True)
-
+        # Get selected models
+        selected_models = st.session_state['mc_selected_models']
         if not selected_models:
-            st.info("👆 Please select at least one model to analyze.")
+            st.info("Please select at least one model to analyze.")
             return
 
         try:
@@ -861,7 +998,7 @@ def model_comparison_page():
                         'Avg MAPE (%)': '{:.2f}',
                         'Avg R²': '{:.4f}',
                         'Direction Accuracy (%)': '{:.2f}'
-                    }).background_gradient(cmap='RdYlGn', subset=['Avg R²', 'Direction Accuracy (%)']),
+                    }),
                     use_container_width=True
                 )
 

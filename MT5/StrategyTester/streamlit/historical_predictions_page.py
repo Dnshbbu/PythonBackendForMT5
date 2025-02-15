@@ -31,7 +31,8 @@ def get_available_runs(db_path: str) -> List[Dict[str, str]]:
             LEFT JOIN historical_prediction_metrics m 
             ON p.run_id = m.run_id
             GROUP BY p.run_id, p.source_table, p.model_name
-            ORDER BY p.datetime DESC
+            HAVING MAX(m.timestamp) IS NOT NULL
+            ORDER BY MAX(m.timestamp) DESC
         """
         
         conn = sqlite3.connect(db_path)
@@ -60,7 +61,7 @@ def load_predictions_page(db_path: str, run_id: str, page: int) -> pd.DataFrame:
             price_volatility
         FROM historical_predictions
         WHERE run_id = ?
-        ORDER BY datetime
+        ORDER BY datetime DESC
         LIMIT ? OFFSET ?
     """
     
@@ -102,7 +103,7 @@ def load_metrics(db_path: str, run_id: str) -> pd.DataFrame:
         SELECT *
         FROM historical_prediction_metrics
         WHERE run_id = ?
-        ORDER BY timestamp
+        ORDER BY timestamp DESC
     """
     
     try:
@@ -132,7 +133,7 @@ def load_all_predictions(db_path: str, run_id: str) -> pd.DataFrame:
             price_volatility
         FROM historical_predictions
         WHERE run_id = ?
-        ORDER BY datetime
+        ORDER BY datetime DESC
     """
     
     try:
@@ -523,6 +524,9 @@ class HistoricalPredictionsPage:
 
 def format_metric_value(name: str, value: float) -> str:
     """Format metric values based on their type/name."""
+    if value is None:
+        return "N/A"
+    
     if 'accuracy' in name.lower() or 'ratio' in name.lower() or 'rate' in name.lower():
         return f"{value*100:.1f}%"
     elif 'streak' in name.lower() and 'max' in name.lower():
@@ -535,8 +539,44 @@ def format_column_name(col_name: str) -> str:
     """Convert snake_case column names to Title Case for display."""
     return ' '.join(word.capitalize() for word in col_name.split('_'))
 
+def initialize_hp_session_state():
+    """Initialize session state variables for historical predictions page"""
+    if 'hp_selected_run' not in st.session_state:
+        st.session_state['hp_selected_run'] = None
+    if 'hp_run_selections' not in st.session_state:
+        st.session_state['hp_run_selections'] = {}
+    if 'hp_run_data' not in st.session_state:
+        st.session_state['hp_run_data'] = []
+    if 'hp_previous_selection' not in st.session_state:
+        st.session_state['hp_previous_selection'] = None
+
+def on_hp_run_selection_change():
+    """Callback to handle run selection changes"""
+    edited_rows = st.session_state['hp_run_editor']['edited_rows']
+    
+    # Get the run data from session state
+    run_data = st.session_state['hp_run_data']
+    
+    for idx, changes in edited_rows.items():
+        if '🔍 Select' in changes:
+            # Deselect all other runs first
+            for i in range(len(run_data)):
+                if i != idx:
+                    run_data[i]['🔍 Select'] = False
+            
+            # Select the current run
+            run_id = run_data[idx]['Run ID']
+            st.session_state['hp_run_selections'] = {run_id: changes['🔍 Select']}
+            if changes['🔍 Select']:
+                st.session_state['hp_selected_run'] = run_id
+            else:
+                st.session_state['hp_selected_run'] = None
+
 def historical_predictions_page():
     """Main function for the historical predictions analysis page."""
+    # Initialize session state
+    initialize_hp_session_state()
+    
     # Add CSS for tooltip and styling
     st.markdown("""
         <style>
@@ -665,67 +705,107 @@ def historical_predictions_page():
         details_col = None
 
     with main_col:
-        # Run selection with metadata
-        run_options = [
-            f"{run['run_id']} - {run['model_name']} ({run['source_table']})" 
-            for run in runs
-        ]
+        # Create or use existing run data
+        if not st.session_state['hp_run_data']:
+            run_data = []
+            for run in runs:
+                # Convert timestamps to datetime if they're strings and not None
+                start_date = pd.to_datetime(run['start_date']).strftime('%Y-%m-%d %H:%M') if run['start_date'] else 'N/A'
+                end_date = pd.to_datetime(run['end_date']).strftime('%Y-%m-%d %H:%M') if run['end_date'] else 'N/A'
+                run_timestamp = pd.to_datetime(run['run_timestamp']).strftime('%Y-%m-%d %H:%M') if run['run_timestamp'] else 'N/A'
+                
+                # Use the stored selection state or default to False
+                is_selected = st.session_state['hp_run_selections'].get(run['run_id'], False)
+                
+                # Calculate metrics for display
+                metrics = load_metrics(db_path, run['run_id'])
+                latest_metrics = metrics.iloc[-1] if not metrics.empty else pd.Series()
+                
+                run_data.append({
+                    '🔍 Select': is_selected,
+                    'Run ID': run['run_id'],
+                    'Model Name': run['model_name'],
+                    'Source Table': run['source_table'],
+                    'Period': f"{start_date} to {end_date}",
+                    'Predictions': run['prediction_count'],
+                    'Run Time': run_timestamp,
+                    'MAE': format_metric_value('mae', latest_metrics.get('mean_absolute_error', 0)),
+                    'RMSE': format_metric_value('rmse', latest_metrics.get('root_mean_squared_error', 0)),
+                    'Direction Accuracy': format_metric_value('accuracy', latest_metrics.get('direction_accuracy', 0)),
+                    'Max Streak': format_metric_value('max_streak', latest_metrics.get('max_correct_streak', 0))
+                })
+            st.session_state['hp_run_data'] = run_data
         
-        selected_option = st.selectbox(
-            "Select Prediction Run",
-            options=run_options
+        run_df = pd.DataFrame(st.session_state['hp_run_data'])
+        
+        # Display run information with checkboxes
+        st.markdown("### 📊 Available Prediction Runs")
+        edited_df = st.data_editor(
+            run_df,
+            hide_index=True,
+            column_config={
+                '🔍 Select': st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select a run for analysis",
+                    default=False
+                ),
+                'Run ID': st.column_config.TextColumn(
+                    "Run ID",
+                    help="Unique identifier for the prediction run"
+                ),
+                'Model Name': st.column_config.TextColumn(
+                    "Model",
+                    help="Name of the model used for predictions"
+                ),
+                'Source Table': st.column_config.TextColumn(
+                    "Data Source",
+                    help="Source table used for predictions"
+                ),
+                'Period': st.column_config.TextColumn(
+                    "Period",
+                    help="Time period of predictions"
+                ),
+                'Predictions': st.column_config.NumberColumn(
+                    "Count",
+                    help="Number of predictions",
+                    format="%d"
+                ),
+                'Run Time': st.column_config.TextColumn(
+                    "Run Time",
+                    help="When the predictions were generated"
+                ),
+                'MAE': st.column_config.TextColumn(
+                    "MAE",
+                    help="Mean Absolute Error"
+                ),
+                'RMSE': st.column_config.TextColumn(
+                    "RMSE",
+                    help="Root Mean Square Error"
+                ),
+                'Direction Accuracy': st.column_config.TextColumn(
+                    "Dir. Acc",
+                    help="Direction Accuracy"
+                ),
+                'Max Streak': st.column_config.TextColumn(
+                    "Max Streak",
+                    help="Maximum Correct Predictions Streak"
+                )
+            },
+            key='hp_run_editor',
+            on_change=on_hp_run_selection_change
         )
-        
-        # Extract run_id from selection
-        selected_run_id = selected_option.split(' - ')[0]
-        
+
+        # Get selected run
+        selected_run_id = st.session_state['hp_selected_run']
+        if not selected_run_id:
+            st.info("Please select a run to analyze.")
+            return
+            
         # Get selected run metadata
         selected_run = next(run for run in runs if run['run_id'] == selected_run_id)
 
-        # Display run information
-        with st.expander("Run Information", expanded=False):
-            st.markdown("""
-                <style>
-                    .small-font {
-                        font-size: 14px;
-                    }
-                    .metric-label {
-                        font-size: 12px;
-                        color: #808495;
-                    }
-                    .metric-value {
-                        font-size: 16px;
-                    }
-                    .info-separator {
-                        margin: 0 15px;
-                        color: #808495;
-                    }
-                    .info-label {
-                        color: #808495;
-                    }
-                    .info-value {
-                        color: #FFFFFF;
-                    }
-                </style>
-            """, unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown('<p class="metric-label">Model</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="metric-value">{selected_run["model_name"]}</p>', unsafe_allow_html=True)
-            with col2:
-                st.markdown('<p class="metric-label">Data Source</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="metric-value">{selected_run["source_table"]}</p>', unsafe_allow_html=True)
-            with col3:
-                st.markdown('<p class="metric-label">Predictions</p>', unsafe_allow_html=True)
-                st.markdown(f'<p class="metric-value">{selected_run["prediction_count"]}</p>', unsafe_allow_html=True)
-            
-            run_time = pd.to_datetime(selected_run["run_timestamp"]).strftime("%Y-%m-%d %H:%M")
-            st.markdown(
-                f'<p class="small-font"><span class="info-label">Period:</span> <span class="info-value">{selected_run["start_date"]} to {selected_run["end_date"]}</span> <span class="info-separator">|</span> <span class="info-label">Run Time:</span> <span class="info-value">{run_time}</span></p>', 
-                unsafe_allow_html=True
-            )
-        
+        # Remove the Run Information expander since information is now in the table
+
         try:
             # Get total rows and calculate total pages
             total_rows = get_total_rows(db_path, selected_run_id)
